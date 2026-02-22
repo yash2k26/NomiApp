@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { View, Text, TouchableOpacity, LogBox } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useWalletStore } from './src/store/walletStore';
-import { usePetStore } from './src/store/petStore';
+import { usePetStore, hydratePetStore } from './src/store/petStore';
 import { WalletConnect } from './src/components';
 import { HomeScreen, ProfileScreen, MintScreen } from './src/screens';
 
@@ -61,8 +61,14 @@ function TabBar({ activeTab, onTabPress }: { activeTab: Tab; onTabPress: (tab: T
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('home');
+  const [hydrated, setHydrated] = useState(false);
   const connected = useWalletStore((s) => s.connected);
   const hasPet = usePetStore((s) => s.hasPet);
+
+  // Hydrate persisted pet state from AsyncStorage on launch
+  useEffect(() => {
+    hydratePetStore().finally(() => setHydrated(true));
+  }, []);
 
   const renderScreen = () => {
     switch (activeTab) {
@@ -72,6 +78,16 @@ export default function App() {
         return <ProfileScreen />;
     }
   };
+
+  if (!hydrated) {
+    return (
+      <SafeAreaProvider>
+        <SafeAreaView className="flex-1 bg-neutral-900 items-center justify-center" edges={['top']}>
+          <StatusBar style="light" />
+        </SafeAreaView>
+      </SafeAreaProvider>
+    );
+  }
 
   if (!connected) {
     return (
