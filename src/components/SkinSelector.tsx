@@ -9,8 +9,8 @@ interface SkinOption {
 }
 
 const SKINS: SkinOption[] = [
-  { id: 'default', name: 'Default', icon: '🐾', locked: false },
-  { id: 'headphones', name: 'Headphones', icon: '🎧', locked: false },
+  { id: 'default', name: 'Default', icon: '\u{1F43E}', locked: false },
+  { id: 'headphones', name: 'Headphones', icon: '\u{1F3A7}', locked: false },
 ];
 
 export function SkinSelector() {
@@ -18,16 +18,16 @@ export function SkinSelector() {
 
   return (
     <View className="px-5 mt-4">
-      <Text className="text-xs font-semibold text-neutral-400 tracking-wider mb-3">SKINS</Text>
-      
-      <ScrollView 
-        horizontal 
+      <Text className="text-xs font-semibold text-violet-400 tracking-wider mb-3">SKINS</Text>
+
+      <ScrollView
+        horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ gap: 12 }}
       >
         {SKINS.map((skinOption) => {
           const isSelected = skin === skinOption.id;
-          
+
           return (
             <TouchableOpacity
               key={skinOption.id}
@@ -35,32 +35,41 @@ export function SkinSelector() {
               activeOpacity={0.7}
               disabled={skinOption.locked}
               className={`w-20 items-center py-3 px-2 rounded-2xl border-2 ${
-                isSelected 
-                  ? 'bg-violet-500/20 border-violet-500' 
-                  : 'bg-neutral-800 border-transparent'
+                isSelected
+                  ? 'bg-violet-100 border-violet-400'
+                  : 'bg-white/70 border-transparent'
               } ${skinOption.locked ? 'opacity-50' : ''}`}
+              style={{
+                shadowColor: isSelected ? '#8b5cf6' : '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: isSelected ? 0.15 : 0.05,
+                shadowRadius: 6,
+                elevation: isSelected ? 3 : 1,
+              }}
             >
-              <View className="w-12 h-12 bg-neutral-700 rounded-full items-center justify-center mb-2">
+              <View className={`w-12 h-12 rounded-full items-center justify-center mb-2 ${
+                isSelected ? 'bg-violet-200' : 'bg-violet-50'
+              }`}>
                 <Text className="text-2xl">{skinOption.icon}</Text>
               </View>
               <Text className={`text-xs font-medium text-center ${
-                isSelected ? 'text-violet-400' : 'text-neutral-300'
+                isSelected ? 'text-violet-600' : 'text-neutral-500'
               }`}>
                 {skinOption.name}
               </Text>
               {skinOption.locked && (
-                <Text className="text-[10px] text-neutral-500 mt-1">🔒</Text>
+                <Text className="text-[10px] text-neutral-400 mt-1">{'\u{1F512}'}</Text>
               )}
             </TouchableOpacity>
           );
         })}
-        
+
         {/* Coming Soon placeholder */}
-        <View className="w-20 items-center py-3 px-2 rounded-2xl bg-neutral-800/50 border-2 border-dashed border-neutral-700">
-          <View className="w-12 h-12 bg-neutral-700/50 rounded-full items-center justify-center mb-2">
-            <Text className="text-2xl opacity-50">+</Text>
+        <View className="w-20 items-center py-3 px-2 rounded-2xl bg-white/40 border-2 border-dashed border-violet-200">
+          <View className="w-12 h-12 bg-violet-50/50 rounded-full items-center justify-center mb-2">
+            <Text className="text-2xl opacity-40">+</Text>
           </View>
-          <Text className="text-xs font-medium text-neutral-500 text-center">Soon</Text>
+          <Text className="text-xs font-medium text-violet-300 text-center">Soon</Text>
         </View>
       </ScrollView>
     </View>

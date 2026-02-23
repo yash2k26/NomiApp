@@ -1,7 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, AppState, Animated } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { usePetStore, getPetNeeds } from '../store/petStore';
 import { PetRenderer, CareActions, ReflectionModal, SkinSelector } from '../components';
+
+const FALLING_DURATION = 3000;
 
 function NeedBubble({ message }: { message: string }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -25,34 +28,27 @@ function NeedBubble({ message }: { message: string }) {
 
   return (
     <Animated.View
-      style={{
-        opacity: fadeAnim,
-        transform: [{ scale: bounceAnim }],
-      }}
-      className="absolute top-2 left-0 right-0 z-10 items-center"
+      style={{ opacity: fadeAnim, transform: [{ scale: bounceAnim }] }}
+      className="absolute top-4 left-0 right-0 z-20 items-center"
     >
-      <View className="bg-white/95 px-5 py-3 rounded-2xl max-w-[85%]"
+      <View
+        className="bg-white px-5 py-3 rounded-2xl max-w-[85%]"
         style={{
-          shadowColor: '#000',
+          shadowColor: '#c084fc',
           shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.2,
-          shadowRadius: 8,
-          elevation: 6,
+          shadowOpacity: 0.25,
+          shadowRadius: 12,
+          elevation: 8,
         }}
       >
-        <Text className="text-sm font-semibold text-neutral-800 text-center">{message}</Text>
+        <Text className="text-sm font-semibold text-neutral-700 text-center">{message}</Text>
       </View>
-      {/* Little triangle pointing down */}
       <View
         style={{
-          width: 0,
-          height: 0,
-          borderLeftWidth: 8,
-          borderRightWidth: 8,
-          borderTopWidth: 8,
-          borderLeftColor: 'transparent',
-          borderRightColor: 'transparent',
-          borderTopColor: 'rgba(255,255,255,0.95)',
+          width: 0, height: 0,
+          borderLeftWidth: 8, borderRightWidth: 8, borderTopWidth: 8,
+          borderLeftColor: 'transparent', borderRightColor: 'transparent',
+          borderTopColor: '#ffffff',
           marginTop: -1,
         }}
       />
@@ -60,14 +56,61 @@ function NeedBubble({ message }: { message: string }) {
   );
 }
 
+function MoodBadge({ moodText, isExcited, isUrgent }: { moodText: string; isExcited: boolean; isUrgent: boolean }) {
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (isExcited || isUrgent) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 1.08, duration: 600, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
+        ])
+      ).start();
+    } else {
+      pulseAnim.setValue(1);
+    }
+  }, [isExcited, isUrgent]);
+
+  const bgColor = isExcited ? 'bg-amber-100' : isUrgent ? 'bg-red-100' : 'bg-violet-100';
+  const textColor = isExcited ? 'text-amber-600' : isUrgent ? 'text-red-500' : 'text-violet-600';
+  const dotColor = isExcited ? 'bg-amber-400' : isUrgent ? 'bg-red-400' : 'bg-emerald-400';
+
+  return (
+    <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+      <View className={`flex-row items-center px-4 py-2 rounded-full ${bgColor}`}>
+        <View className={`w-2 h-2 rounded-full mr-2 ${dotColor}`} />
+        <Text className={`text-sm font-semibold ${textColor}`}>{moodText}</Text>
+      </View>
+    </Animated.View>
+  );
+}
+
+function QuickTip() {
+  const tips = [
+    'Double-tap Nomi to see a silly reaction!',
+    'Swipe to rotate your pet in 3D',
+    'Visit daily to build your streak!',
+    'Reflect with Nomi to boost happiness',
+    'Keep all stats above 95% for a surprise!',
+  ];
+  const [tip] = useState(() => tips[Math.floor(Math.random() * tips.length)]);
+
+  return (
+    <View className="mx-5 mt-2 mb-1">
+      <Text className="text-xs text-violet-400 text-center italic">{tip}</Text>
+    </View>
+  );
+}
+
 export function HomeScreen() {
   const [reflectionModalVisible, setReflectionModalVisible] = useState(false);
-  const { name, skin, hunger, happiness, energy, getMoodText, getMood, tick, isExcitedBurst, clearExcitedBurst } = usePetStore();
+  const [isFalling, setIsFalling] = useState(false);
+  const { name, skin, hunger, happiness, energy, getMoodText, getMood, tick, isExcitedBurst, clearExcitedBurst, streakDays } = usePetStore();
   const mood = getMood();
   const moodText = getMoodText();
   const needMessage = getPetNeeds(hunger, happiness, energy);
 
-  // Run stat decay on mount and whenever app returns to foreground
   useEffect(() => {
     tick();
     const sub = AppState.addEventListener('change', (state) => {
@@ -76,75 +119,108 @@ export function HomeScreen() {
     return () => sub.remove();
   }, []);
 
-  // Excited burst timer — show excited.glb for 5 seconds then revert
   useEffect(() => {
     if (!isExcitedBurst) return;
-    const timer = setTimeout(() => {
-      clearExcitedBurst();
-    }, 5000);
+    const timer = setTimeout(() => clearExcitedBurst(), 5000);
     return () => clearTimeout(timer);
   }, [isExcitedBurst]);
 
+  const handleDoubleTap = useCallback(() => {
+    if (isFalling) return;
+    setIsFalling(true);
+  }, [isFalling]);
+
+  useEffect(() => {
+    if (!isFalling) return;
+    const timer = setTimeout(() => setIsFalling(false), FALLING_DURATION);
+    return () => clearTimeout(timer);
+  }, [isFalling]);
+
   return (
-    <View className="flex-1 bg-neutral-900">
+    <View className="flex-1">
+      {/* Full-screen playful gradient background */}
+      <LinearGradient
+        colors={['#f0e6ff', '#fce7f3', '#fef3c7', '#e0f2fe']}
+        locations={[0, 0.35, 0.65, 1]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        className="absolute inset-0"
+      />
+
       <ScrollView
         className="flex-1"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 24 }}
+        contentContainerStyle={{ paddingBottom: 32 }}
+        bounces={false}
       >
-        {/* SECTION 1: Pet Hero Section */}
-        <View className="h-80">
-          {/* Speech bubble when pet needs something */}
-          {needMessage && !isExcitedBurst && (
-            <NeedBubble message={needMessage} />
+        {/* ===== HERO: Pet Display ===== */}
+        <View style={{ height: 380 }}>
+          {needMessage && !isExcitedBurst && <NeedBubble message={needMessage} />}
+          <PetRenderer skin={skin} mood={mood} isFalling={isFalling} onDoubleTap={handleDoubleTap} />
+
+          {/* Soft bottom fade */}
+          <LinearGradient
+            colors={['transparent', 'rgba(240,230,255,0.9)']}
+            style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 50, zIndex: 1 }}
+          />
+        </View>
+
+        {/* ===== Pet Identity ===== */}
+        <View className="items-center -mt-6 mb-5 z-10">
+          <Text className="text-3xl font-extrabold text-violet-900 tracking-wide mb-2">{name}</Text>
+          <MoodBadge moodText={moodText} isExcited={isExcitedBurst} isUrgent={!!needMessage} />
+          {streakDays > 0 && (
+            <View className="flex-row items-center mt-3 bg-orange-100 px-4 py-1.5 rounded-full">
+              <Text className="text-sm">{'\u{1F525}'}</Text>
+              <Text className="text-sm font-bold text-orange-500 ml-1.5">
+                {streakDays > 1 ? `${streakDays}-day streak` : 'Day 1'}
+              </Text>
+            </View>
           )}
-          <PetRenderer skin={skin} mood={mood} />
         </View>
 
-        {/* Pet Name & Mood */}
-        <View className="items-center -mt-4 mb-4">
-          <Text className="text-2xl font-bold text-white mb-1">{name}</Text>
-          <View className={`flex-row items-center px-4 py-2 rounded-full ${
-            isExcitedBurst ? 'bg-yellow-500/20' :
-            needMessage ? 'bg-red-500/15' :
-            'bg-neutral-800/60'
-          }`}>
-            <Text className={`text-sm ${
-              isExcitedBurst ? 'text-yellow-300 font-bold' :
-              needMessage ? 'text-red-300' :
-              'text-neutral-300'
-            }`}>{moodText}</Text>
-          </View>
-        </View>
+        <QuickTip />
 
-        {/* SECTION 2 & 3: Pet Status & Care Actions */}
+        {/* ===== Stats & Actions ===== */}
         <CareActions />
 
-        {/* SECTION 4: Self Reflection */}
+        {/* ===== Reflection Card ===== */}
         <View className="px-5 mt-6">
-          <View className="bg-violet-500/10 rounded-2xl p-5 border border-violet-500/30">
-            <View className="flex-row items-center mb-3">
-              <Text className="text-2xl mr-3">{'\u{1FA9E}'}</Text>
-              <View>
-                <Text className="text-base font-semibold text-white">Reflect with {name}</Text>
-                <Text className="text-xs text-neutral-400">Share how you're feeling today</Text>
-              </View>
-            </View>
-            <TouchableOpacity
-              onPress={() => setReflectionModalVisible(true)}
-              activeOpacity={0.8}
-              className="bg-violet-500 py-3 rounded-xl items-center mt-2"
+          <TouchableOpacity
+            onPress={() => setReflectionModalVisible(true)}
+            activeOpacity={0.85}
+          >
+            <LinearGradient
+              colors={['#ede9fe', '#fae8ff']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              className="rounded-2xl p-5"
+              style={{
+                shadowColor: '#c084fc',
+                shadowOffset: { width: 0, height: 3 },
+                shadowOpacity: 0.15,
+                shadowRadius: 8,
+                elevation: 3,
+              }}
             >
-              <Text className="text-white font-bold">Reflect</Text>
-            </TouchableOpacity>
-          </View>
+              <View className="flex-row items-center">
+                <View className="w-11 h-11 rounded-xl bg-violet-200 items-center justify-center mr-4">
+                  <Text className="text-xl">{'\u{1FA9E}'}</Text>
+                </View>
+                <View className="flex-1">
+                  <Text className="text-base font-bold text-violet-800">Reflect with {name}</Text>
+                  <Text className="text-xs text-violet-400 mt-0.5">Share how you're feeling today</Text>
+                </View>
+                <Text className="text-violet-300 text-lg">{'\u{203A}'}</Text>
+              </View>
+            </LinearGradient>
+          </TouchableOpacity>
         </View>
 
-        {/* SECTION 5: Skin Quick Access */}
+        {/* ===== Skin Selector ===== */}
         <SkinSelector />
       </ScrollView>
 
-      {/* Reflection Modal */}
       <ReflectionModal
         visible={reflectionModalVisible}
         onClose={() => setReflectionModalVisible(false)}

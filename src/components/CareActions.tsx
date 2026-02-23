@@ -1,29 +1,60 @@
-import { View, Text, TouchableOpacity } from 'react-native';
+import { useRef, useEffect } from 'react';
+import { View, Text, TouchableOpacity, Animated } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { usePetStore } from '../store/petStore';
 
 interface StatBarProps {
   label: string;
   value: number;
   icon: string;
-  color: string;
-  bgColor: string;
+  gradientColors: [string, string];
+  trackColor: string;
 }
 
-function StatBar({ label, value, icon, color, bgColor }: StatBarProps) {
+function StatBar({ label, value, icon, gradientColors, trackColor }: StatBarProps) {
+  const widthAnim = useRef(new Animated.Value(value)).current;
   const isLow = value < 25;
+
+  useEffect(() => {
+    Animated.spring(widthAnim, {
+      toValue: value,
+      friction: 8,
+      tension: 40,
+      useNativeDriver: false,
+    }).start();
+  }, [value]);
+
   return (
-    <View className="flex-row items-center mb-3">
-      <Text className="text-base mr-2">{icon}</Text>
-      <Text className="text-sm font-medium text-white w-20">{label}</Text>
-      <View className="flex-1 h-3 bg-neutral-700 rounded-full overflow-hidden mx-3">
-        <View
-          className={`h-full rounded-full ${isLow ? 'bg-red-500' : bgColor}`}
-          style={{ width: `${value}%` }}
-        />
+    <View className="mb-3.5">
+      <View className="flex-row items-center justify-between mb-1.5">
+        <View className="flex-row items-center">
+          <Text className="text-sm mr-1.5">{icon}</Text>
+          <Text className="text-xs font-semibold text-neutral-500 tracking-wide">{label}</Text>
+        </View>
+        <Text className={`text-xs font-bold ${isLow ? 'text-red-500' : 'text-neutral-500'}`}>
+          {Math.round(value)}
+        </Text>
       </View>
-      <Text className={`text-sm font-bold w-12 text-right ${isLow ? 'text-red-400' : color}`}>
-        {Math.round(value)}%
-      </Text>
+      <View className={`h-3 rounded-full overflow-hidden ${trackColor}`}>
+        <Animated.View
+          style={{
+            height: '100%',
+            borderRadius: 999,
+            width: widthAnim.interpolate({
+              inputRange: [0, 100],
+              outputRange: ['0%', '100%'],
+              extrapolate: 'clamp',
+            }),
+          }}
+        >
+          <LinearGradient
+            colors={isLow ? ['#ef4444', '#f87171'] : gradientColors}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={{ flex: 1, borderRadius: 999 }}
+          />
+        </Animated.View>
+      </View>
     </View>
   );
 }
@@ -31,101 +62,121 @@ function StatBar({ label, value, icon, color, bgColor }: StatBarProps) {
 interface ActionButtonProps {
   icon: string;
   label: string;
-  bgColor: string;
+  gradientColors: [string, string];
   onPress: () => void;
   disabled?: boolean;
 }
 
-function ActionButton({ icon, label, bgColor, onPress, disabled }: ActionButtonProps) {
+function ActionButton({ icon, label, gradientColors, onPress, disabled }: ActionButtonProps) {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, { toValue: 0.92, friction: 5, useNativeDriver: true }).start();
+  };
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, { toValue: 1, friction: 5, useNativeDriver: true }).start();
+  };
+
   return (
-    <TouchableOpacity
-      onPress={onPress}
-      disabled={disabled}
-      activeOpacity={0.7}
-      className={`flex-1 items-center py-4 rounded-2xl ${bgColor} ${disabled ? 'opacity-40' : ''}`}
-    >
-      <Text className="text-2xl mb-1">{icon}</Text>
-      <Text className="text-sm font-bold text-white">{label}</Text>
-    </TouchableOpacity>
+    <Animated.View style={{ flex: 1, transform: [{ scale: scaleAnim }], opacity: disabled ? 0.4 : 1 }}>
+      <TouchableOpacity
+        onPress={onPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        disabled={disabled}
+        activeOpacity={0.9}
+      >
+        <LinearGradient
+          colors={gradientColors}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          className="items-center py-4 rounded-2xl"
+          style={{
+            shadowColor: gradientColors[0],
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.25,
+            shadowRadius: 8,
+            elevation: 4,
+          }}
+        >
+          <Text className="text-2xl mb-1">{icon}</Text>
+          <Text className="text-xs font-bold text-white tracking-wide">{label}</Text>
+        </LinearGradient>
+      </TouchableOpacity>
+    </Animated.View>
   );
 }
 
 export function CareActions() {
-  const { hunger, happiness, energy, feedPet, playWithPet, restPet, streakDays } = usePetStore();
-
+  const { hunger, happiness, energy, feedPet, playWithPet, restPet } = usePetStore();
   const needsAttention = hunger < 25 || happiness < 25 || energy < 25;
 
   return (
-    <View className="px-5">
-      {/* Urgency alert when stats are critically low */}
+    <View className="px-5 mt-2">
+      {/* Urgency alert */}
       {needsAttention && (
-        <View className="bg-red-500/15 border border-red-500/30 rounded-2xl px-4 py-3 mb-4 flex-row items-center">
+        <View className="bg-red-50 border border-red-200 rounded-2xl px-4 py-3 mb-4 flex-row items-center">
           <Text className="text-lg mr-2">{'\u{1F6A8}'}</Text>
-          <Text className="text-sm font-semibold text-red-400 flex-1">
+          <Text className="text-sm font-semibold text-red-500 flex-1">
             Nomi needs you! Take care of your pet.
           </Text>
         </View>
       )}
 
-      {/* Status Section */}
-      <View className="bg-neutral-800/80 rounded-2xl p-4 mb-4">
-        <View className="flex-row items-center justify-between mb-3">
-          <Text className="text-xs font-semibold text-neutral-400 tracking-wider">PET STATUS</Text>
-          {streakDays > 0 && (
-            <View className="flex-row items-center bg-orange-500/15 px-3 py-1 rounded-full">
-              <Text className="text-xs">{'\u{1F525}'}</Text>
-              <Text className="text-xs font-bold text-orange-400 ml-1">
-                {streakDays > 1 ? `${streakDays}-day streak` : 'Day 1'}
-              </Text>
-            </View>
-          )}
-        </View>
+      {/* Stats Card */}
+      <View
+        className="bg-white/80 rounded-2xl p-5 mb-5"
+        style={{
+          shadowColor: '#c084fc',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 10,
+          elevation: 3,
+        }}
+      >
         <StatBar
-          label="Hunger"
+          label="HUNGER"
           value={hunger}
           icon={'\u{1F356}'}
-          color="text-orange-400"
-          bgColor="bg-orange-500"
+          gradientColors={['#f97316', '#fdba74']}
+          trackColor="bg-orange-100"
         />
         <StatBar
-          label="Happiness"
+          label="HAPPINESS"
           value={happiness}
           icon={'\u{1F496}'}
-          color="text-pink-400"
-          bgColor="bg-pink-500"
+          gradientColors={['#ec4899', '#f9a8d4']}
+          trackColor="bg-pink-100"
         />
         <StatBar
-          label="Energy"
+          label="ENERGY"
           value={energy}
           icon={'\u{26A1}'}
-          color="text-emerald-400"
-          bgColor="bg-emerald-500"
+          gradientColors={['#10b981', '#6ee7b7']}
+          trackColor="bg-emerald-100"
         />
-        {streakDays === 0 && (
-          <Text className="text-xs text-neutral-500 mt-1">Visit daily to build a streak!</Text>
-        )}
       </View>
 
-      {/* Care Actions */}
+      {/* Action Buttons */}
       <View className="flex-row gap-3">
         <ActionButton
           icon={'\u{1F355}'}
           label="Feed"
-          bgColor="bg-orange-500"
+          gradientColors={['#fb923c', '#fdba74']}
           onPress={feedPet}
           disabled={hunger >= 100}
         />
         <ActionButton
           icon={'\u{1F3AE}'}
           label="Play"
-          bgColor="bg-pink-500"
+          gradientColors={['#f472b6', '#f9a8d4']}
           onPress={playWithPet}
           disabled={energy < 15}
         />
         <ActionButton
           icon={'\u{1F634}'}
           label="Rest"
-          bgColor="bg-emerald-500"
+          gradientColors={['#34d399', '#6ee7b7']}
           onPress={restPet}
           disabled={energy >= 100}
         />

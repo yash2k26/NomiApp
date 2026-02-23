@@ -2,8 +2,10 @@ import React, { useRef, memo, useState, Suspense, useEffect, useCallback, useMem
 import { View, Text, Platform, LogBox, ActivityIndicator } from 'react-native';
 import { Canvas, useFrame } from '@react-three/fiber/native';
 import { useGLTF, OrbitControls } from '@react-three/drei/native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import * as THREE from 'three';
 import type { GLTF } from 'three-stdlib';
+import * as Haptics from 'expo-haptics';
 import { usePetStore, type PetMood, getModelForMood } from '../store/petStore';
 
 LogBox.ignoreLogs(['EXGL: gl.pixelStorei()']);
@@ -12,12 +14,13 @@ LogBox.ignoreLogs(['EXGL: gl.pixelStorei()']);
 const MODEL_BREATHING = require('../../assets/pets/breathing.glb');
 const MODEL_SAD = require('../../assets/pets/Sad.glb');
 const MODEL_EXCITED = require('../../assets/pets/Excited.glb');
+const MODEL_FALLINGDOWN = require('../../assets/pets/fallingdown.glb');
 
-// Preload all models at module level so they're cached in memory
-// This prevents lag when switching moods
+// Preload all optimized models at module level.
 useGLTF.preload(MODEL_BREATHING);
 useGLTF.preload(MODEL_SAD);
 useGLTF.preload(MODEL_EXCITED);
+useGLTF.preload(MODEL_FALLINGDOWN);
 
 type GLTFResult = GLTF & {
   nodes: Record<string, THREE.Object3D>;
@@ -66,18 +69,14 @@ function PetModel({ skin, modelAsset }: PetModelProps) {
   const energy = usePetStore((s) => s.energy);
   const animSpeed = 0.5 + (energy / 100) * 0.5;
 
-  // Build the effective animation cycle based on what the model actually has
   const effectiveCycle = useMemo(() => {
     if (!animations || animations.length === 0) return [];
     const animNames = new Set(animations.map((c) => c.name));
-    // Try curated cycle first, filtering to available animations
     const filtered = ANIMATION_CYCLE.filter((a) => animNames.has(a.name));
     if (filtered.length > 0) return filtered;
-    // Fallback: cycle through all available animations with longer durations
     return animations.map((clip) => ({ name: clip.name, duration: 4000 }));
   }, [animations]);
 
-  // Setup animation mixer
   useEffect(() => {
     if (!animations || animations.length === 0) {
       setIsReady(true);
@@ -88,34 +87,24 @@ function PetModel({ skin, modelAsset }: PetModelProps) {
     mixerRef.current = mixer;
 
     const actions: Record<string, THREE.AnimationAction> = {};
-
     animations.forEach((clip: THREE.AnimationClip) => {
       const action = mixer.clipAction(clip);
       actions[clip.name] = action;
     });
-
     actionsRef.current = actions;
 
-    // Start first animation
     const idleAction = actions['CharacterArmature|Idle'] || actions['Armature|Idle'] || actions['Idle'];
     if (idleAction) {
       idleAction.play();
     } else {
-      // For Mixamo models, just play the first animation
       const firstAnim = animations[0];
-      if (firstAnim) {
-        actions[firstAnim.name]?.play();
-      }
+      if (firstAnim) actions[firstAnim.name]?.play();
     }
 
     setIsReady(true);
-
-    return () => {
-      mixer.stopAllAction();
-    };
+    return () => { mixer.stopAllAction(); };
   }, [scene, animations]);
 
-  // Handle animation transitions
   const fadeToAction = useCallback((actionName: string) => {
     const actions = actionsRef.current;
     const newAction = actions[actionName];
@@ -132,10 +121,8 @@ function PetModel({ skin, modelAsset }: PetModelProps) {
     });
   }, []);
 
-  // Animation cycling
   useEffect(() => {
     if (!isReady || effectiveCycle.length === 0) return;
-
     const currentCycle = effectiveCycle[cycleIndex % effectiveCycle.length];
 
     if (actionsRef.current[currentCycle.name]) {
@@ -153,14 +140,9 @@ function PetModel({ skin, modelAsset }: PetModelProps) {
   }, [cycleIndex, fadeToAction, isReady, effectiveCycle]);
 
   useFrame((state, delta) => {
-    if (mixerRef.current) {
-      mixerRef.current.update(delta);
-    }
-
+    if (mixerRef.current) mixerRef.current.update(delta);
     if (!groupRef.current) return;
     const t = state.clock.getElapsedTime();
-
-    // Subtle breathing effect
     const breathe = 1 + Math.sin(t * animSpeed * 1.5) * 0.008;
     groupRef.current.scale.set(breathe, breathe, breathe);
   });
@@ -175,7 +157,6 @@ function PetModel({ skin, modelAsset }: PetModelProps) {
 function FallbackView() {
   const getMood = usePetStore((s) => s.getMood);
   const mood = getMood();
-
   const moodEmojis: Record<PetMood, string> = {
     excited: '\u{1F929}',
     happy: '\u{1F60A}',
@@ -186,9 +167,9 @@ function FallbackView() {
   };
 
   return (
-    <View className="flex-1 items-center justify-center bg-black">
-      <View className="absolute w-48 h-48 rounded-full bg-violet-500/20" />
-      <View className="w-32 h-32 bg-neutral-800 rounded-full items-center justify-center">
+    <View className="flex-1 items-center justify-center bg-violet-50">
+      <View className="absolute w-48 h-48 rounded-full bg-violet-200/40" />
+      <View className="w-32 h-32 bg-white rounded-full items-center justify-center shadow-lg">
         <Text className="text-6xl">{'\u{1F43E}'}</Text>
       </View>
       <Text className="text-2xl mt-3">{moodEmojis[mood]}</Text>
@@ -196,10 +177,11 @@ function FallbackView() {
   );
 }
 
-function LoadingView() {
+function ModelLoadingFallback() {
   return (
-    <View className="flex-1 items-center justify-center bg-black">
+    <View className="absolute inset-0 items-center justify-center z-10 bg-violet-50">
       <ActivityIndicator size="large" color="#8b5cf6" />
+      <Text className="text-violet-400 text-xs mt-3">Loading Nomi...</Text>
     </View>
   );
 }
@@ -207,60 +189,80 @@ function LoadingView() {
 interface PetRendererProps {
   skin?: string;
   mood: PetMood;
+  isFalling?: boolean;
+  onDoubleTap?: () => void;
 }
 
-export const PetRenderer = memo(function PetRenderer({ skin, mood }: PetRendererProps) {
-  if (Platform.OS === 'web') {
-    return <FallbackView />;
+export const PetRenderer = memo(function PetRenderer({ skin, mood, isFalling, onDoubleTap }: PetRendererProps) {
+  const [canvasReady, setCanvasReady] = useState(false);
+
+  if (Platform.OS === 'web') return <FallbackView />;
+
+  // Priority: falling > excited burst > mood-based model
+  // excited burst is already encoded in mood via isExcitedBurst → 'excited'
+  // but since we removed 'excited' from MOOD_MODELS, we handle it here
+  const isExcitedBurst = usePetStore((s) => s.isExcitedBurst);
+
+  let modelAsset: any;
+  if (isFalling) {
+    modelAsset = MODEL_FALLINGDOWN;
+  } else if (isExcitedBurst) {
+    modelAsset = MODEL_EXCITED;
+  } else {
+    modelAsset = getModelForMood(mood); // breathing.glb (default) or Sad.glb
   }
 
-  const modelAsset = getModelForMood(mood);
-
-  // Key by the actual model asset, NOT by mood name.
-  // Multiple moods can share the same GLB (e.g. hungry/tired/sad all use Sad.glb)
-  // This prevents unnecessary remounts when mood changes but model stays the same.
   const modelKey = modelAsset === MODEL_SAD ? 'sad' :
-                   modelAsset === MODEL_EXCITED ? 'excited' : 'default';
+                   modelAsset === MODEL_EXCITED ? 'excited' :
+                   modelAsset === MODEL_FALLINGDOWN ? 'falling' : 'default';
+
+  // Double-tap gesture via RNGH — only fires on taps, lets drags pass to OrbitControls
+  const doubleTapGesture = Gesture.Tap()
+    .numberOfTaps(2)
+    .maxDuration(300)
+    .onEnd((_event, success) => {
+      if (success) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        onDoubleTap?.();
+      }
+    })
+    .runOnJS(true);
 
   return (
-    <View className="flex-1 bg-black">
-      <View
-        className="absolute rounded-full bg-violet-500/15"
-        style={{
-          width: 160,
-          height: 160,
-          top: '35%',
-          left: '50%',
-          marginLeft: -80,
-        }}
-      />
-
-      <Canvas
-        camera={{ position: [0, 1, 5], fov: 50 }}
-        gl={{
-          antialias: false,
-          powerPreference: 'low-power',
-        }}
-      >
-        <color attach="background" args={['#000000']} />
-
-        <ambientLight intensity={1.5} />
-        <directionalLight position={[5, 10, 5]} intensity={1.5} />
-        <directionalLight position={[-5, 5, -5]} intensity={0.8} />
-        <pointLight position={[0, 5, 5]} intensity={1} color="#ffffff" />
-
-        <OrbitControls
-          enableZoom={false}
-          enablePan={false}
-          minPolarAngle={Math.PI / 4}
-          maxPolarAngle={Math.PI / 1.5}
-          rotateSpeed={0.5}
+    <GestureDetector gesture={doubleTapGesture}>
+      <View className="flex-1 bg-violet-50">
+        {/* Soft glow behind pet */}
+        <View
+          className="absolute rounded-full bg-pink-200/30"
+          style={{ width: 220, height: 220, top: '28%', left: '50%', marginLeft: -110 }}
         />
 
-        <Suspense fallback={null}>
-          <PetModel key={modelKey} modelAsset={modelAsset} skin={skin} />
-        </Suspense>
-      </Canvas>
-    </View>
+        {!canvasReady && <ModelLoadingFallback />}
+
+        <Canvas
+          camera={{ position: [0, 1, 5], fov: 50 }}
+          gl={{ antialias: false, powerPreference: 'low-power' }}
+          onCreated={() => setCanvasReady(true)}
+        >
+          <color attach="background" args={['#f5f0ff']} />
+          <ambientLight intensity={2} />
+          <directionalLight position={[5, 10, 5]} intensity={1.8} />
+          <directionalLight position={[-5, 5, -5]} intensity={1} />
+          <pointLight position={[0, 5, 5]} intensity={1.2} color="#ffffff" />
+
+          <OrbitControls
+            enableZoom={false}
+            enablePan={false}
+            minPolarAngle={Math.PI / 4}
+            maxPolarAngle={Math.PI / 1.5}
+            rotateSpeed={0.5}
+          />
+
+          <Suspense fallback={null}>
+            <PetModel key={modelKey} modelAsset={modelAsset} skin={skin} />
+          </Suspense>
+        </Canvas>
+      </View>
+    </GestureDetector>
   );
 });

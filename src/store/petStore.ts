@@ -8,9 +8,10 @@ export type PetSkin = 'default' | 'headphones';
 // breathing.glb = normal/default state
 // Sad.glb = any stat < 50%
 // Excited.glb = temporary burst when all stats hit 95%+
+// Only sad-family moods get a different model. Everything else → breathing.glb (default).
+// Excited.glb and fallingdown.glb are event-driven overrides handled in PetRenderer.
 const MOOD_MODELS: Record<string, any> = {
   sad: require('../../assets/pets/Sad.glb'),
-  excited: require('../../assets/pets/Excited.glb'),
   hungry: require('../../assets/pets/Sad.glb'),
   tired: require('../../assets/pets/Sad.glb'),
 };
@@ -96,8 +97,8 @@ function generateMintAddress(): string {
 }
 
 function computeMood(hunger: number, happiness: number, energy: number, isExcitedBurst: boolean): PetMood {
-  // Excited: either all stats maxed OR burst timer still active
-  if (isExcitedBurst || (hunger >= 95 && happiness >= 95 && energy >= 95)) return 'excited';
+  // Excited ONLY during the one-shot burst (triggered when all stats first cross 95%)
+  if (isExcitedBurst) return 'excited';
   // Any stat below 50% → sad model
   if (hunger < 50 || happiness < 50 || energy < 50) {
     if (hunger < 30) return 'hungry';
