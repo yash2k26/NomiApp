@@ -64,6 +64,7 @@ interface PetState {
   lastActiveDate: string;
   streakDays: number;
   isExcitedBurst: boolean; // temporary excited state
+  excitedPlayedAt: number; // timestamp of last excited burst (cooldown tracking)
 }
 
 interface PetActions {
@@ -158,8 +159,14 @@ export async function hydratePetStore() {
 
 // --- Helper: check if all stats are maxed and trigger excited burst ---
 
+// Triggers excited burst when all three stats are nearly maxed (95%+).
 function checkExcitedTrigger(state: PetStore) {
-  if (!state.isExcitedBurst && state.hunger >= 95 && state.happiness >= 95 && state.energy >= 95) {
+  if (
+    !state.isExcitedBurst &&
+    state.hunger >= 95 &&
+    state.happiness >= 95 &&
+    state.energy >= 95
+  ) {
     state.triggerExcitedBurst();
   }
 }
@@ -179,9 +186,10 @@ export const usePetStore = create<PetStore>((set, get) => ({
   lastActiveDate: '',
   streakDays: 0,
   isExcitedBurst: false,
+  excitedPlayedAt: 0,
 
   triggerExcitedBurst: () => {
-    set({ isExcitedBurst: true });
+    set({ isExcitedBurst: true, excitedPlayedAt: Date.now() });
   },
 
   clearExcitedBurst: () => {
@@ -284,6 +292,7 @@ export const usePetStore = create<PetStore>((set, get) => ({
       lastActiveDate: '',
       streakDays: 0,
       isExcitedBurst: false,
+      excitedPlayedAt: 0,
     });
     savePetState(get());
   },

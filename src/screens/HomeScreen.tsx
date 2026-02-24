@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, AppState, Animated } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, AppState, Animated, GestureResponderEvent } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
 import { usePetStore, getPetNeeds } from '../store/petStore';
-import { PetRenderer, CareActions, ReflectionModal, SkinSelector } from '../components';
+import { PetRenderer, CareActions, ReflectionModal, SkinSelector, type ActiveModel } from '../components';
 
 const FALLING_DURATION = 3000;
 
@@ -106,11 +107,22 @@ function QuickTip() {
 export function HomeScreen() {
   const [reflectionModalVisible, setReflectionModalVisible] = useState(false);
   const [isFalling, setIsFalling] = useState(false);
-  const { name, skin, hunger, happiness, energy, getMoodText, getMood, tick, isExcitedBurst, clearExcitedBurst, streakDays } = usePetStore();
+  const { name, hunger, happiness, energy, getMoodText, getMood, tick, isExcitedBurst, clearExcitedBurst, triggerExcitedBurst, streakDays } = usePetStore();
   const mood = getMood();
   const moodText = getMoodText();
   const needMessage = getPetNeeds(hunger, happiness, energy);
 
+  // Compute which model to show — priority: falling > excited > sad > breathing
+  const anySadStat = hunger < 50 || happiness < 50 || energy < 50;
+  const activeModel: ActiveModel = isFalling
+    ? 'falling'
+    : isExcitedBurst
+      ? 'excited'
+      : anySadStat
+        ? 'sad'
+        : 'breathing';
+
+  // ── Stat decay on mount & foreground ──
   useEffect(() => {
     tick();
     const sub = AppState.addEventListener('change', (state) => {
@@ -119,17 +131,49 @@ export function HomeScreen() {
     return () => sub.remove();
   }, []);
 
+  // ── Trigger excited burst when all stats hit 95%+ (covers hydration & live updates) ──
+  useEffect(() => {
+    if (!isExcitedBurst && hunger >= 95 && happiness >= 95 && energy >= 95) {
+      triggerExcitedBurst();
+    }
+  }, [hunger, happiness, energy, isExcitedBurst]);
+
+  // ── Auto-clear excited burst after 4 seconds ──
   useEffect(() => {
     if (!isExcitedBurst) return;
-    const timer = setTimeout(() => clearExcitedBurst(), 5000);
+    const timer = setTimeout(() => clearExcitedBurst(), 4000);
     return () => clearTimeout(timer);
   }, [isExcitedBurst]);
 
-  const handleDoubleTap = useCallback(() => {
-    if (isFalling) return;
-    setIsFalling(true);
+
+  // ── Double-tap detection via capture phase ──
+  // onTouchStartCapture fires on the parent BEFORE the GL surface can eat the event.
+  // This is the only reliable way to detect taps over a Canvas on Android.
+  const lastTapRef = useRef(0);
+  const lastTapXRef = useRef(0);
+  const lastTapYRef = useRef(0);
+
+  const handleTouchCapture = useCallback((e: GestureResponderEvent) => {
+    const now = Date.now();
+    const { pageX, pageY } = e.nativeEvent;
+    const dx = Math.abs(pageX - lastTapXRef.current);
+    const dy = Math.abs(pageY - lastTapYRef.current);
+
+    // Two taps within 400ms and within 50px of each other = double-tap
+    if (now - lastTapRef.current < 400 && dx < 50 && dy < 50) {
+      if (!isFalling) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        setIsFalling(true);
+      }
+      lastTapRef.current = 0;
+    } else {
+      lastTapRef.current = now;
+      lastTapXRef.current = pageX;
+      lastTapYRef.current = pageY;
+    }
   }, [isFalling]);
 
+  // ── Auto-revert falling after animation plays once ──
   useEffect(() => {
     if (!isFalling) return;
     const timer = setTimeout(() => setIsFalling(false), FALLING_DURATION);
@@ -138,7 +182,6 @@ export function HomeScreen() {
 
   return (
     <View className="flex-1">
-      {/* Full-screen playful gradient background */}
       <LinearGradient
         colors={['#f0e6ff', '#fce7f3', '#fef3c7', '#e0f2fe']}
         locations={[0, 0.35, 0.65, 1]}
@@ -154,11 +197,11 @@ export function HomeScreen() {
         bounces={false}
       >
         {/* ===== HERO: Pet Display ===== */}
-        <View style={{ height: 380 }}>
+        {/* onTouchStartCapture fires in capture phase — before Canvas eats the event */}
+        <View style={{ height: 380 }} onTouchStartCapture={handleTouchCapture}>
           {needMessage && !isExcitedBurst && <NeedBubble message={needMessage} />}
-          <PetRenderer skin={skin} mood={mood} isFalling={isFalling} onDoubleTap={handleDoubleTap} />
+          <PetRenderer activeModel={activeModel} />
 
-          {/* Soft bottom fade */}
           <LinearGradient
             colors={['transparent', 'rgba(240,230,255,0.9)']}
             style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 50, zIndex: 1 }}
@@ -181,7 +224,6 @@ export function HomeScreen() {
 
         <QuickTip />
 
-        {/* ===== Stats & Actions ===== */}
         <CareActions />
 
         {/* ===== Reflection Card ===== */}
@@ -217,7 +259,6 @@ export function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* ===== Skin Selector ===== */}
         <SkinSelector />
       </ScrollView>
 
