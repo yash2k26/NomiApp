@@ -17,13 +17,11 @@ export function SkinSelector() {
   const { skin, setSkin } = usePetStore();
 
   return (
-    <View className="px-5 mt-4">
-      <Text className="text-xs font-semibold text-violet-400 tracking-wider mb-3">SKINS</Text>
-
+    <View className="px-6">
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ gap: 12 }}
+        contentContainerStyle={{ gap: 16, paddingRight: 24 }}
       >
         {SKINS.map((skinOption) => {
           const isSelected = skin === skinOption.id;
@@ -32,46 +30,44 @@ export function SkinSelector() {
             <TouchableOpacity
               key={skinOption.id}
               onPress={() => !skinOption.locked && setSkin(skinOption.id)}
-              activeOpacity={0.7}
+              activeOpacity={0.8}
               disabled={skinOption.locked}
-              className={`w-20 items-center py-3 px-2 rounded-2xl border-2 ${
-                isSelected
-                  ? 'bg-violet-100 border-violet-400'
-                  : 'bg-white/70 border-transparent'
-              } ${skinOption.locked ? 'opacity-50' : ''}`}
+              className={`w-24 items-center py-4 px-2 rounded-3xl border-2 ${isSelected
+                  ? 'bg-pet-blue-light/20 border-pet-blue border-b-4'
+                  : 'bg-white border-gray-100 border-b-4'
+                } ${skinOption.locked ? 'opacity-50' : ''}`}
               style={{
-                shadowColor: isSelected ? '#8b5cf6' : '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: isSelected ? 0.15 : 0.05,
-                shadowRadius: 6,
-                elevation: isSelected ? 3 : 1,
+                shadowColor: isSelected ? '#4FB0C6' : '#000',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: isSelected ? 0.2 : 0.05,
+                shadowRadius: 8,
+                elevation: isSelected ? 4 : 2,
               }}
             >
-              <View className={`w-12 h-12 rounded-full items-center justify-center mb-2 ${
-                isSelected ? 'bg-violet-200' : 'bg-violet-50'
-              }`}>
-                <Text className="text-2xl">{skinOption.icon}</Text>
+              <View className={`w-14 h-14 rounded-2xl items-center justify-center mb-2 ${isSelected ? 'bg-pet-blue' : 'bg-gray-50'
+                }`}>
+                <Text className="text-3xl">{skinOption.icon}</Text>
               </View>
-              <Text className={`text-xs font-medium text-center ${
-                isSelected ? 'text-violet-600' : 'text-neutral-500'
-              }`}>
+              <Text className={`text-[11px] font-black uppercase tracking-tighter text-center ${isSelected ? 'text-pet-blue-dark' : 'text-gray-400'
+                }`}>
                 {skinOption.name}
               </Text>
               {skinOption.locked && (
-                <Text className="text-[10px] text-neutral-400 mt-1">{'\u{1F512}'}</Text>
+                <Text className="text-xs text-neutral-400 mt-1">{'\u{1F512}'}</Text>
               )}
             </TouchableOpacity>
           );
         })}
 
         {/* Coming Soon placeholder */}
-        <View className="w-20 items-center py-3 px-2 rounded-2xl bg-white/40 border-2 border-dashed border-violet-200">
-          <View className="w-12 h-12 bg-violet-50/50 rounded-full items-center justify-center mb-2">
-            <Text className="text-2xl opacity-40">+</Text>
+        <View className="w-24 items-center justify-center py-4 px-2 rounded-3xl bg-gray-50/50 border-2 border-dashed border-gray-200">
+          <View className="w-14 h-14 bg-white rounded-2xl items-center justify-center mb-2 border border-gray-100">
+            <Text className="text-2xl text-gray-300">+</Text>
           </View>
-          <Text className="text-xs font-medium text-violet-300 text-center">Soon</Text>
+          <Text className="text-[10px] font-black text-gray-300 uppercase letter-spacing-widest text-center">Locked</Text>
         </View>
       </ScrollView>
     </View>
   );
 }
+

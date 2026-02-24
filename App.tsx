@@ -33,20 +33,20 @@ console.log = (...args) => {
 type Tab = 'home' | 'profile';
 
 const TABS: { key: Tab; icon: string; label: string }[] = [
-  { key: 'home', icon: '\u{1F3E0}', label: 'Home' },
-  { key: 'profile', icon: '\u{1F464}', label: 'Profile' },
+  { key: 'home', icon: '\u{1F3E0}', label: 'HOME' },
+  { key: 'profile', icon: '\u{1F464}', label: 'ME' },
 ];
 
 function TabBar({ activeTab, onTabPress }: { activeTab: Tab; onTabPress: (tab: Tab) => void }) {
   return (
     <View
-      className="flex-row bg-white/90 border-t border-violet-100 pb-6 pt-2"
+      className="flex-row bg-white rounded-t-[40px] pb-8 pt-4 border-t-2 border-gray-50"
       style={{
-        shadowColor: '#c084fc',
-        shadowOffset: { width: 0, height: -2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 8,
-        elevation: 8,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -10 },
+        shadowOpacity: 0.05,
+        shadowRadius: 15,
+        elevation: 12,
       }}
     >
       {TABS.map((tab) => {
@@ -55,15 +55,15 @@ function TabBar({ activeTab, onTabPress }: { activeTab: Tab; onTabPress: (tab: T
           <TouchableOpacity
             key={tab.key}
             onPress={() => onTabPress(tab.key)}
-            activeOpacity={0.7}
-            className="flex-1 items-center py-2"
+            activeOpacity={0.8}
+            className="flex-1 items-center"
           >
-            <View className={`px-5 py-1 rounded-full mb-1 ${isActive ? 'bg-violet-100' : ''}`}>
-              <Text className={`text-xl ${!isActive ? 'opacity-40' : ''}`}>
+            <View className={`px-8 py-2.5 rounded-[24px] mb-1.5 ${isActive ? 'bg-pet-blue/20' : ''}`}>
+              <Text className={`text-2xl ${!isActive ? 'opacity-30 grayscale' : ''}`}>
                 {tab.icon}
               </Text>
             </View>
-            <Text className={`text-xs font-semibold ${isActive ? 'text-violet-600' : 'text-neutral-400'}`}>
+            <Text className={`text-[10px] font-black uppercase tracking-widest ${isActive ? 'text-pet-blue-dark' : 'text-gray-300'}`}>
               {tab.label}
             </Text>
           </TouchableOpacity>
@@ -96,7 +96,7 @@ export default function App() {
     return (
       <GestureHandlerRootView className="flex-1">
         <SafeAreaProvider>
-          <SafeAreaView className="flex-1 bg-violet-50 items-center justify-center" edges={['top']}>
+          <SafeAreaView className="flex-1 bg-pet-background items-center justify-center" edges={['top']}>
             <StatusBar style="dark" />
           </SafeAreaView>
         </SafeAreaProvider>
@@ -108,7 +108,7 @@ export default function App() {
     return (
       <GestureHandlerRootView className="flex-1">
         <SafeAreaProvider>
-          <SafeAreaView className="flex-1 bg-violet-50" edges={['top']}>
+          <SafeAreaView className="flex-1 bg-pet-background" edges={['top']}>
             <WalletConnect />
             <StatusBar style="dark" />
           </SafeAreaView>
@@ -121,7 +121,7 @@ export default function App() {
     return (
       <GestureHandlerRootView className="flex-1">
         <SafeAreaProvider>
-          <SafeAreaView className="flex-1 bg-violet-50" edges={['top']}>
+          <SafeAreaView className="flex-1 bg-pet-background" edges={['top']}>
             <MintScreen />
             <StatusBar style="dark" />
           </SafeAreaView>
@@ -133,8 +133,10 @@ export default function App() {
   return (
     <GestureHandlerRootView className="flex-1">
       <SafeAreaProvider>
-        <SafeAreaView className="flex-1 bg-violet-50" edges={['top']}>
-          {renderScreen()}
+        <SafeAreaView className="flex-1 bg-pet-background" edges={['top']}>
+          <View className="flex-1">
+            {renderScreen()}
+          </View>
           <TabBar activeTab={activeTab} onTabPress={setActiveTab} />
           <StatusBar style="dark" />
         </SafeAreaView>
@@ -142,3 +144,4 @@ export default function App() {
     </GestureHandlerRootView>
   );
 }
+

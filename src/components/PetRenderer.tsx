@@ -9,13 +9,13 @@ import { usePetStore } from '../store/petStore';
 LogBox.ignoreLogs(['EXGL: gl.pixelStorei()']);
 
 const MODEL_BREATHING = require('../../assets/pets/breathing.glb');
-const MODEL_SAD = require('../../assets/pets/Sad.glb');
 const MODEL_EXCITED = require('../../assets/pets/Excited.glb');
+const MODEL_SAD = require('../../assets/pets/Sad.glb');
 const MODEL_FALLINGDOWN = require('../../assets/pets/fallingdown.glb');
 
 useGLTF.preload(MODEL_BREATHING);
-useGLTF.preload(MODEL_SAD);
 useGLTF.preload(MODEL_EXCITED);
+useGLTF.preload(MODEL_SAD);
 useGLTF.preload(MODEL_FALLINGDOWN);
 
 type GLTFResult = GLTF & {
@@ -24,12 +24,13 @@ type GLTFResult = GLTF & {
 };
 
 // Which model to show — passed as a simple string from HomeScreen
+// breathing.glb = default idle, Sad.glb = any stat < 50%, Excited.glb = burst at 95%+
 export type ActiveModel = 'breathing' | 'excited' | 'sad' | 'falling';
 
 const MODEL_MAP: Record<ActiveModel, any> = {
   breathing: MODEL_BREATHING,
   excited: MODEL_EXCITED,
-  sad: MODEL_BREATHING,
+  sad: MODEL_SAD,
   falling: MODEL_FALLINGDOWN,
 };
 
@@ -81,9 +82,8 @@ function PetModel({ modelAsset }: PetModelProps) {
 
 function FallbackView() {
   return (
-    <View className="flex-1 items-center justify-center bg-violet-50">
-      <View className="absolute w-48 h-48 rounded-full bg-violet-200/40" />
-      <View className="w-32 h-32 bg-white rounded-full items-center justify-center shadow-lg">
+    <View className="flex-1 items-center justify-center bg-sky-200">
+      <View className="w-32 h-32 bg-white rounded-3xl items-center justify-center shadow-lg">
         <Text className="text-6xl">{'\u{1F43E}'}</Text>
       </View>
     </View>
@@ -92,9 +92,9 @@ function FallbackView() {
 
 function ModelLoadingFallback() {
   return (
-    <View className="absolute inset-0 items-center justify-center z-10 bg-violet-50">
-      <ActivityIndicator size="large" color="#8b5cf6" />
-      <Text className="text-violet-400 text-xs mt-3">Loading Nomi...</Text>
+    <View className="absolute inset-0 items-center justify-center z-10 bg-sky-200">
+      <ActivityIndicator size="large" color="#3b82f6" />
+      <Text className="text-blue-400 text-xs mt-3 font-bold">Loading Nomi...</Text>
     </View>
   );
 }
@@ -111,12 +111,7 @@ export const PetRenderer = memo(function PetRenderer({ activeModel }: PetRendere
   const modelAsset = MODEL_MAP[activeModel];
 
   return (
-    <View className="flex-1 bg-violet-50">
-      <View
-        className="absolute rounded-full bg-pink-200/30"
-        style={{ width: 220, height: 220, top: '28%', left: '50%', marginLeft: -110 }}
-      />
-
+    <View className="flex-1 bg-sky-200">
       {!canvasReady && <ModelLoadingFallback />}
 
       <Canvas
@@ -124,7 +119,7 @@ export const PetRenderer = memo(function PetRenderer({ activeModel }: PetRendere
         gl={{ antialias: false, powerPreference: 'low-power' }}
         onCreated={() => setCanvasReady(true)}
       >
-        <color attach="background" args={['#f5f0ff']} />
+        <color attach="background" args={['#bae6fd']} />
         <ambientLight intensity={2} />
         <directionalLight position={[5, 10, 5]} intensity={1.8} />
         <directionalLight position={[-5, 5, -5]} intensity={1} />

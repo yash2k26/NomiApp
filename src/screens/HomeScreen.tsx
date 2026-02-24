@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, AppState, Animated, GestureResponderEvent } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { usePetStore, getPetNeeds } from '../store/petStore';
 import { PetRenderer, CareActions, ReflectionModal, SkinSelector, type ActiveModel } from '../components';
@@ -30,27 +29,27 @@ function NeedBubble({ message }: { message: string }) {
   return (
     <Animated.View
       style={{ opacity: fadeAnim, transform: [{ scale: bounceAnim }] }}
-      className="absolute top-4 left-0 right-0 z-20 items-center"
+      className="absolute top-8 left-0 right-0 z-20 items-center px-6"
     >
       <View
-        className="bg-white px-5 py-3 rounded-2xl max-w-[85%]"
+        className="bg-white px-6 py-4 rounded-3xl border-4 border-pet-blue-light"
         style={{
-          shadowColor: '#c084fc',
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.25,
+          shadowColor: '#4FB0C6',
+          shadowOffset: { width: 0, height: 8 },
+          shadowOpacity: 0.2,
           shadowRadius: 12,
-          elevation: 8,
+          elevation: 10,
         }}
       >
-        <Text className="text-sm font-semibold text-neutral-700 text-center">{message}</Text>
+        <Text className="text-base font-bold text-gray-800 text-center">{message}</Text>
       </View>
       <View
         style={{
           width: 0, height: 0,
-          borderLeftWidth: 8, borderRightWidth: 8, borderTopWidth: 8,
+          borderLeftWidth: 10, borderRightWidth: 10, borderTopWidth: 10,
           borderLeftColor: 'transparent', borderRightColor: 'transparent',
           borderTopColor: '#ffffff',
-          marginTop: -1,
+          marginTop: -2,
         }}
       />
     </Animated.View>
@@ -64,7 +63,7 @@ function MoodBadge({ moodText, isExcited, isUrgent }: { moodText: string; isExci
     if (isExcited || isUrgent) {
       Animated.loop(
         Animated.sequence([
-          Animated.timing(pulseAnim, { toValue: 1.08, duration: 600, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1.15, duration: 600, useNativeDriver: true }),
           Animated.timing(pulseAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
         ])
       ).start();
@@ -73,15 +72,14 @@ function MoodBadge({ moodText, isExcited, isUrgent }: { moodText: string; isExci
     }
   }, [isExcited, isUrgent]);
 
-  const bgColor = isExcited ? 'bg-amber-100' : isUrgent ? 'bg-red-100' : 'bg-violet-100';
-  const textColor = isExcited ? 'text-amber-600' : isUrgent ? 'text-red-500' : 'text-violet-600';
-  const dotColor = isExcited ? 'bg-amber-400' : isUrgent ? 'bg-red-400' : 'bg-emerald-400';
+  const bgColor = isExcited ? 'bg-pet-yellow' : isUrgent ? 'bg-pet-pink' : 'bg-pet-green';
+  const borderColor = isExcited ? 'border-pet-yellow-dark' : isUrgent ? 'border-pet-pink-dark' : 'border-pet-green-dark';
+  const textColor = 'text-white';
 
   return (
     <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-      <View className={`flex-row items-center px-4 py-2 rounded-full ${bgColor}`}>
-        <View className={`w-2 h-2 rounded-full mr-2 ${dotColor}`} />
-        <Text className={`text-sm font-semibold ${textColor}`}>{moodText}</Text>
+      <View className={`flex-row items-center px-6 py-2 rounded-full ${bgColor} border-b-4 ${borderColor}`}>
+        <Text className={`text-sm font-black uppercase tracking-wider ${textColor}`}>{moodText}</Text>
       </View>
     </Animated.View>
   );
@@ -89,17 +87,17 @@ function MoodBadge({ moodText, isExcited, isUrgent }: { moodText: string; isExci
 
 function QuickTip() {
   const tips = [
-    'Double-tap Nomi to see a silly reaction!',
-    'Swipe to rotate your pet in 3D',
-    'Visit daily to build your streak!',
-    'Reflect with Nomi to boost happiness',
-    'Keep all stats above 95% for a surprise!',
+    'Double-tap Nomi to see a silly reaction! ✨',
+    'Swipe to rotate your pet in 3D 🔄',
+    'Visit daily to build your streak! 🔥',
+    'Reflect with Nomi to boost happiness 🫧',
+    'Keep all stats above 95% for a surprise! 🎁',
   ];
   const [tip] = useState(() => tips[Math.floor(Math.random() * tips.length)]);
 
   return (
-    <View className="mx-5 mt-2 mb-1">
-      <Text className="text-xs text-violet-400 text-center italic">{tip}</Text>
+    <View className="mx-6 mt-4 mb-2 bg-white rounded-2xl px-5 py-3 border border-gray-100 shadow-sm">
+      <Text className="text-xs text-gray-500 text-center font-bold"> TIP: <Text className="text-pet-purple font-medium">{tip}</Text></Text>
     </View>
   );
 }
@@ -147,8 +145,6 @@ export function HomeScreen() {
 
 
   // ── Double-tap detection via capture phase ──
-  // onTouchStartCapture fires on the parent BEFORE the GL surface can eat the event.
-  // This is the only reliable way to detect taps over a Canvas on Android.
   const lastTapRef = useRef(0);
   const lastTapXRef = useRef(0);
   const lastTapYRef = useRef(0);
@@ -159,7 +155,6 @@ export function HomeScreen() {
     const dx = Math.abs(pageX - lastTapXRef.current);
     const dy = Math.abs(pageY - lastTapYRef.current);
 
-    // Two taps within 400ms and within 50px of each other = double-tap
     if (now - lastTapRef.current < 400 && dx < 50 && dy < 50) {
       if (!isFalling) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
@@ -181,85 +176,93 @@ export function HomeScreen() {
   }, [isFalling]);
 
   return (
-    <View className="flex-1">
-      <LinearGradient
-        colors={['#f0e6ff', '#fce7f3', '#fef3c7', '#e0f2fe']}
-        locations={[0, 0.35, 0.65, 1]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        className="absolute inset-0"
-      />
-
+    <View className="flex-1 bg-pet-background">
       <ScrollView
         className="flex-1"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 32 }}
-        bounces={false}
+        contentContainerStyle={{ paddingBottom: 40 }}
+        bounces={true}
       >
         {/* ===== HERO: Pet Display ===== */}
-        {/* onTouchStartCapture fires in capture phase — before Canvas eats the event */}
-        <View style={{ height: 380 }} onTouchStartCapture={handleTouchCapture}>
+        <View
+          className="bg-pet-blue-light/30 rounded-b-[60px]"
+          style={{ height: 420 }}
+          onTouchStartCapture={handleTouchCapture}
+        >
+          <View className="absolute inset-0 bg-white/20 rounded-b-[60px]" />
           {needMessage && !isExcitedBurst && <NeedBubble message={needMessage} />}
           <PetRenderer activeModel={activeModel} />
-
-          <LinearGradient
-            colors={['transparent', 'rgba(240,230,255,0.9)']}
-            style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 50, zIndex: 1 }}
-          />
         </View>
 
         {/* ===== Pet Identity ===== */}
-        <View className="items-center -mt-6 mb-5 z-10">
-          <Text className="text-3xl font-extrabold text-violet-900 tracking-wide mb-2">{name}</Text>
-          <MoodBadge moodText={moodText} isExcited={isExcitedBurst} isUrgent={!!needMessage} />
-          {streakDays > 0 && (
-            <View className="flex-row items-center mt-3 bg-orange-100 px-4 py-1.5 rounded-full">
-              <Text className="text-sm">{'\u{1F525}'}</Text>
-              <Text className="text-sm font-bold text-orange-500 ml-1.5">
-                {streakDays > 1 ? `${streakDays}-day streak` : 'Day 1'}
-              </Text>
+        <View className="items-center -mt-16 mb-6 z-10 px-6">
+          <View className="bg-white rounded-5xl w-full px-8 py-6 items-center border-[6px] border-pet-blue-light shadow-xl" style={{
+            shadowColor: '#4FB0C6',
+            shadowOffset: { width: 0, height: 12 },
+            shadowOpacity: 0.15,
+            shadowRadius: 20,
+            elevation: 12,
+          }}>
+            <Text className="text-3xl font-black text-gray-800 mb-3 tracking-tight">{name}</Text>
+            <View className="flex-row gap-2">
+              <MoodBadge moodText={moodText} isExcited={isExcitedBurst} isUrgent={!!needMessage} />
+              {streakDays > 0 && (
+                <View className="flex-row items-center bg-pet-yellow px-4 py-2 rounded-full border-b-4 border-pet-yellow-dark">
+                  <Text className="text-xs font-black text-white uppercase tracking-widest">
+                    🔥 {streakDays > 1 ? `${streakDays} DAYS` : 'DAY 1'}
+                  </Text>
+                </View>
+              )}
             </View>
-          )}
+          </View>
         </View>
+
 
         <QuickTip />
 
         <CareActions />
 
         {/* ===== Reflection Card ===== */}
-        <View className="px-5 mt-6">
+        <View className="px-6 mt-6">
           <TouchableOpacity
             onPress={() => setReflectionModalVisible(true)}
-            activeOpacity={0.85}
+            activeOpacity={0.9}
           >
-            <LinearGradient
-              colors={['#ede9fe', '#fae8ff']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              className="rounded-2xl p-5"
+            <View
+              className="bg-pet-purple rounded-4xl p-6 border-b-[6px] border-pet-purple-dark"
               style={{
-                shadowColor: '#c084fc',
-                shadowOffset: { width: 0, height: 3 },
-                shadowOpacity: 0.15,
-                shadowRadius: 8,
-                elevation: 3,
+                shadowColor: '#9381FF',
+                shadowOffset: { width: 0, height: 8 },
+                shadowOpacity: 0.2,
+                shadowRadius: 12,
+                elevation: 6,
               }}
             >
               <View className="flex-row items-center">
-                <View className="w-11 h-11 rounded-xl bg-violet-200 items-center justify-center mr-4">
-                  <Text className="text-xl">{'\u{1FA9E}'}</Text>
+                <View className="w-14 h-14 rounded-2xl bg-white/20 items-center justify-center mr-4 border border-white/30">
+                  <Text className="text-3xl">{'\u{1FA9E}'}</Text>
                 </View>
                 <View className="flex-1">
-                  <Text className="text-base font-bold text-violet-800">Reflect with {name}</Text>
-                  <Text className="text-xs text-violet-400 mt-0.5">Share how you're feeling today</Text>
+                  <Text className="text-lg font-black text-white uppercase tracking-wide">Reflect with {name}</Text>
+                  <Text className="text-sm text-pet-purple-light font-bold mt-0.5">Share how you're feeling! ✨</Text>
                 </View>
-                <Text className="text-violet-300 text-lg">{'\u{203A}'}</Text>
+                <View className="w-10 h-10 rounded-full bg-black/10 items-center justify-center">
+                  <Text className="text-white text-xl font-black">{'\u{203A}'}</Text>
+                </View>
               </View>
-            </LinearGradient>
+            </View>
           </TouchableOpacity>
         </View>
 
-        <SkinSelector />
+        <View className="mt-8 mb-4">
+          <View className="px-6 mb-4 flex-row items-center justify-between">
+            <Text className="text-xl font-black text-gray-800 uppercase tracking-widest">Outfits</Text>
+            <View className="bg-pet-blue-light/20 px-3 py-1 rounded-full">
+              <Text className="text-xs font-black text-pet-blue-dark">SHOP</Text>
+            </View>
+          </View>
+          <SkinSelector />
+        </View>
       </ScrollView>
 
       <ReflectionModal
@@ -269,3 +272,4 @@ export function HomeScreen() {
     </View>
   );
 }
+

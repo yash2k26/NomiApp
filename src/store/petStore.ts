@@ -5,20 +5,13 @@ export type PetMood = 'excited' | 'happy' | 'content' | 'tired' | 'hungry' | 'sa
 export type PetSkin = 'default' | 'headphones';
 
 // --- Mood-to-Model mapping ---
-// breathing.glb = normal/default state
-// Sad.glb = any stat < 50%
-// Excited.glb = temporary burst when all stats hit 95%+
-// Only sad-family moods get a different model. Everything else → breathing.glb (default).
-// Excited.glb and fallingdown.glb are event-driven overrides handled in PetRenderer.
-const MOOD_MODELS: Record<string, any> = {
-  sad: require('../../assets/pets/Sad.glb'),
-  hungry: require('../../assets/pets/Sad.glb'),
-  tired: require('../../assets/pets/Sad.glb'),
-};
+// breathing.glb = default idle model, Sad.glb = any stat < 50%
+// Excited.glb = burst at 95%+, fallingdown.glb = double-tap easter egg
+// Model switching is handled in PetRenderer via activeModel prop.
 const DEFAULT_MODEL = require('../../assets/pets/breathing.glb');
 
-export function getModelForMood(mood: PetMood) {
-  return MOOD_MODELS[mood] ?? DEFAULT_MODEL;
+export function getModelForMood(_mood: PetMood) {
+  return DEFAULT_MODEL;
 }
 
 // --- Need messages for the speech bubble ---
@@ -137,7 +130,7 @@ function savePetState(state: PetState) {
   for (const key of PERSISTED_KEYS) {
     data[key] = state[key];
   }
-  AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data)).catch(() => {});
+  AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data)).catch(() => { });
 }
 
 export async function hydratePetStore() {

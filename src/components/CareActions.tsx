@@ -1,17 +1,16 @@
 import { useRef, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Animated } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { usePetStore } from '../store/petStore';
 
 interface StatBarProps {
   label: string;
   value: number;
   icon: string;
-  gradientColors: [string, string];
+  barColor: string;
   trackColor: string;
 }
 
-function StatBar({ label, value, icon, gradientColors, trackColor }: StatBarProps) {
+function StatBar({ label, value, icon, barColor, trackColor }: StatBarProps) {
   const widthAnim = useRef(new Animated.Value(value)).current;
   const isLow = value < 25;
 
@@ -25,21 +24,22 @@ function StatBar({ label, value, icon, gradientColors, trackColor }: StatBarProp
   }, [value]);
 
   return (
-    <View className="mb-3.5">
-      <View className="flex-row items-center justify-between mb-1.5">
+    <View className="mb-5 last:mb-0">
+      <View className="flex-row items-center justify-between mb-2.5">
         <View className="flex-row items-center">
-          <Text className="text-sm mr-1.5">{icon}</Text>
-          <Text className="text-xs font-semibold text-neutral-500 tracking-wide">{label}</Text>
+          <View className="w-8 h-8 rounded-full bg-white items-center justify-center shadow-sm mr-2.5">
+            <Text className="text-sm">{icon}</Text>
+          </View>
+          <Text className="text-xs font-black text-gray-500 uppercase tracking-widest">{label}</Text>
         </View>
-        <Text className={`text-xs font-bold ${isLow ? 'text-red-500' : 'text-neutral-500'}`}>
-          {Math.round(value)}
+        <Text className={`text-sm font-black ${isLow ? 'text-pet-pink' : 'text-gray-700'}`}>
+          {Math.round(value)}%
         </Text>
       </View>
-      <View className={`h-3 rounded-full overflow-hidden ${trackColor}`}>
+      <View className={`h-5 rounded-full overflow-hidden ${trackColor} p-1 border border-black/5`}>
         <Animated.View
+          className={`h-full rounded-full ${isLow ? 'bg-pet-pink' : barColor}`}
           style={{
-            height: '100%',
-            borderRadius: 999,
             width: widthAnim.interpolate({
               inputRange: [0, 100],
               outputRange: ['0%', '100%'],
@@ -47,12 +47,7 @@ function StatBar({ label, value, icon, gradientColors, trackColor }: StatBarProp
             }),
           }}
         >
-          <LinearGradient
-            colors={isLow ? ['#ef4444', '#f87171'] : gradientColors}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={{ flex: 1, borderRadius: 999 }}
-          />
+          <View className="absolute top-0 left-0 right-0 h-1/2 bg-white/20 rounded-full" />
         </Animated.View>
       </View>
     </View>
@@ -62,46 +57,46 @@ function StatBar({ label, value, icon, gradientColors, trackColor }: StatBarProp
 interface ActionButtonProps {
   icon: string;
   label: string;
-  gradientColors: [string, string];
+  bgColor: string;
+  borderColor: string;
   onPress: () => void;
   disabled?: boolean;
 }
 
-function ActionButton({ icon, label, gradientColors, onPress, disabled }: ActionButtonProps) {
+function ActionButton({ icon, label, bgColor, borderColor, onPress, disabled }: ActionButtonProps) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
+  const translateY = useRef(new Animated.Value(0)).current;
 
   const handlePressIn = () => {
-    Animated.spring(scaleAnim, { toValue: 0.92, friction: 5, useNativeDriver: true }).start();
+    Animated.parallel([
+      Animated.spring(scaleAnim, { toValue: 0.95, friction: 5, useNativeDriver: true }),
+      Animated.timing(translateY, { toValue: 4, duration: 100, useNativeDriver: true }),
+    ]).start();
   };
   const handlePressOut = () => {
-    Animated.spring(scaleAnim, { toValue: 1, friction: 5, useNativeDriver: true }).start();
+    Animated.parallel([
+      Animated.spring(scaleAnim, { toValue: 1, friction: 5, useNativeDriver: true }),
+      Animated.timing(translateY, { toValue: 0, duration: 100, useNativeDriver: true }),
+    ]).start();
   };
 
   return (
-    <Animated.View style={{ flex: 1, transform: [{ scale: scaleAnim }], opacity: disabled ? 0.4 : 1 }}>
+    <Animated.View style={{ flex: 1, transform: [{ scale: scaleAnim }, { translateY }], opacity: disabled ? 0.4 : 1 }}>
       <TouchableOpacity
         onPress={onPress}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
         disabled={disabled}
-        activeOpacity={0.9}
+        activeOpacity={1}
       >
-        <LinearGradient
-          colors={gradientColors}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          className="items-center py-4 rounded-2xl"
-          style={{
-            shadowColor: gradientColors[0],
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.25,
-            shadowRadius: 8,
-            elevation: 4,
-          }}
+        <View
+          className={`items-center py-5 rounded-[28px] ${bgColor} border-b-[6px] ${borderColor}`}
         >
-          <Text className="text-2xl mb-1">{icon}</Text>
-          <Text className="text-xs font-bold text-white tracking-wide">{label}</Text>
-        </LinearGradient>
+          <View className="w-12 h-12 bg-white/20 rounded-2xl items-center justify-center mb-2">
+            <Text className="text-3xl">{icon}</Text>
+          </View>
+          <Text className="text-sm font-black text-white uppercase tracking-wider">{label}</Text>
+        </View>
       </TouchableOpacity>
     </Animated.View>
   );
@@ -112,71 +107,74 @@ export function CareActions() {
   const needsAttention = hunger < 25 || happiness < 25 || energy < 25;
 
   return (
-    <View className="px-5 mt-2">
+    <View className="px-5 mt-4">
       {/* Urgency alert */}
       {needsAttention && (
-        <View className="bg-red-50 border border-red-200 rounded-2xl px-4 py-3 mb-4 flex-row items-center">
-          <Text className="text-lg mr-2">{'\u{1F6A8}'}</Text>
-          <Text className="text-sm font-semibold text-red-500 flex-1">
-            Nomi needs you! Take care of your pet.
+        <View className="bg-pet-pink rounded-3xl px-6 py-4 mb-5 flex-row items-center border-b-4 border-pet-pink-dark">
+          <Text className="text-lg mr-3">⚠️</Text>
+          <Text className="text-base font-black text-white flex-1">
+            Nomi needs your care!
           </Text>
         </View>
       )}
 
       {/* Stats Card */}
       <View
-        className="bg-white/80 rounded-2xl p-5 mb-5"
+        className="bg-white rounded-[32px] p-6 mb-6 border-2 border-gray-50 shadow-xl"
         style={{
-          shadowColor: '#c084fc',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 10,
-          elevation: 3,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 10 },
+          shadowOpacity: 0.05,
+          shadowRadius: 15,
+          elevation: 5,
         }}
       >
         <StatBar
           label="HUNGER"
           value={hunger}
           icon={'\u{1F356}'}
-          gradientColors={['#f97316', '#fdba74']}
-          trackColor="bg-orange-100"
+          barColor="bg-pet-yellow"
+          trackColor="bg-pet-yellow-light/30"
         />
         <StatBar
           label="HAPPINESS"
           value={happiness}
           icon={'\u{1F496}'}
-          gradientColors={['#ec4899', '#f9a8d4']}
-          trackColor="bg-pink-100"
+          barColor="bg-pet-pink"
+          trackColor="bg-pet-pink-light/30"
         />
         <StatBar
           label="ENERGY"
           value={energy}
           icon={'\u{26A1}'}
-          gradientColors={['#10b981', '#6ee7b7']}
-          trackColor="bg-emerald-100"
+          barColor="bg-pet-green"
+          trackColor="bg-pet-green-light/30"
         />
       </View>
 
       {/* Action Buttons */}
-      <View className="flex-row gap-3">
+      <View className="flex-row gap-4">
         <ActionButton
           icon={'\u{1F355}'}
           label="Feed"
-          gradientColors={['#fb923c', '#fdba74']}
+          bgColor="bg-pet-yellow"
+          borderColor="border-pet-yellow-dark"
           onPress={feedPet}
           disabled={hunger >= 100}
         />
         <ActionButton
           icon={'\u{1F3AE}'}
           label="Play"
-          gradientColors={['#f472b6', '#f9a8d4']}
+          bgColor="bg-pet-pink"
+          borderColor="border-pet-pink-dark"
           onPress={playWithPet}
           disabled={energy < 15}
         />
         <ActionButton
           icon={'\u{1F634}'}
           label="Rest"
-          gradientColors={['#34d399', '#6ee7b7']}
+          bgColor="bg-pet-green"
+          borderColor="border-pet-green-dark"
           onPress={restPet}
           disabled={energy >= 100}
         />
@@ -184,3 +182,4 @@ export function CareActions() {
     </View>
   );
 }
+
