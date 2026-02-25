@@ -1,6 +1,7 @@
 import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useState } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useWalletStore } from '../store/walletStore';
 
 export function WalletConnect() {
@@ -16,20 +17,23 @@ export function WalletConnect() {
   return (
     <View className="flex-1">
       <LinearGradient
-        colors={['#f0e6ff', '#fce7f3', '#fef3c7', '#e0f2fe']}
-        locations={[0, 0.35, 0.65, 1]}
+        colors={['#EAF7FF', '#DFF0FF', '#F1F9FF']}
+        locations={[0, 0.45, 1]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         className="absolute inset-0"
       />
+
+      <View className="absolute -top-10 -right-8 w-40 h-40 rounded-full bg-pet-blue-light/45" />
+      <View className="absolute top-56 -left-12 w-48 h-48 rounded-full bg-pet-blue-light/30" />
+
       <View className="flex-1 px-6 justify-center items-center">
-        {/* Logo */}
         <View
-          className="w-28 h-28 bg-white rounded-3xl items-center justify-center mb-8"
+          className="w-28 h-28 bg-white rounded-[28px] items-center justify-center mb-7 border border-pet-blue-light/40"
           style={{
-            shadowColor: '#c084fc',
-            shadowOffset: { width: 0, height: 6 },
-            shadowOpacity: 0.2,
+            shadowColor: '#4FB0C6',
+            shadowOffset: { width: 0, height: 10 },
+            shadowOpacity: 0.18,
             shadowRadius: 16,
             elevation: 8,
           }}
@@ -37,74 +41,68 @@ export function WalletConnect() {
           <Text className="text-6xl">{'\u{1F43E}'}</Text>
         </View>
 
-        {/* Title */}
-        <Text className="text-4xl font-bold text-violet-900 mb-2">Nomi</Text>
-        <Text className="text-base text-violet-400 mb-2">Your Companion on Solana</Text>
+        <Text className="text-[40px] leading-[42px] font-black text-gray-800">Nomi</Text>
+        <Text className="text-[14px] text-gray-500 font-semibold mt-1 mb-2">A tiny companion, always on chain.</Text>
 
-        {/* Dev badge */}
-        <View className="bg-emerald-100 px-3 py-1 rounded-lg mb-10">
-          <Text className="text-xs font-bold text-emerald-600 tracking-wider">DEV MODE</Text>
+        <View className="bg-pet-blue-light/25 border border-pet-blue/30 px-3 py-1.5 rounded-full mb-8">
+          <Text className="text-[10px] font-black text-pet-blue-dark tracking-[0.8px] uppercase">Solana Devnet</Text>
         </View>
 
-        {/* Features */}
         <View
-          className="w-full bg-white/70 rounded-2xl p-5 mb-8"
+          className="w-full bg-white rounded-[28px] p-5 mb-8 border border-gray-100"
           style={{
-            shadowColor: '#c084fc',
-            shadowOffset: { width: 0, height: 3 },
-            shadowOpacity: 0.1,
-            shadowRadius: 10,
-            elevation: 3,
+            shadowColor: '#22314A',
+            shadowOffset: { width: 0, height: 8 },
+            shadowOpacity: 0.07,
+            shadowRadius: 14,
+            elevation: 4,
           }}
         >
           <View className="flex-row items-center mb-4">
-            <Text className="text-xl mr-3">{'\u{1F49A}'}</Text>
-            <View>
-              <Text className="text-sm font-semibold text-neutral-800">Care for your companion</Text>
-              <Text className="text-xs text-neutral-400">Feed, play, and rest together</Text>
+            <MaterialCommunityIcons name="heart-pulse" size={18} color="#3792A6" />
+            <View className="ml-2.5">
+              <Text className="text-[13px] font-bold text-gray-800">Care loop gameplay</Text>
+              <Text className="text-[11px] text-gray-500">Feed, play, rest and keep stats balanced.</Text>
             </View>
           </View>
           <View className="flex-row items-center mb-4">
-            <Text className="text-xl mr-3">{'\u{1FA9E}'}</Text>
-            <View>
-              <Text className="text-sm font-semibold text-neutral-800">Daily reflection</Text>
-              <Text className="text-xs text-neutral-400">Share your day with your pet</Text>
+            <MaterialCommunityIcons name="account-voice" size={18} color="#4FB0C6" />
+            <View className="ml-2.5">
+              <Text className="text-[13px] font-bold text-gray-800">Reflective companion</Text>
+              <Text className="text-[11px] text-gray-500">Your responses help shape mood and growth.</Text>
             </View>
           </View>
           <View className="flex-row items-center">
-            <Text className="text-xl mr-3">{'\u{1F510}'}</Text>
-            <View>
-              <Text className="text-sm font-semibold text-neutral-800">True ownership</Text>
-              <Text className="text-xs text-neutral-400">Your pet is an NFT on Solana</Text>
+            <MaterialCommunityIcons name="shield-check" size={18} color="#3792A6" />
+            <View className="ml-2.5">
+              <Text className="text-[13px] font-bold text-gray-800">Wallet-owned pet NFT</Text>
+              <Text className="text-[11px] text-gray-500">Truly yours across sessions and devices.</Text>
             </View>
           </View>
         </View>
 
-        {/* Connect button */}
-        <TouchableOpacity
-          onPress={handleConnect}
-          disabled={isConnecting}
-          activeOpacity={0.8}
-          className="w-full"
-        >
+        <TouchableOpacity onPress={handleConnect} disabled={isConnecting} activeOpacity={0.9} className="w-full">
           <LinearGradient
-            colors={['#8b5cf6', '#a78bfa']}
+            colors={['#3792A6', '#4FB0C6']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             className="py-4 rounded-2xl items-center"
             style={{
-              opacity: isConnecting ? 0.7 : 1,
-              shadowColor: '#8b5cf6',
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.3,
-              shadowRadius: 8,
+              opacity: isConnecting ? 0.75 : 1,
+              shadowColor: '#3792A6',
+              shadowOffset: { width: 0, height: 6 },
+              shadowOpacity: 0.25,
+              shadowRadius: 10,
               elevation: 6,
             }}
           >
             {isConnecting ? (
-              <ActivityIndicator color="#FFF" />
+              <View className="flex-row items-center">
+                <ActivityIndicator color="#FFF" size="small" />
+                <Text className="text-white text-[16px] font-black ml-2">Connecting...</Text>
+              </View>
             ) : (
-              <Text className="text-white text-lg font-bold">Connect Wallet</Text>
+              <Text className="text-white text-[16px] font-black tracking-[0.6px] uppercase">Connect Wallet</Text>
             )}
           </LinearGradient>
         </TouchableOpacity>

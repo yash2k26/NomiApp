@@ -70,7 +70,7 @@ export function ReflectionModal({ visible, onClose }: ReflectionModalProps) {
 
           {/* Header */}
           <View className="items-center mb-8">
-            <View className="w-20 h-20 bg-pet-purple rounded-3xl items-center justify-center mb-4 border-b-[6px] border-pet-purple-dark">
+            <View className="w-20 h-20 bg-pet-blue rounded-3xl items-center justify-center mb-4 border-b-[6px] border-pet-blue-dark">
               <Text className="text-4xl">{'\u{1FA9E}'}</Text>
             </View>
             <Text className="text-2xl font-black text-gray-800 uppercase tracking-tighter">Reflect with {name}</Text>
@@ -82,21 +82,21 @@ export function ReflectionModal({ visible, onClose }: ReflectionModalProps) {
             icon={'\u{2728}'}
             text="I'm crushed it!"
             description="Boosts happiness"
-            bgColor="bg-pet-yellow/20"
+            bgColor="bg-pet-blue-light/40"
             onPress={() => handleReflection(reflectProductiveDay)}
           />
           <ReflectionOption
             icon={'\u{1F319}'}
             text="Need some Zzz's"
             description="Restores energy"
-            bgColor="bg-pet-blue/20"
+            bgColor="bg-pet-blue-light/30"
             onPress={() => handleReflection(reflectNeedRest)}
           />
           <ReflectionOption
             icon={'\u{1F49A}'}
             text="Feeling awesome"
             description="Boosts happy & energy"
-            bgColor="bg-pet-green/20"
+            bgColor="bg-pet-blue-light/20"
             onPress={() => handleReflection(reflectFeelGood)}
           />
 
@@ -113,4 +113,3 @@ export function ReflectionModal({ visible, onClose }: ReflectionModalProps) {
     </Modal>
   );
 }
-

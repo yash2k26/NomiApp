@@ -106,11 +106,11 @@ export function CareActions() {
   return (
     <View className="px-6 mt-5">
       {needsAttention && (
-        <View className="rounded-2xl overflow-hidden mb-4 border border-pet-pink-dark/30">
-          <View className="bg-pet-pink-dark px-4 py-1.5">
+        <View className="rounded-2xl overflow-hidden mb-4 border border-pet-blue-dark/30">
+          <View className="bg-pet-blue-dark px-4 py-1.5">
             <Text className="text-[10px] font-black text-white tracking-[1px] uppercase">Attention</Text>
           </View>
-          <View className="bg-pet-pink px-4 py-3 flex-row items-center">
+          <View className="bg-pet-blue px-4 py-3 flex-row items-center">
             <Text className="text-base mr-2.5">{'\u26A0\uFE0F'}</Text>
             <Text className="text-sm font-semibold text-white flex-1">Nomi needs care right now.</Text>
           </View>
@@ -138,22 +138,22 @@ export function CareActions() {
           label="Hunger"
           value={hunger}
           icon={'\u{1F356}'}
-          barColor="bg-pet-yellow"
-          trackColor="bg-pet-yellow-light/45"
+          barColor="bg-pet-blue-dark"
+          trackColor="bg-pet-blue-light/45"
         />
         <StatBar
           label="Happiness"
           value={happiness}
           icon={'\u{1F496}'}
-          barColor="bg-pet-pink"
-          trackColor="bg-pet-pink-light/45"
+          barColor="bg-pet-blue"
+          trackColor="bg-pet-blue-light/35"
         />
         <StatBar
           label="Energy"
           value={energy}
           icon={'\u26A1'}
-          barColor="bg-pet-green"
-          trackColor="bg-pet-green-light/45"
+          barColor="bg-pet-blue-dark"
+          trackColor="bg-pet-blue-light/30"
         />
       </View>
 
@@ -161,21 +161,21 @@ export function CareActions() {
         <ActionButton
           icon={'\u{1F355}'}
           label="Feed"
-          bgColor="bg-pet-yellow-dark"
+          bgColor="bg-pet-blue-dark"
           onPress={feedPet}
           disabled={hunger >= 100}
         />
         <ActionButton
           icon={'\u{1F3AE}'}
           label="Play"
-          bgColor="bg-pet-pink-dark"
+          bgColor="bg-pet-blue"
           onPress={playWithPet}
           disabled={energy < 15}
         />
         <ActionButton
           icon={'\u{1F634}'}
           label="Rest"
-          bgColor="bg-pet-green-dark"
+          bgColor="bg-pet-blue-dark"
           onPress={restPet}
           disabled={energy >= 100}
         />

@@ -1,6 +1,7 @@
 import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useState } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useWalletStore } from '../store/walletStore';
 import { usePetStore } from '../store/petStore';
 
@@ -19,103 +20,98 @@ export function MintScreen() {
   return (
     <View className="flex-1">
       <LinearGradient
-        colors={['#f0e6ff', '#fce7f3', '#fef3c7', '#e0f2fe']}
-        locations={[0, 0.35, 0.65, 1]}
+        colors={['#EAF7FF', '#DFF0FF', '#F1F9FF']}
+        locations={[0, 0.5, 1]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         className="absolute inset-0"
       />
+
+      <View className="absolute top-12 -right-10 w-44 h-44 rounded-full bg-pet-blue-light/35" />
+      <View className="absolute top-80 -left-10 w-40 h-40 rounded-full bg-pet-blue-light/35" />
+
       <View className="flex-1 px-6 justify-center items-center">
-        {/* Pet Preview */}
         <View
-          className="w-36 h-36 bg-violet-100 rounded-full items-center justify-center mb-6"
+          className="w-36 h-36 bg-white rounded-[36px] items-center justify-center mb-6 border border-pet-blue-light/50"
           style={{
-            shadowColor: '#c084fc',
-            shadowOffset: { width: 0, height: 6 },
+            shadowColor: '#4FB0C6',
+            shadowOffset: { width: 0, height: 8 },
             shadowOpacity: 0.2,
             shadowRadius: 16,
-            elevation: 6,
+            elevation: 8,
           }}
         >
           <Text className="text-7xl">{'\u{1F43E}'}</Text>
         </View>
 
-        <Text className="text-3xl font-bold text-violet-900 mb-2">Meet Nomi</Text>
-        <Text className="text-base text-violet-400 mb-8">Your companion awaits</Text>
+        <Text className="text-[36px] leading-[38px] font-black text-gray-800">Mint Your Nomi</Text>
+        <Text className="text-[14px] text-gray-500 font-semibold mb-7 mt-1">Start your on-chain companion journey.</Text>
 
-        {/* Info Card */}
         <View
-          className="w-full bg-white/80 rounded-2xl p-5 mb-6"
+          className="w-full bg-white rounded-[28px] p-5 mb-7 border border-gray-100"
           style={{
-            shadowColor: '#c084fc',
-            shadowOffset: { width: 0, height: 3 },
-            shadowOpacity: 0.1,
-            shadowRadius: 10,
-            elevation: 3,
+            shadowColor: '#22314A',
+            shadowOffset: { width: 0, height: 8 },
+            shadowOpacity: 0.07,
+            shadowRadius: 14,
+            elevation: 4,
           }}
         >
-          <View className="flex-row justify-between py-3 border-b border-violet-100">
-            <Text className="text-base text-neutral-400">Type</Text>
-            <Text className="text-base font-semibold text-neutral-800">Companion NFT</Text>
+          <View className="flex-row justify-between py-3 border-b border-gray-100">
+            <Text className="text-[12px] font-bold uppercase tracking-[0.8px] text-gray-500">Type</Text>
+            <Text className="text-[13px] font-black text-gray-800">Companion NFT</Text>
           </View>
-          <View className="flex-row justify-between py-3 border-b border-violet-100">
-            <Text className="text-base text-neutral-400">Network</Text>
-            <Text className="text-base font-semibold text-violet-500">Solana (Devnet)</Text>
+          <View className="flex-row justify-between py-3 border-b border-gray-100">
+            <Text className="text-[12px] font-bold uppercase tracking-[0.8px] text-gray-500">Network</Text>
+            <Text className="text-[13px] font-black text-pet-blue-dark">Solana Devnet</Text>
           </View>
-          <View className="flex-row justify-between py-3 border-b border-violet-100">
-            <Text className="text-base text-neutral-400">Mint Cost</Text>
-            <Text className="text-lg font-bold text-emerald-500">0.01 SOL</Text>
+          <View className="flex-row justify-between py-3 border-b border-gray-100">
+            <Text className="text-[12px] font-bold uppercase tracking-[0.8px] text-gray-500">Mint Cost</Text>
+            <Text className="text-[16px] font-black text-pet-blue-dark">0.01 SOL</Text>
           </View>
           <View className="flex-row justify-between py-3">
-            <Text className="text-base text-neutral-400">Your Balance</Text>
-            <Text className="text-base font-semibold text-neutral-800">{balance.toFixed(2)} SOL</Text>
+            <Text className="text-[12px] font-bold uppercase tracking-[0.8px] text-gray-500">Your Balance</Text>
+            <Text className="text-[13px] font-black text-gray-800">{balance.toFixed(2)} SOL</Text>
           </View>
         </View>
 
-        {/* Features */}
-        <View className="w-full mb-8">
-          <View className="flex-row items-center mb-3">
-            <Text className="text-lg mr-3">{'\u{1F49A}'}</Text>
-            <Text className="text-sm text-neutral-600">Care for your companion daily</Text>
+        <View className="w-full mb-7">
+          <View className="flex-row items-center mb-2.5">
+            <MaterialCommunityIcons name="sparkles" size={16} color="#3792A6" />
+            <Text className="ml-2 text-[12px] text-gray-600 font-medium">Daily care and mood-driven model states</Text>
           </View>
-          <View className="flex-row items-center mb-3">
-            <Text className="text-lg mr-3">{'\u{1FA9E}'}</Text>
-            <Text className="text-sm text-neutral-600">Reflect and grow together</Text>
+          <View className="flex-row items-center mb-2.5">
+            <MaterialCommunityIcons name="hanger" size={16} color="#4FB0C6" />
+            <Text className="ml-2 text-[12px] text-gray-600 font-medium">Customize Nomi with new blue-themed outfits</Text>
           </View>
           <View className="flex-row items-center">
-            <Text className="text-lg mr-3">{'\u{1F3A8}'}</Text>
-            <Text className="text-sm text-neutral-600">Customize with NFT skins</Text>
+            <MaterialCommunityIcons name="shield-star" size={16} color="#3792A6" />
+            <Text className="ml-2 text-[12px] text-gray-600 font-medium">Wallet-owned pet with persistent progress</Text>
           </View>
         </View>
 
-        {/* Mint Button */}
-        <TouchableOpacity
-          onPress={handleMint}
-          disabled={isMinting}
-          activeOpacity={0.8}
-          className="w-full"
-        >
+        <TouchableOpacity onPress={handleMint} disabled={isMinting} activeOpacity={0.9} className="w-full">
           <LinearGradient
-            colors={['#8b5cf6', '#a78bfa']}
+            colors={['#3792A6', '#4FB0C6']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             className="py-4 rounded-2xl items-center"
             style={{
-              opacity: isMinting ? 0.7 : 1,
-              shadowColor: '#8b5cf6',
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.3,
-              shadowRadius: 8,
+              opacity: isMinting ? 0.75 : 1,
+              shadowColor: '#3792A6',
+              shadowOffset: { width: 0, height: 6 },
+              shadowOpacity: 0.28,
+              shadowRadius: 10,
               elevation: 6,
             }}
           >
             {isMinting ? (
               <View className="flex-row items-center">
                 <ActivityIndicator color="#FFF" size="small" />
-                <Text className="text-white text-lg font-bold ml-2">Minting...</Text>
+                <Text className="text-white text-[16px] font-black ml-2">Minting...</Text>
               </View>
             ) : (
-              <Text className="text-white text-lg font-bold">Mint Nomi NFT</Text>
+              <Text className="text-white text-[16px] font-black tracking-[0.6px] uppercase">Mint Nomi NFT</Text>
             )}
           </LinearGradient>
         </TouchableOpacity>

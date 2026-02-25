@@ -11,24 +11,29 @@ const MODEL_BREATHING = require('../../assets/pets/breathing2.glb');
 const MODEL_EXCITED = require('../../assets/pets/excited2.glb');
 const MODEL_SAD = require('../../assets/pets/Sad.glb');
 const MODEL_FALLINGDOWN = require('../../assets/pets/fall.glb');
+const MODEL_DANCING = require('../../assets/pets/Dance.glb');
+const ACCESSORY_HEADPHONES = require('../../assets/pets/headphones.glb');
 
 useGLTF.preload(MODEL_BREATHING);
 useGLTF.preload(MODEL_EXCITED);
 useGLTF.preload(MODEL_SAD);
 useGLTF.preload(MODEL_FALLINGDOWN);
+useGLTF.preload(MODEL_DANCING);
+useGLTF.preload(ACCESSORY_HEADPHONES);
 
 type GLTFResult = GLTF & {
   nodes: Record<string, THREE.Object3D>;
   materials: Record<string, THREE.Material>;
 };
 
-export type ActiveModel = 'breathing' | 'excited' | 'sad' | 'falling';
+export type ActiveModel = 'breathing' | 'excited' | 'sad' | 'falling' | 'dancing';
 
 const MODEL_MAP: Record<ActiveModel, any> = {
   breathing: MODEL_BREATHING,
   excited: MODEL_EXCITED,
   sad: MODEL_SAD,
   falling: MODEL_FALLINGDOWN,
+  dancing: MODEL_DANCING,
 };
 
 // Pick the right animation clip for each model type.
@@ -37,6 +42,7 @@ const MODEL_MAP: Record<ActiveModel, any> = {
 // excited2.glb:   [0]=excited(6s) → use [0]
 // Sad.glb:        [0]=sad(3s) → use [0]
 // fall.glb:       [0]=excited-like(6s), [1]=idle(10s), [2]=fall(2s) → use LAST (shortest unique)
+// Dance.glb:      [0]=dance(26s) → use [0]
 function pickClip(animations: THREE.AnimationClip[], activeModel: ActiveModel): THREE.AnimationClip {
   if (activeModel === 'breathing') {
     // Use the longest clip (idle/breathing)
@@ -46,27 +52,95 @@ function pickClip(animations: THREE.AnimationClip[], activeModel: ActiveModel): 
     // Use the LAST clip (the unique fall animation, shortest)
     return animations[animations.length - 1];
   }
-  // excited, sad: use first clip
+  // excited, sad, dancing: use first clip
   return animations[0];
+}
+
+// Head bone name in the Mixamo skeleton
+const HEAD_BONE_NAME = 'mixamorig:Head';
+
+// Imperatively attach/detach headphones to the head bone.
+// Avoids JSX <primitive> key conflicts with the character scene.
+function useHeadphoneAccessory(parentBone: THREE.Object3D | null, equipped: boolean) {
+  const gltf = useGLTF(ACCESSORY_HEADPHONES) as GLTFResult;
+
+  useEffect(() => {
+    console.log(`[Headphones] equipped=${equipped} parentBone=${parentBone?.name ?? 'null'} scene children=${gltf.scene?.children?.length}`);
+
+    if (!parentBone || !equipped) return;
+
+    // Log bounding box of the headphones scene to understand its size
+    const box = new THREE.Box3().setFromObject(gltf.scene);
+    const size = new THREE.Vector3();
+    box.getSize(size);
+    console.log(`[Headphones] scene bbox size: x=${size.x.toFixed(2)} y=${size.y.toFixed(2)} z=${size.z.toFixed(2)}`);
+
+    // Log the bone's world position so we know where it is
+    const boneWorld = new THREE.Vector3();
+    parentBone.getWorldPosition(boneWorld);
+    console.log(`[Headphones] bone world pos: x=${boneWorld.x.toFixed(2)} y=${boneWorld.y.toFixed(2)} z=${boneWorld.z.toFixed(2)}`);
+
+    const wrapper = new THREE.Group();
+    wrapper.scale.set(0.26, 0.14, 0.16);
+    wrapper.position.set(0, 0.1 , 0);
+    wrapper.add(gltf.scene);
+    parentBone.add(wrapper);
+
+    console.log(`[Headphones] ATTACHED to ${parentBone.name}, wrapper children=${wrapper.children.length}`);
+
+    return () => {
+      console.log(`[Headphones] DETACHING from ${parentBone.name}`);
+      parentBone.remove(wrapper);
+      wrapper.remove(gltf.scene);
+    };
+  }, [parentBone, equipped, gltf.scene]);
 }
 
 interface PetModelProps {
   modelAsset: any;
   activeModel: ActiveModel;
   onAnimationDone?: () => void;
+  equippedSkin: string;
 }
 
-function PetModel({ modelAsset, activeModel, onAnimationDone }: PetModelProps) {
+function PetModel({ modelAsset, activeModel, onAnimationDone, equippedSkin }: PetModelProps) {
   const mixerRef = useRef<THREE.AnimationMixer | null>(null);
+  const headBoneRef = useRef<THREE.Object3D | null>(null);
+  const [headBoneReady, setHeadBoneReady] = useState(false);
 
   const gltf = useGLTF(modelAsset) as GLTFResult;
   const { scene, animations } = gltf;
 
+  // Dump every node in the scene on mount so we can see the real bone names
   useEffect(() => {
-    console.log(`[PetModel] mount activeModel=${activeModel} clips=${animations?.length} names=[${animations?.map(a => `${a.name}(${a.duration.toFixed(1)}s)`).join(', ')}]`);
+    console.log(`[PetModel] === SCENE DUMP for ${activeModel} ===`);
+    scene.traverse((child: THREE.Object3D) => {
+      console.log(`[PetModel]   name="${child.name}" type=${child.type}`);
+    });
+    console.log(`[PetModel] === END DUMP ===`);
 
+    // Try finding the bone by exact name
+    let bone = scene.getObjectByName(HEAD_BONE_NAME);
+    console.log(`[PetModel] getObjectByName("${HEAD_BONE_NAME}") → ${bone ? 'FOUND' : 'null'}`);
+
+    // Fallback: search by partial match (in case the name differs slightly)
+    if (!bone) {
+      scene.traverse((child: THREE.Object3D) => {
+        if (child.name.toLowerCase().includes('head') && !bone) {
+          console.log(`[PetModel] PARTIAL MATCH: "${child.name}" type=${child.type}`);
+          bone = child;
+        }
+      });
+    }
+
+    if (bone) {
+      headBoneRef.current = bone;
+      setHeadBoneReady(true);
+    }
+  }, [scene, activeModel]);
+
+  useEffect(() => {
     if (!animations || animations.length === 0) {
-      console.log(`[PetModel] No animations for ${activeModel}`);
       if (activeModel === 'excited' || activeModel === 'falling') {
         const t = setTimeout(() => onAnimationDone?.(), 1500);
         return () => clearTimeout(t);
@@ -78,7 +152,6 @@ function PetModel({ modelAsset, activeModel, onAnimationDone }: PetModelProps) {
     mixerRef.current = mixer;
 
     const clip = pickClip(animations, activeModel);
-    console.log(`[PetModel] Playing "${clip.name}" (${clip.duration.toFixed(1)}s) for ${activeModel}`);
 
     const action = mixer.clipAction(clip);
     action.reset();
@@ -93,7 +166,6 @@ function PetModel({ modelAsset, activeModel, onAnimationDone }: PetModelProps) {
     action.play();
 
     const onFinished = () => {
-      console.log(`[PetModel] Animation finished for ${activeModel}`);
       onAnimationDone?.();
     };
 
@@ -102,7 +174,6 @@ function PetModel({ modelAsset, activeModel, onAnimationDone }: PetModelProps) {
     }
 
     return () => {
-      console.log(`[PetModel] cleanup ${activeModel}`);
       if (activeModel === 'excited') {
         mixer.removeEventListener('finished', onFinished);
       }
@@ -114,6 +185,8 @@ function PetModel({ modelAsset, activeModel, onAnimationDone }: PetModelProps) {
   useFrame((_state, delta) => {
     if (mixerRef.current) mixerRef.current.update(delta);
   });
+
+  useHeadphoneAccessory(headBoneRef.current, equippedSkin === 'headphones');
 
   return (
     <group position={[0, -1, 0]}>
@@ -146,9 +219,10 @@ const FADE_MS = 120;
 interface PetRendererProps {
   activeModel?: ActiveModel;
   onExcitedFinished?: () => void;
+  equippedSkin?: string;
 }
 
-export const PetRenderer = memo(function PetRenderer({ activeModel = 'breathing', onExcitedFinished }: PetRendererProps) {
+export const PetRenderer = memo(function PetRenderer({ activeModel = 'breathing', onExcitedFinished, equippedSkin = 'default' }: PetRendererProps) {
   const [canvasReady, setCanvasReady] = useState(false);
   const [renderedModel, setRenderedModel] = useState<ActiveModel>(activeModel);
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -230,6 +304,7 @@ export const PetRenderer = memo(function PetRenderer({ activeModel = 'breathing'
             modelAsset={modelAsset}
             activeModel={renderedModel}
             onAnimationDone={renderedModel === 'excited' ? stableOnDone : undefined}
+            equippedSkin={equippedSkin}
           />
         </Suspense>
       </Canvas>
