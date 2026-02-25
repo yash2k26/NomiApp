@@ -152,13 +152,13 @@ export async function hydratePetStore() {
 
 // --- Helper: check if all stats are maxed and trigger excited burst ---
 
-// Triggers excited burst when all three stats are nearly maxed (95%+).
+// Triggers excited burst when all three stats are maxed (100).
 function checkExcitedTrigger(state: PetStore) {
   if (
     !state.isExcitedBurst &&
-    state.hunger >= 95 &&
-    state.happiness >= 95 &&
-    state.energy >= 95
+    state.hunger >= 100 &&
+    state.happiness >= 100 &&
+    state.energy >= 100
   ) {
     state.triggerExcitedBurst();
   }

@@ -40,12 +40,12 @@ const TABS: { key: Tab; icon: string; label: string }[] = [
 function TabBar({ activeTab, onTabPress }: { activeTab: Tab; onTabPress: (tab: Tab) => void }) {
   return (
     <View
-      className="flex-row bg-white rounded-t-[40px] pb-8 pt-4 border-t-2 border-gray-50"
+      className="flex-row bg-white rounded-t-[34px] pb-8 pt-3 border-t border-pet-blue-light/40"
       style={{
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: -10 },
-        shadowOpacity: 0.05,
-        shadowRadius: 15,
+        shadowColor: '#22314A',
+        shadowOffset: { width: 0, height: -8 },
+        shadowOpacity: 0.08,
+        shadowRadius: 14,
         elevation: 12,
       }}
     >
@@ -58,12 +58,12 @@ function TabBar({ activeTab, onTabPress }: { activeTab: Tab; onTabPress: (tab: T
             activeOpacity={0.8}
             className="flex-1 items-center"
           >
-            <View className={`px-8 py-2.5 rounded-[24px] mb-1.5 ${isActive ? 'bg-pet-blue/20' : ''}`}>
-              <Text className={`text-2xl ${!isActive ? 'opacity-30 grayscale' : ''}`}>
+            <View className={`px-7 py-2 rounded-[20px] mb-1 ${isActive ? 'bg-pet-blue/20 border border-pet-blue-light' : ''}`}>
+              <Text className={`text-[23px] ${!isActive ? 'opacity-35' : ''}`}>
                 {tab.icon}
               </Text>
             </View>
-            <Text className={`text-[10px] font-black uppercase tracking-widest ${isActive ? 'text-pet-blue-dark' : 'text-gray-300'}`}>
+            <Text className={`text-[10px] font-bold uppercase tracking-[0.8px] ${isActive ? 'text-pet-blue-dark' : 'text-gray-300'}`}>
               {tab.label}
             </Text>
           </TouchableOpacity>
@@ -144,4 +144,3 @@ export default function App() {
     </GestureHandlerRootView>
   );
 }
-

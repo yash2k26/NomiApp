@@ -1,17 +1,16 @@
-import React, { useRef, memo, useState, Suspense, useEffect } from 'react';
-import { View, Text, Platform, LogBox, ActivityIndicator } from 'react-native';
+import React, { useRef, memo, useState, Suspense, useEffect, useCallback } from 'react';
+import { View, Text, Platform, LogBox, ActivityIndicator, Animated } from 'react-native';
 import { Canvas, useFrame } from '@react-three/fiber/native';
 import { useGLTF, OrbitControls } from '@react-three/drei/native';
 import * as THREE from 'three';
 import type { GLTF } from 'three-stdlib';
-import { usePetStore } from '../store/petStore';
 
-LogBox.ignoreLogs(['EXGL: gl.pixelStorei()']);
+LogBox.ignoreLogs(['EXGL: gl.pixelStorei()', 'THREE.THREE.Clock']);
 
-const MODEL_BREATHING = require('../../assets/pets/breathing.glb');
-const MODEL_EXCITED = require('../../assets/pets/Excited.glb');
+const MODEL_BREATHING = require('../../assets/pets/breathing2.glb');
+const MODEL_EXCITED = require('../../assets/pets/excited2.glb');
 const MODEL_SAD = require('../../assets/pets/Sad.glb');
-const MODEL_FALLINGDOWN = require('../../assets/pets/fallingdown.glb');
+const MODEL_FALLINGDOWN = require('../../assets/pets/fall.glb');
 
 useGLTF.preload(MODEL_BREATHING);
 useGLTF.preload(MODEL_EXCITED);
@@ -23,8 +22,6 @@ type GLTFResult = GLTF & {
   materials: Record<string, THREE.Material>;
 };
 
-// Which model to show — passed as a simple string from HomeScreen
-// breathing.glb = default idle, Sad.glb = any stat < 50%, Excited.glb = burst at 95%+
 export type ActiveModel = 'breathing' | 'excited' | 'sad' | 'falling';
 
 const MODEL_MAP: Record<ActiveModel, any> = {
@@ -34,47 +31,92 @@ const MODEL_MAP: Record<ActiveModel, any> = {
   falling: MODEL_FALLINGDOWN,
 };
 
-interface PetModelProps {
-  modelAsset: any;
+// Pick the right animation clip for each model type.
+// All GLB files share the same base mesh — they only differ in baked animations.
+// breathing2.glb: [0]=excited-like(6s), [1]=idle/breathing(10s) → use longest
+// excited2.glb:   [0]=excited(6s) → use [0]
+// Sad.glb:        [0]=sad(3s) → use [0]
+// fall.glb:       [0]=excited-like(6s), [1]=idle(10s), [2]=fall(2s) → use LAST (shortest unique)
+function pickClip(animations: THREE.AnimationClip[], activeModel: ActiveModel): THREE.AnimationClip {
+  if (activeModel === 'breathing') {
+    // Use the longest clip (idle/breathing)
+    return [...animations].sort((a, b) => b.duration - a.duration)[0];
+  }
+  if (activeModel === 'falling') {
+    // Use the LAST clip (the unique fall animation, shortest)
+    return animations[animations.length - 1];
+  }
+  // excited, sad: use first clip
+  return animations[0];
 }
 
-function PetModel({ modelAsset }: PetModelProps) {
-  const groupRef = useRef<THREE.Group>(null);
+interface PetModelProps {
+  modelAsset: any;
+  activeModel: ActiveModel;
+  onAnimationDone?: () => void;
+}
+
+function PetModel({ modelAsset, activeModel, onAnimationDone }: PetModelProps) {
   const mixerRef = useRef<THREE.AnimationMixer | null>(null);
 
   const gltf = useGLTF(modelAsset) as GLTFResult;
   const { scene, animations } = gltf;
 
-  const energy = usePetStore((s) => s.energy);
-  const animSpeed = 0.5 + (energy / 100) * 0.5;
-
-  // Setup: play the first animation on loop
   useEffect(() => {
-    if (!animations || animations.length === 0) return;
+    console.log(`[PetModel] mount activeModel=${activeModel} clips=${animations?.length} names=[${animations?.map(a => `${a.name}(${a.duration.toFixed(1)}s)`).join(', ')}]`);
+
+    if (!animations || animations.length === 0) {
+      console.log(`[PetModel] No animations for ${activeModel}`);
+      if (activeModel === 'excited' || activeModel === 'falling') {
+        const t = setTimeout(() => onAnimationDone?.(), 1500);
+        return () => clearTimeout(t);
+      }
+      return;
+    }
 
     const mixer = new THREE.AnimationMixer(scene);
     mixerRef.current = mixer;
 
-    // Prefer Idle, otherwise play the first clip
-    const idle = animations.find((c) => c.name.includes('Idle'));
-    const clip = idle ?? animations[0];
+    const clip = pickClip(animations, activeModel);
+    console.log(`[PetModel] Playing "${clip.name}" (${clip.duration.toFixed(1)}s) for ${activeModel}`);
+
     const action = mixer.clipAction(clip);
-    action.setLoop(THREE.LoopRepeat, Infinity);
+    action.reset();
+
+    if (activeModel === 'excited') {
+      action.setLoop(THREE.LoopOnce, 1);
+      action.clampWhenFinished = true;
+    } else {
+      action.setLoop(THREE.LoopRepeat, Infinity);
+    }
+
     action.play();
 
-    return () => { mixer.stopAllAction(); };
-  }, [scene, animations]);
+    const onFinished = () => {
+      console.log(`[PetModel] Animation finished for ${activeModel}`);
+      onAnimationDone?.();
+    };
 
-  useFrame((state, delta) => {
+    if (activeModel === 'excited') {
+      mixer.addEventListener('finished', onFinished);
+    }
+
+    return () => {
+      console.log(`[PetModel] cleanup ${activeModel}`);
+      if (activeModel === 'excited') {
+        mixer.removeEventListener('finished', onFinished);
+      }
+      mixer.stopAllAction();
+      mixerRef.current = null;
+    };
+  }, [scene, animations, activeModel, onAnimationDone]);
+
+  useFrame((_state, delta) => {
     if (mixerRef.current) mixerRef.current.update(delta);
-    if (!groupRef.current) return;
-    const t = state.clock.getElapsedTime();
-    const breathe = 1 + Math.sin(t * animSpeed * 1.5) * 0.008;
-    groupRef.current.scale.set(breathe, breathe, breathe);
   });
 
   return (
-    <group ref={groupRef} position={[0, -1, 0]}>
+    <group position={[0, -1, 0]}>
       <primitive object={scene} />
     </group>
   );
@@ -99,22 +141,71 @@ function ModelLoadingFallback() {
   );
 }
 
+const FADE_MS = 120;
+
 interface PetRendererProps {
-  activeModel: ActiveModel;
+  activeModel?: ActiveModel;
+  onExcitedFinished?: () => void;
 }
 
-export const PetRenderer = memo(function PetRenderer({ activeModel }: PetRendererProps) {
+export const PetRenderer = memo(function PetRenderer({ activeModel = 'breathing', onExcitedFinished }: PetRendererProps) {
   const [canvasReady, setCanvasReady] = useState(false);
+  const [renderedModel, setRenderedModel] = useState<ActiveModel>(activeModel);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const isFirstRender = useRef(true);
+
+  const excitedCallbackRef = useRef(onExcitedFinished);
+  excitedCallbackRef.current = onExcitedFinished;
+  const stableOnDone = useCallback(() => {
+    excitedCallbackRef.current?.();
+  }, []);
+
+  // When activeModel changes: fade → swap → reveal
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      setRenderedModel(activeModel);
+      return;
+    }
+
+    console.log(`[PetRenderer] activeModel changed to "${activeModel}", starting fade swap`);
+
+    // Immediately cancel anything in flight
+    fadeAnim.stopAnimation();
+
+    // Fade in overlay, swap, fade out — all in sequence
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: FADE_MS,
+      useNativeDriver: true,
+    }).start(() => {
+      // Always swap — don't check `finished` flag, the stopAnimation above
+      // ensures only the latest effect's animation runs
+      console.log(`[PetRenderer] Fade in done, swapping to "${activeModel}"`);
+      setRenderedModel(activeModel);
+
+      setTimeout(() => {
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: FADE_MS,
+          useNativeDriver: true,
+        }).start();
+      }, 80);
+    });
+  }, [activeModel, fadeAnim]);
 
   if (Platform.OS === 'web') return <FallbackView />;
 
-  const modelAsset = MODEL_MAP[activeModel];
+  const modelAsset = MODEL_MAP[renderedModel] ?? MODEL_BREATHING;
+
+  console.log(`[PetRenderer] render: activeModel=${activeModel} renderedModel=${renderedModel}`);
 
   return (
     <View className="flex-1 bg-sky-200">
       {!canvasReady && <ModelLoadingFallback />}
 
       <Canvas
+        key={renderedModel}
         camera={{ position: [0, 1, 5], fov: 50 }}
         gl={{ antialias: false, powerPreference: 'low-power' }}
         onCreated={() => setCanvasReady(true)}
@@ -134,9 +225,20 @@ export const PetRenderer = memo(function PetRenderer({ activeModel }: PetRendere
         />
 
         <Suspense fallback={null}>
-          <PetModel key={activeModel} modelAsset={modelAsset} />
+          <PetModel
+            key={renderedModel}
+            modelAsset={modelAsset}
+            activeModel={renderedModel}
+            onAnimationDone={renderedModel === 'excited' ? stableOnDone : undefined}
+          />
         </Suspense>
       </Canvas>
+
+      <Animated.View
+        pointerEvents="none"
+        style={{ opacity: fadeAnim }}
+        className="absolute inset-0 bg-[#bae6fd]"
+      />
     </View>
   );
 });
