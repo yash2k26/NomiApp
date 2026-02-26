@@ -1,5 +1,5 @@
 import React, { useRef, memo, useState, Suspense, useEffect, useCallback } from 'react';
-import { View, Text, Platform, LogBox, ActivityIndicator, Animated } from 'react-native';
+import { View, Text, Platform, LogBox, ActivityIndicator } from 'react-native';
 import { Canvas, useFrame } from '@react-three/fiber/native';
 import { useGLTF, OrbitControls } from '@react-three/drei/native';
 import * as THREE from 'three';
@@ -7,18 +7,11 @@ import type { GLTF } from 'three-stdlib';
 
 LogBox.ignoreLogs(['EXGL: gl.pixelStorei()', 'THREE.THREE.Clock']);
 
-const MODEL_BREATHING = require('../../assets/pets/breathing2.glb');
-const MODEL_EXCITED = require('../../assets/pets/excited2.glb');
-const MODEL_SAD = require('../../assets/pets/Sad.glb');
-const MODEL_FALLINGDOWN = require('../../assets/pets/fall.glb');
-const MODEL_DANCING = require('../../assets/pets/Dance.glb');
+// Single model with all animations baked in
+const MODEL = require('../../assets/pets/nomi-all.glb');
 const ACCESSORY_HEADPHONES = require('../../assets/pets/headphones.glb');
 
-useGLTF.preload(MODEL_BREATHING);
-useGLTF.preload(MODEL_EXCITED);
-useGLTF.preload(MODEL_SAD);
-useGLTF.preload(MODEL_FALLINGDOWN);
-useGLTF.preload(MODEL_DANCING);
+useGLTF.preload(MODEL);
 useGLTF.preload(ACCESSORY_HEADPHONES);
 
 type GLTFResult = GLTF & {
@@ -28,68 +21,30 @@ type GLTFResult = GLTF & {
 
 export type ActiveModel = 'breathing' | 'excited' | 'sad' | 'falling' | 'dancing';
 
-const MODEL_MAP: Record<ActiveModel, any> = {
-  breathing: MODEL_BREATHING,
-  excited: MODEL_EXCITED,
-  sad: MODEL_SAD,
-  falling: MODEL_FALLINGDOWN,
-  dancing: MODEL_DANCING,
+// Map ActiveModel to the animation clip name baked in nomi-all.glb
+const CLIP_NAME_MAP: Record<ActiveModel, string> = {
+  breathing: 'Breathing',
+  excited: 'Excited',
+  sad: 'Sad',
+  falling: 'Fall',
+  dancing: 'Dance',
 };
 
-// Pick the right animation clip for each model type.
-// All GLB files share the same base mesh — they only differ in baked animations.
-// breathing2.glb: [0]=excited-like(6s), [1]=idle/breathing(10s) → use longest
-// excited2.glb:   [0]=excited(6s) → use [0]
-// Sad.glb:        [0]=sad(3s) → use [0]
-// fall.glb:       [0]=excited-like(6s), [1]=idle(10s), [2]=fall(2s) → use LAST (shortest unique)
-// Dance.glb:      [0]=dance(26s) → use [0]
-function pickClip(animations: THREE.AnimationClip[], activeModel: ActiveModel): THREE.AnimationClip {
-  if (activeModel === 'breathing') {
-    // Use the longest clip (idle/breathing)
-    return [...animations].sort((a, b) => b.duration - a.duration)[0];
-  }
-  if (activeModel === 'falling') {
-    // Use the LAST clip (the unique fall animation, shortest)
-    return animations[animations.length - 1];
-  }
-  // excited, sad, dancing: use first clip
-  return animations[0];
-}
-
-// Head bone name in the Mixamo skeleton
 const HEAD_BONE_NAME = 'mixamorig:Head';
 
-// Imperatively attach/detach headphones to the head bone.
-// Avoids JSX <primitive> key conflicts with the character scene.
 function useHeadphoneAccessory(parentBone: THREE.Object3D | null, equipped: boolean) {
   const gltf = useGLTF(ACCESSORY_HEADPHONES) as GLTFResult;
 
   useEffect(() => {
-    console.log(`[Headphones] equipped=${equipped} parentBone=${parentBone?.name ?? 'null'} scene children=${gltf.scene?.children?.length}`);
-
     if (!parentBone || !equipped) return;
-
-    // Log bounding box of the headphones scene to understand its size
-    const box = new THREE.Box3().setFromObject(gltf.scene);
-    const size = new THREE.Vector3();
-    box.getSize(size);
-    console.log(`[Headphones] scene bbox size: x=${size.x.toFixed(2)} y=${size.y.toFixed(2)} z=${size.z.toFixed(2)}`);
-
-    // Log the bone's world position so we know where it is
-    const boneWorld = new THREE.Vector3();
-    parentBone.getWorldPosition(boneWorld);
-    console.log(`[Headphones] bone world pos: x=${boneWorld.x.toFixed(2)} y=${boneWorld.y.toFixed(2)} z=${boneWorld.z.toFixed(2)}`);
 
     const wrapper = new THREE.Group();
     wrapper.scale.set(0.26, 0.14, 0.16);
-    wrapper.position.set(0, 0.1 , 0);
+    wrapper.position.set(0, 0.1, 0);
     wrapper.add(gltf.scene);
     parentBone.add(wrapper);
 
-    console.log(`[Headphones] ATTACHED to ${parentBone.name}, wrapper children=${wrapper.children.length}`);
-
     return () => {
-      console.log(`[Headphones] DETACHING from ${parentBone.name}`);
       parentBone.remove(wrapper);
       wrapper.remove(gltf.scene);
     };
@@ -97,50 +52,45 @@ function useHeadphoneAccessory(parentBone: THREE.Object3D | null, equipped: bool
 }
 
 interface PetModelProps {
-  modelAsset: any;
   activeModel: ActiveModel;
   onAnimationDone?: () => void;
   equippedSkin: string;
 }
 
-function PetModel({ modelAsset, activeModel, onAnimationDone, equippedSkin }: PetModelProps) {
+function PetModel({ activeModel, onAnimationDone, equippedSkin }: PetModelProps) {
   const mixerRef = useRef<THREE.AnimationMixer | null>(null);
+  const activeActionRef = useRef<THREE.AnimationAction | null>(null);
   const headBoneRef = useRef<THREE.Object3D | null>(null);
-  const [headBoneReady, setHeadBoneReady] = useState(false);
-
-  const gltf = useGLTF(modelAsset) as GLTFResult;
+  const gltf = useGLTF(MODEL) as GLTFResult;
   const { scene, animations } = gltf;
 
-  // Dump every node in the scene on mount so we can see the real bone names
+  // Create mixer once and find head bone
   useEffect(() => {
-    console.log(`[PetModel] === SCENE DUMP for ${activeModel} ===`);
-    scene.traverse((child: THREE.Object3D) => {
-      console.log(`[PetModel]   name="${child.name}" type=${child.type}`);
-    });
-    console.log(`[PetModel] === END DUMP ===`);
+    const mixer = new THREE.AnimationMixer(scene);
+    mixerRef.current = mixer;
 
-    // Try finding the bone by exact name
     let bone = scene.getObjectByName(HEAD_BONE_NAME);
-    console.log(`[PetModel] getObjectByName("${HEAD_BONE_NAME}") → ${bone ? 'FOUND' : 'null'}`);
-
-    // Fallback: search by partial match (in case the name differs slightly)
     if (!bone) {
       scene.traverse((child: THREE.Object3D) => {
-        if (child.name.toLowerCase().includes('head') && !bone) {
-          console.log(`[PetModel] PARTIAL MATCH: "${child.name}" type=${child.type}`);
+        if (!bone && child.name.toLowerCase().includes('head')) {
           bone = child;
         }
       });
     }
-
     if (bone) {
       headBoneRef.current = bone;
-      setHeadBoneReady(true);
     }
-  }, [scene, activeModel]);
 
+    return () => {
+      mixer.stopAllAction();
+      mixerRef.current = null;
+    };
+  }, [scene]);
+
+  // Swap animation clip when activeModel changes
   useEffect(() => {
-    if (!animations || animations.length === 0) {
+    const mixer = mixerRef.current;
+    if (!mixer || !animations || animations.length === 0) {
       if (activeModel === 'excited' || activeModel === 'falling') {
         const t = setTimeout(() => onAnimationDone?.(), 1500);
         return () => clearTimeout(t);
@@ -148,10 +98,17 @@ function PetModel({ modelAsset, activeModel, onAnimationDone, equippedSkin }: Pe
       return;
     }
 
-    const mixer = new THREE.AnimationMixer(scene);
-    mixerRef.current = mixer;
+    const clipName = CLIP_NAME_MAP[activeModel];
+    const clip = animations.find(c => c.name === clipName);
+    if (!clip) {
+      console.warn(`[PetModel] clip "${clipName}" not found`);
+      return;
+    }
 
-    const clip = pickClip(animations, activeModel);
+    // Stop previous action
+    if (activeActionRef.current) {
+      activeActionRef.current.fadeOut(0.15);
+    }
 
     const action = mixer.clipAction(clip);
     action.reset();
@@ -163,11 +120,10 @@ function PetModel({ modelAsset, activeModel, onAnimationDone, equippedSkin }: Pe
       action.setLoop(THREE.LoopRepeat, Infinity);
     }
 
-    action.play();
+    action.fadeIn(0.15).play();
+    activeActionRef.current = action;
 
-    const onFinished = () => {
-      onAnimationDone?.();
-    };
+    const onFinished = () => onAnimationDone?.();
 
     if (activeModel === 'excited') {
       mixer.addEventListener('finished', onFinished);
@@ -177,13 +133,11 @@ function PetModel({ modelAsset, activeModel, onAnimationDone, equippedSkin }: Pe
       if (activeModel === 'excited') {
         mixer.removeEventListener('finished', onFinished);
       }
-      mixer.stopAllAction();
-      mixerRef.current = null;
     };
-  }, [scene, animations, activeModel, onAnimationDone]);
+  }, [activeModel, animations, onAnimationDone]);
 
   useFrame((_state, delta) => {
-    if (mixerRef.current) mixerRef.current.update(delta);
+    mixerRef.current?.update(delta);
   });
 
   useHeadphoneAccessory(headBoneRef.current, equippedSkin === 'headphones');
@@ -214,8 +168,6 @@ function ModelLoadingFallback() {
   );
 }
 
-const FADE_MS = 120;
-
 interface PetRendererProps {
   activeModel?: ActiveModel;
   onExcitedFinished?: () => void;
@@ -224,9 +176,6 @@ interface PetRendererProps {
 
 export const PetRenderer = memo(function PetRenderer({ activeModel = 'breathing', onExcitedFinished, equippedSkin = 'default' }: PetRendererProps) {
   const [canvasReady, setCanvasReady] = useState(false);
-  const [renderedModel, setRenderedModel] = useState<ActiveModel>(activeModel);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const isFirstRender = useRef(true);
 
   const excitedCallbackRef = useRef(onExcitedFinished);
   excitedCallbackRef.current = onExcitedFinished;
@@ -234,52 +183,14 @@ export const PetRenderer = memo(function PetRenderer({ activeModel = 'breathing'
     excitedCallbackRef.current?.();
   }, []);
 
-  // When activeModel changes: fade → swap → reveal
-  useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      setRenderedModel(activeModel);
-      return;
-    }
-
-    console.log(`[PetRenderer] activeModel changed to "${activeModel}", starting fade swap`);
-
-    // Immediately cancel anything in flight
-    fadeAnim.stopAnimation();
-
-    // Fade in overlay, swap, fade out — all in sequence
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: FADE_MS,
-      useNativeDriver: true,
-    }).start(() => {
-      // Always swap — don't check `finished` flag, the stopAnimation above
-      // ensures only the latest effect's animation runs
-      console.log(`[PetRenderer] Fade in done, swapping to "${activeModel}"`);
-      setRenderedModel(activeModel);
-
-      setTimeout(() => {
-        Animated.timing(fadeAnim, {
-          toValue: 0,
-          duration: FADE_MS,
-          useNativeDriver: true,
-        }).start();
-      }, 80);
-    });
-  }, [activeModel, fadeAnim]);
-
   if (Platform.OS === 'web') return <FallbackView />;
-
-  const modelAsset = MODEL_MAP[renderedModel] ?? MODEL_BREATHING;
-
-  console.log(`[PetRenderer] render: activeModel=${activeModel} renderedModel=${renderedModel}`);
 
   return (
     <View className="flex-1 bg-sky-200">
       {!canvasReady && <ModelLoadingFallback />}
 
+      {/* Single persistent Canvas — never remounted */}
       <Canvas
-        key={renderedModel}
         camera={{ position: [0, 1, 5], fov: 50 }}
         gl={{ antialias: false, powerPreference: 'low-power' }}
         onCreated={() => setCanvasReady(true)}
@@ -300,20 +211,12 @@ export const PetRenderer = memo(function PetRenderer({ activeModel = 'breathing'
 
         <Suspense fallback={null}>
           <PetModel
-            key={renderedModel}
-            modelAsset={modelAsset}
-            activeModel={renderedModel}
-            onAnimationDone={renderedModel === 'excited' ? stableOnDone : undefined}
+            activeModel={activeModel}
+            onAnimationDone={activeModel === 'excited' ? stableOnDone : undefined}
             equippedSkin={equippedSkin}
           />
         </Suspense>
       </Canvas>
-
-      <Animated.View
-        pointerEvents="none"
-        style={{ opacity: fadeAnim }}
-        className="absolute inset-0 bg-[#bae6fd]"
-      />
     </View>
   );
 });
