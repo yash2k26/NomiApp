@@ -1,8 +1,31 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useXpStore } from './xpStore';
 
 export type PetMood = 'excited' | 'happy' | 'content' | 'tired' | 'hungry' | 'sad';
 export type PetSkin = 'default' | 'headphones';
+
+// ── Stamina system ──
+export const STAMINA_MAX = 100;
+export const STAMINA_REGEN_PER_HOUR = 10; // +1 every 6 minutes
+export const STAMINA_COSTS: Record<string, number> = {
+  feed: 15,
+  play: 25,
+  rest: 10,
+  reflect: 20,
+  miniGame: 25,
+};
+
+// ── Cooldown durations (milliseconds) ──
+export const COOLDOWN_DURATIONS: Record<string, number> = {
+  feed: 20 * 60 * 1000,      // 20 minutes
+  play: 30 * 60 * 1000,      // 30 minutes
+  rest: 45 * 60 * 1000,      // 45 minutes
+  reflect: 4 * 60 * 60 * 1000, // 4 hours
+  miniGame_memory: 15 * 60 * 1000,  // 15 minutes
+  miniGame_quicktap: 15 * 60 * 1000,
+  miniGame_pattern: 20 * 60 * 1000,  // 20 minutes
+};
 
 // --- Mood-to-Model mapping ---
 // breathing.glb = default idle model, Sad.glb = any stat < 50%
@@ -58,6 +81,11 @@ interface PetState {
   streakDays: number;
   isExcitedBurst: boolean; // temporary excited state
   excitedPlayedAt: number; // timestamp of last excited burst (cooldown tracking)
+  // Stamina system
+  stamina: number;
+  lastStaminaRegenAt: number;
+  // Cooldown system — maps action key → timestamp when cooldown expires
+  cooldowns: Record<string, number>;
 }
 
 interface PetActions {
@@ -75,6 +103,14 @@ interface PetActions {
   tick: () => void;
   triggerExcitedBurst: () => void;
   clearExcitedBurst: () => void;
+  // Stamina
+  getStamina: () => number; // computed stamina after regen
+  consumeStamina: (amount: number) => boolean; // returns false if not enough
+  canAffordStamina: (action: string) => boolean;
+  // Cooldowns
+  isOnCooldown: (action: string) => boolean;
+  getCooldownRemaining: (action: string) => number; // ms remaining, 0 if ready
+  startCooldown: (action: string) => void;
 }
 
 type PetStore = PetState & PetActions;
@@ -123,6 +159,7 @@ const STORAGE_KEY = 'oracle-pet-state';
 const PERSISTED_KEYS: (keyof PetState)[] = [
   'id', 'name', 'mintAddress', 'hunger', 'happiness', 'energy',
   'skin', 'hasPet', 'lastTickAt', 'lastActiveDate', 'streakDays',
+  'stamina', 'lastStaminaRegenAt', 'cooldowns',
 ];
 
 function savePetState(state: PetState) {
@@ -164,6 +201,17 @@ function checkExcitedTrigger(state: PetStore) {
   }
 }
 
+// --- Stamina regen helper ---
+// Computes current stamina based on time elapsed since last regen update
+function computeRegenedStamina(stamina: number, lastRegenAt: number): { stamina: number; lastRegenAt: number } {
+  const now = Date.now();
+  const elapsedMs = now - lastRegenAt;
+  const regenPerMs = STAMINA_REGEN_PER_HOUR / (60 * 60 * 1000);
+  const regened = elapsedMs * regenPerMs;
+  const newStamina = Math.min(STAMINA_MAX, stamina + regened);
+  return { stamina: newStamina, lastRegenAt: now };
+}
+
 // --- Store ---
 
 export const usePetStore = create<PetStore>((set, get) => ({
@@ -180,6 +228,9 @@ export const usePetStore = create<PetStore>((set, get) => ({
   streakDays: 0,
   isExcitedBurst: false,
   excitedPlayedAt: 0,
+  stamina: STAMINA_MAX,
+  lastStaminaRegenAt: Date.now(),
+  cooldowns: {},
 
   triggerExcitedBurst: () => {
     set({ isExcitedBurst: true, excitedPlayedAt: Date.now() });
@@ -187,6 +238,50 @@ export const usePetStore = create<PetStore>((set, get) => ({
 
   clearExcitedBurst: () => {
     set({ isExcitedBurst: false });
+  },
+
+  // ── Stamina actions ──
+  getStamina: () => {
+    // Pure computation — no set() calls, safe to use during render
+    const { stamina, lastStaminaRegenAt } = get();
+    const result = computeRegenedStamina(stamina, lastStaminaRegenAt);
+    return Math.floor(result.stamina);
+  },
+
+  consumeStamina: (amount: number) => {
+    // Flush regen before consuming
+    const { stamina, lastStaminaRegenAt } = get();
+    const result = computeRegenedStamina(stamina, lastStaminaRegenAt);
+    const current = Math.floor(result.stamina);
+    if (current < amount) return false;
+    set({ stamina: current - amount, lastStaminaRegenAt: Date.now() });
+    savePetState(get());
+    return true;
+  },
+
+  canAffordStamina: (action: string) => {
+    const cost = STAMINA_COSTS[action] ?? 0;
+    if (cost === 0) return true;
+    return get().getStamina() >= cost;
+  },
+
+  // ── Cooldown actions ──
+  isOnCooldown: (action: string) => {
+    const expires = get().cooldowns[action] ?? 0;
+    return Date.now() < expires;
+  },
+
+  getCooldownRemaining: (action: string) => {
+    const expires = get().cooldowns[action] ?? 0;
+    return Math.max(0, expires - Date.now());
+  },
+
+  startCooldown: (action: string) => {
+    const duration = COOLDOWN_DURATIONS[action] ?? 0;
+    if (duration === 0) return;
+    const { cooldowns } = get();
+    set({ cooldowns: { ...cooldowns, [action]: Date.now() + duration } });
+    savePetState(get());
   },
 
   mintPet: () => {
@@ -202,15 +297,28 @@ export const usePetStore = create<PetStore>((set, get) => ({
   },
 
   feedPet: () => {
+    const self = get();
+    if (!self.consumeStamina(STAMINA_COSTS.feed)) return;
+    self.startCooldown('feed');
     set((state) => ({
       hunger: clamp(state.hunger + 25, 0, 100),
       happiness: clamp(state.happiness + 5, 0, 100),
     }));
     savePetState(get());
     checkExcitedTrigger(get());
+    const xp = useXpStore.getState();
+    xp.addXp(8, 'feed');
+    xp.incrementCounter('feedCount');
+    xp.updateQuestProgress('feed');
+    const s = get();
+    xp.checkAchievements({ hunger: s.hunger, happiness: s.happiness, energy: s.energy });
+    xp.checkWellnessXp(s.hunger, s.happiness, s.energy);
   },
 
   playWithPet: () => {
+    const self = get();
+    if (!self.consumeStamina(STAMINA_COSTS.play)) return;
+    self.startCooldown('play');
     set((state) => ({
       happiness: clamp(state.happiness + 20, 0, 100),
       energy: clamp(state.energy - 15, 0, 100),
@@ -218,42 +326,78 @@ export const usePetStore = create<PetStore>((set, get) => ({
     }));
     savePetState(get());
     checkExcitedTrigger(get());
+    const xp = useXpStore.getState();
+    xp.addXp(12, 'play');
+    xp.incrementCounter('playCount');
+    xp.updateQuestProgress('play');
+    const s = get();
+    xp.checkAchievements({ hunger: s.hunger, happiness: s.happiness, energy: s.energy });
   },
 
   restPet: () => {
+    const self = get();
+    if (!self.consumeStamina(STAMINA_COSTS.rest)) return;
+    self.startCooldown('rest');
     set((state) => ({
       energy: clamp(state.energy + 30, 0, 100),
       happiness: clamp(state.happiness + 5, 0, 100),
     }));
     savePetState(get());
     checkExcitedTrigger(get());
+    const xp = useXpStore.getState();
+    xp.addXp(5, 'rest');
+    xp.incrementCounter('restCount');
+    xp.updateQuestProgress('rest');
+    const s = get();
+    xp.checkWellnessXp(s.hunger, s.happiness, s.energy);
   },
 
   reflectProductiveDay: () => {
+    const self = get();
+    if (!self.consumeStamina(STAMINA_COSTS.reflect)) return;
+    self.startCooldown('reflect');
     set((state) => ({
       happiness: clamp(state.happiness + 15, 0, 100),
       energy: clamp(state.energy + 5, 0, 100),
     }));
     savePetState(get());
     checkExcitedTrigger(get());
+    const xp = useXpStore.getState();
+    xp.addXp(20, 'reflect');
+    xp.incrementCounter('reflectCount');
+    xp.updateQuestProgress('reflect');
   },
 
   reflectNeedRest: () => {
+    const self = get();
+    if (!self.consumeStamina(STAMINA_COSTS.reflect)) return;
+    self.startCooldown('reflect');
     set((state) => ({
       energy: clamp(state.energy + 20, 0, 100),
       happiness: clamp(state.happiness + 10, 0, 100),
     }));
     savePetState(get());
     checkExcitedTrigger(get());
+    const xp = useXpStore.getState();
+    xp.addXp(20, 'reflect');
+    xp.incrementCounter('reflectCount');
+    xp.updateQuestProgress('reflect');
   },
 
   reflectFeelGood: () => {
+    const self = get();
+    if (!self.consumeStamina(STAMINA_COSTS.reflect)) return;
+    self.startCooldown('reflect');
     set((state) => ({
       happiness: clamp(state.happiness + 20, 0, 100),
       energy: clamp(state.energy + 10, 0, 100),
     }));
     savePetState(get());
     checkExcitedTrigger(get());
+    const xp = useXpStore.getState();
+    xp.addXp(20, 'reflect');
+    xp.incrementCounter('reflectCount');
+    xp.updateQuestProgress('reflect');
   },
 
   setSkin: (skin: PetSkin) => {
@@ -286,13 +430,16 @@ export const usePetStore = create<PetStore>((set, get) => ({
       streakDays: 0,
       isExcitedBurst: false,
       excitedPlayedAt: 0,
+      stamina: STAMINA_MAX,
+      lastStaminaRegenAt: Date.now(),
+      cooldowns: {},
     });
     savePetState(get());
   },
 
   tick: () => {
     const now = Date.now();
-    const { lastTickAt, lastActiveDate, streakDays } = get();
+    const { lastTickAt, lastActiveDate, streakDays, stamina, lastStaminaRegenAt } = get();
     const elapsedMs = now - lastTickAt;
     const elapsedHours = elapsedMs / (1000 * 60 * 60);
 
@@ -306,11 +453,16 @@ export const usePetStore = create<PetStore>((set, get) => ({
     const hungerDecay = Math.min(elapsedHours * 5, 50);
     const energyDecay = Math.min(elapsedHours * 3, 50);
 
+    // Stamina regen
+    const regen = computeRegenedStamina(stamina, lastStaminaRegenAt);
+
     set((state) => ({
       hunger: clamp(state.hunger - hungerDecay, 0, 100),
       happiness: clamp(state.happiness - happinessDecay, 0, 100),
       energy: clamp(state.energy - energyDecay, 0, 100),
       lastTickAt: now,
+      stamina: regen.stamina,
+      lastStaminaRegenAt: regen.lastRegenAt,
     }));
 
     // Daily streak tracking
@@ -325,6 +477,13 @@ export const usePetStore = create<PetStore>((set, get) => ({
         streakDays: newStreak,
         happiness: clamp(state.happiness + streakBonus, 0, 100),
       }));
+
+      // XP for daily login + streak
+      const xp = useXpStore.getState();
+      xp.addXp(20, 'daily-login');
+      xp.addXp(Math.min(newStreak * 5, 25), 'streak-bonus');
+      xp.checkAndRefreshQuests();
+      xp.checkAchievements({ streakDays: newStreak });
     }
 
     savePetState(get());

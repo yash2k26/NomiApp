@@ -1,4 +1,5 @@
 import { View, Text, TouchableOpacity, Modal, Pressable } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { usePetStore } from '../store/petStore';
 
 interface ReflectionModalProps {
@@ -70,11 +71,19 @@ export function ReflectionModal({ visible, onClose }: ReflectionModalProps) {
 
           {/* Header */}
           <View className="items-center mb-8">
-            <View className="w-20 h-20 bg-pet-blue rounded-3xl items-center justify-center mb-4 border-b-[6px] border-pet-blue-dark">
+            <LinearGradient
+              colors={['#4FB0C6', '#72C8DA']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              className="w-20 h-20 rounded-3xl items-center justify-center mb-4 border border-white/40"
+            >
               <Text className="text-4xl">{'\u{1FA9E}'}</Text>
-            </View>
+            </LinearGradient>
             <Text className="text-2xl font-black text-gray-800 uppercase tracking-tighter">Reflect with {name}</Text>
             <Text className="text-sm font-bold text-gray-400 mt-1">How's your day going, hooman?</Text>
+            <View className="bg-pet-purple-light/35 px-2.5 py-1 rounded-full mt-3">
+              <Text className="text-[10px] font-black text-pet-purple-dark">+25 XP reward</Text>
+            </View>
           </View>
 
           {/* Options */}

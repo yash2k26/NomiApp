@@ -1,6 +1,9 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, Animated } from 'react-native';
-import { usePetStore } from '../store/petStore';
+import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
+import { usePetStore, STAMINA_COSTS, STAMINA_MAX } from '../store/petStore';
+import { XpFloatText } from './XpFloatText';
 
 interface StatBarProps {
   label: string;
@@ -52,16 +55,84 @@ function StatBar({ label, value, icon, barColor, trackColor }: StatBarProps) {
   );
 }
 
+function StaminaBar() {
+  const getStamina = usePetStore((s) => s.getStamina);
+  const [stamina, setStamina] = useState(() => getStamina());
+  const widthAnim = useRef(new Animated.Value(stamina)).current;
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setStamina(getStamina());
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [getStamina]);
+
+  useEffect(() => {
+    Animated.spring(widthAnim, {
+      toValue: stamina,
+      friction: 8,
+      tension: 38,
+      useNativeDriver: false,
+    }).start();
+  }, [stamina, widthAnim]);
+
+  const isLow = stamina < 25;
+
+  return (
+    <View className="mb-4">
+      <View className="flex-row items-center justify-between mb-2">
+        <View className="flex-row items-center">
+          <Text className="text-sm mr-1.5">{'\u{1F50B}'}</Text>
+          <Text className="text-[11px] font-black tracking-[1px] uppercase text-pet-purple-dark">Stamina</Text>
+        </View>
+        <Text className={`text-[13px] font-black ${isLow ? 'text-pet-pink-dark' : 'text-pet-purple'}`}>
+          {Math.floor(stamina)}/{STAMINA_MAX}
+        </Text>
+      </View>
+      <View className="h-3 rounded-full overflow-hidden bg-pet-purple-light/30 border border-pet-purple-light/50">
+        <Animated.View
+          className={`h-full rounded-full ${isLow ? 'bg-pet-pink-dark' : 'bg-pet-purple'}`}
+          style={{
+            width: widthAnim.interpolate({
+              inputRange: [0, STAMINA_MAX],
+              outputRange: ['0%', '100%'],
+              extrapolate: 'clamp',
+            }),
+          }}
+        />
+      </View>
+      {stamina < STAMINA_MAX && (
+        <Text className="text-[9px] text-gray-400 font-semibold mt-1 text-right">
+          +1 every 6 min
+        </Text>
+      )}
+    </View>
+  );
+}
+
+function formatCooldown(ms: number): string {
+  if (ms <= 0) return '';
+  const totalSec = Math.ceil(ms / 1000);
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  if (min > 0) return `${min}:${sec.toString().padStart(2, '0')}`;
+  return `${sec}s`;
+}
+
 interface ActionButtonProps {
   icon: string;
   label: string;
   bgColor: string;
   onPress: () => void;
   disabled?: boolean;
+  staminaCost: number;
+  cooldownRemaining: number;
 }
 
-function ActionButton({ icon, label, bgColor, onPress, disabled }: ActionButtonProps) {
+function ActionButton({ icon, label, bgColor, onPress, disabled, staminaCost, cooldownRemaining }: ActionButtonProps) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
+  const onCooldown = cooldownRemaining > 0;
+  const isDisabled = disabled || onCooldown;
 
   const handlePressIn = () => {
     Animated.spring(scaleAnim, {
@@ -82,17 +153,26 @@ function ActionButton({ icon, label, bgColor, onPress, disabled }: ActionButtonP
   };
 
   return (
-    <Animated.View style={{ flex: 1, transform: [{ scale: scaleAnim }], opacity: disabled ? 0.5 : 1 }}>
+    <Animated.View style={{ flex: 1, transform: [{ scale: scaleAnim }], opacity: isDisabled ? 0.5 : 1 }}>
       <TouchableOpacity
         onPress={onPress}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
-        disabled={disabled}
+        disabled={isDisabled}
         activeOpacity={0.9}
       >
         <View className={`items-center py-4 rounded-[24px] ${bgColor} border border-black/10`}>
           <Text className="text-2xl mb-1">{icon}</Text>
-          <Text className="text-[12px] font-black tracking-[0.8px] uppercase text-white">{label}</Text>
+          {onCooldown ? (
+            <Text className="text-[10px] font-black tracking-[0.5px] text-white/80">
+              {formatCooldown(cooldownRemaining)}
+            </Text>
+          ) : (
+            <Text className="text-[12px] font-black tracking-[0.8px] uppercase text-white">{label}</Text>
+          )}
+          <Text className="text-[9px] font-bold text-white/60 mt-0.5">
+            {'\u{1F50B}'} {staminaCost}
+          </Text>
         </View>
       </TouchableOpacity>
     </Animated.View>
@@ -100,8 +180,43 @@ function ActionButton({ icon, label, bgColor, onPress, disabled }: ActionButtonP
 }
 
 export function CareActions() {
-  const { hunger, happiness, energy, feedPet, playWithPet, restPet } = usePetStore();
+  const { hunger, happiness, energy, feedPet, playWithPet, restPet, getStamina, isOnCooldown, getCooldownRemaining, canAffordStamina } = usePetStore();
   const needsAttention = hunger < 25 || happiness < 25 || energy < 25;
+  const [xpFloat, setXpFloat] = useState<{ amount: number; key: number } | null>(null);
+  const [, setTick] = useState(0);
+
+  // Re-render every second for cooldown countdowns
+  useEffect(() => {
+    const interval = setInterval(() => setTick(t => t + 1), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const showXpFloat = useCallback((amount: number) => {
+    setXpFloat({ amount, key: Date.now() });
+  }, []);
+
+  const handleFeed = useCallback(() => {
+    if (isOnCooldown('feed') || !canAffordStamina('feed')) return;
+    feedPet();
+    showXpFloat(8);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  }, [feedPet, showXpFloat, isOnCooldown, canAffordStamina]);
+
+  const handlePlay = useCallback(() => {
+    if (isOnCooldown('play') || !canAffordStamina('play')) return;
+    playWithPet();
+    showXpFloat(12);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  }, [playWithPet, showXpFloat, isOnCooldown, canAffordStamina]);
+
+  const handleRest = useCallback(() => {
+    if (isOnCooldown('rest') || !canAffordStamina('rest')) return;
+    restPet();
+    showXpFloat(5);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  }, [restPet, showXpFloat, isOnCooldown, canAffordStamina]);
+
+  const currentStamina = getStamina();
 
   return (
     <View className="px-6 mt-5">
@@ -118,7 +233,7 @@ export function CareActions() {
       )}
 
       <View
-        className="bg-white rounded-[28px] p-5 mb-5 border border-gray-100"
+        className="bg-white rounded-[28px] overflow-hidden mb-5 border border-gray-100"
         style={{
           shadowColor: '#1A2A40',
           shadowOffset: { width: 0, height: 10 },
@@ -127,58 +242,83 @@ export function CareActions() {
           elevation: 5,
         }}
       >
-        <View className="flex-row items-center justify-between mb-4">
-          <Text className="text-[16px] font-black text-gray-800">Care Dashboard</Text>
-          <View className="bg-pet-blue-light/35 px-2.5 py-1 rounded-full">
-            <Text className="text-[10px] font-bold text-pet-blue-dark tracking-[0.6px] uppercase">Live</Text>
+        <LinearGradient
+          colors={['#4FB0C6', '#72C8DA']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          className="px-5 py-3 flex-row items-center justify-between"
+        >
+          <Text className="text-[12px] font-black text-white tracking-[0.8px] uppercase">Care Dashboard</Text>
+          <View className="bg-white/20 px-2.5 py-1 rounded-full">
+            <Text className="text-[10px] font-bold text-white tracking-[0.6px] uppercase">Live</Text>
           </View>
-        </View>
+        </LinearGradient>
 
-        <StatBar
-          label="Hunger"
-          value={hunger}
-          icon={'\u{1F356}'}
-          barColor="bg-pet-blue-dark"
-          trackColor="bg-pet-blue-light/45"
-        />
-        <StatBar
-          label="Happiness"
-          value={happiness}
-          icon={'\u{1F496}'}
-          barColor="bg-pet-blue"
-          trackColor="bg-pet-blue-light/35"
-        />
-        <StatBar
-          label="Energy"
-          value={energy}
-          icon={'\u26A1'}
-          barColor="bg-pet-blue-dark"
-          trackColor="bg-pet-blue-light/30"
-        />
+        <View className="p-5">
+          <StaminaBar />
+
+          <StatBar
+            label="Hunger"
+            value={hunger}
+            icon={'\u{1F356}'}
+            barColor="bg-pet-orange"
+            trackColor="bg-pet-orange-light/40"
+          />
+          <StatBar
+            label="Happiness"
+            value={happiness}
+            icon={'\u{1F496}'}
+            barColor="bg-pet-pink"
+            trackColor="bg-pet-pink-light/40"
+          />
+          <StatBar
+            label="Energy"
+            value={energy}
+            icon={'\u26A1'}
+            barColor="bg-pet-green"
+            trackColor="bg-pet-green-light/40"
+          />
+        </View>
       </View>
 
-      <View className="flex-row gap-3">
-        <ActionButton
-          icon={'\u{1F355}'}
-          label="Feed"
-          bgColor="bg-pet-blue-dark"
-          onPress={feedPet}
-          disabled={hunger >= 100}
-        />
-        <ActionButton
-          icon={'\u{1F3AE}'}
-          label="Play"
-          bgColor="bg-pet-blue"
-          onPress={playWithPet}
-          disabled={energy < 15}
-        />
-        <ActionButton
-          icon={'\u{1F634}'}
-          label="Rest"
-          bgColor="bg-pet-blue-dark"
-          onPress={restPet}
-          disabled={energy >= 100}
-        />
+      <View className="relative">
+        {xpFloat && (
+          <XpFloatText
+            key={xpFloat.key}
+            amount={xpFloat.amount}
+            visible
+            onDone={() => setXpFloat(null)}
+          />
+        )}
+        <View className="flex-row gap-3">
+          <ActionButton
+            icon={'\u{1F355}'}
+            label="Feed"
+            bgColor="bg-pet-orange-dark"
+            onPress={handleFeed}
+            disabled={hunger >= 100 || currentStamina < STAMINA_COSTS.feed}
+            staminaCost={STAMINA_COSTS.feed}
+            cooldownRemaining={getCooldownRemaining('feed')}
+          />
+          <ActionButton
+            icon={'\u{1F3AE}'}
+            label="Play"
+            bgColor="bg-pet-pink"
+            onPress={handlePlay}
+            disabled={energy < 15 || currentStamina < STAMINA_COSTS.play}
+            staminaCost={STAMINA_COSTS.play}
+            cooldownRemaining={getCooldownRemaining('play')}
+          />
+          <ActionButton
+            icon={'\u{1F634}'}
+            label="Rest"
+            bgColor="bg-pet-green-dark"
+            onPress={handleRest}
+            disabled={energy >= 100 || currentStamina < STAMINA_COSTS.rest}
+            staminaCost={STAMINA_COSTS.rest}
+            cooldownRemaining={getCooldownRemaining('rest')}
+          />
+        </View>
       </View>
     </View>
   );

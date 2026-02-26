@@ -7,12 +7,9 @@ import type { GLTF } from 'three-stdlib';
 
 LogBox.ignoreLogs(['EXGL: gl.pixelStorei()', 'THREE.THREE.Clock']);
 
-// Single model with all animations baked in
 const MODEL = require('../../assets/pets/nomi-all.glb');
-const ACCESSORY_HEADPHONES = require('../../assets/pets/headphones.glb');
-
-useGLTF.preload(MODEL);
-useGLTF.preload(ACCESSORY_HEADPHONES);
+const ACCESSORY_HEADPHONES = require('../../assets/shop/headphones.glb');
+const ACCESSORY_HOODIE = require('../../assets/shop/hoodie_black.glb');
 
 type GLTFResult = GLTF & {
   nodes: Record<string, THREE.Object3D>;
@@ -21,7 +18,6 @@ type GLTFResult = GLTF & {
 
 export type ActiveModel = 'breathing' | 'excited' | 'sad' | 'falling' | 'dancing';
 
-// Map ActiveModel to the animation clip name baked in nomi-all.glb
 const CLIP_NAME_MAP: Record<ActiveModel, string> = {
   breathing: 'Breathing',
   excited: 'Excited',
@@ -32,12 +28,11 @@ const CLIP_NAME_MAP: Record<ActiveModel, string> = {
 
 const HEAD_BONE_NAME = 'mixamorig:Head';
 
-function useHeadphoneAccessory(parentBone: THREE.Object3D | null, equipped: boolean) {
+// ── Accessory components — only mount when equipped ──
+function HeadphonesAccessory({ parentBone }: { parentBone: THREE.Object3D }) {
   const gltf = useGLTF(ACCESSORY_HEADPHONES) as GLTFResult;
 
   useEffect(() => {
-    if (!parentBone || !equipped) return;
-
     const wrapper = new THREE.Group();
     wrapper.scale.set(0.26, 0.14, 0.16);
     wrapper.position.set(0, 0.1, 0);
@@ -48,7 +43,14 @@ function useHeadphoneAccessory(parentBone: THREE.Object3D | null, equipped: bool
       parentBone.remove(wrapper);
       wrapper.remove(gltf.scene);
     };
-  }, [parentBone, equipped, gltf.scene]);
+  }, [parentBone, gltf.scene]);
+
+  return null;
+}
+
+function HoodieAccessory() {
+  const gltf = useGLTF(ACCESSORY_HOODIE) as GLTFResult;
+  return <primitive object={gltf.scene} scale={0.5} position={[0, 0, 0]} />;
 }
 
 interface PetModelProps {
@@ -60,26 +62,23 @@ interface PetModelProps {
 function PetModel({ activeModel, onAnimationDone, equippedSkin }: PetModelProps) {
   const mixerRef = useRef<THREE.AnimationMixer | null>(null);
   const activeActionRef = useRef<THREE.AnimationAction | null>(null);
-  const headBoneRef = useRef<THREE.Object3D | null>(null);
+  const [headBone, setHeadBone] = useState<THREE.Object3D | null>(null);
   const gltf = useGLTF(MODEL) as GLTFResult;
   const { scene, animations } = gltf;
 
-  // Create mixer once and find head bone
   useEffect(() => {
     const mixer = new THREE.AnimationMixer(scene);
     mixerRef.current = mixer;
 
-    let bone = scene.getObjectByName(HEAD_BONE_NAME);
-    if (!bone) {
+    let headBoneFound = scene.getObjectByName(HEAD_BONE_NAME);
+    if (!headBoneFound) {
       scene.traverse((child: THREE.Object3D) => {
-        if (!bone && child.name.toLowerCase().includes('head')) {
-          bone = child;
+        if (!headBoneFound && child.name.toLowerCase().includes('head')) {
+          headBoneFound = child;
         }
       });
     }
-    if (bone) {
-      headBoneRef.current = bone;
-    }
+    if (headBoneFound) setHeadBone(headBoneFound);
 
     return () => {
       mixer.stopAllAction();
@@ -87,7 +86,6 @@ function PetModel({ activeModel, onAnimationDone, equippedSkin }: PetModelProps)
     };
   }, [scene]);
 
-  // Swap animation clip when activeModel changes
   useEffect(() => {
     const mixer = mixerRef.current;
     if (!mixer || !animations || animations.length === 0) {
@@ -105,7 +103,6 @@ function PetModel({ activeModel, onAnimationDone, equippedSkin }: PetModelProps)
       return;
     }
 
-    // Stop previous action
     if (activeActionRef.current) {
       activeActionRef.current.fadeOut(0.15);
     }
@@ -140,11 +137,16 @@ function PetModel({ activeModel, onAnimationDone, equippedSkin }: PetModelProps)
     mixerRef.current?.update(delta);
   });
 
-  useHeadphoneAccessory(headBoneRef.current, equippedSkin === 'headphones');
-
   return (
     <group position={[0, -1, 0]}>
       <primitive object={scene} />
+      {/* Accessories only load their GLB when mounted */}
+      {equippedSkin === 'headphones' && headBone && (
+        <HeadphonesAccessory parentBone={headBone} />
+      )}
+      {equippedSkin === 'hoodie' && (
+        <HoodieAccessory />
+      )}
     </group>
   );
 }
@@ -189,7 +191,6 @@ export const PetRenderer = memo(function PetRenderer({ activeModel = 'breathing'
     <View className="flex-1 bg-sky-200">
       {!canvasReady && <ModelLoadingFallback />}
 
-      {/* Single persistent Canvas — never remounted */}
       <Canvas
         camera={{ position: [0, 1, 5], fov: 50 }}
         gl={{ antialias: false, powerPreference: 'low-power' }}

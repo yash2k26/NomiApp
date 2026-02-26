@@ -2,8 +2,16 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, AppState, Animated, GestureResponderEvent, Modal, Pressable } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { usePetStore, getPetNeeds } from '../store/petStore';
-import { PetRenderer, CareActions, ReflectionModal, SkinSelector, type ActiveModel } from '../components';
+import { useShopStore } from '../store/shopStore';
+import { useAdventureStore } from '../store/adventureStore';
+import { PetRenderer, CareActions, ReflectionModal, type ActiveModel } from '../components';
+import { XpBar } from '../components/XpBar';
+import { LevelUpModal } from '../components/LevelUpModal';
+import { LoginCalendar } from '../components/LoginCalendar';
+import { useXpStore } from '../store/xpStore';
+import { ADVENTURE_ZONES } from '../store/adventureStore';
 
 const FALLING_DURATION = 3000;
 
@@ -189,8 +197,8 @@ function StreakCalendarModal({
             </Text>
 
             <View className="flex-row justify-between mb-2">
-              {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d) => (
-                <Text key={d} className="w-8 text-center text-[11px] font-bold text-gray-400">{d}</Text>
+              {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
+                <Text key={`${d}-${i}`} className="w-8 text-center text-[11px] font-bold text-gray-400">{d}</Text>
               ))}
             </View>
 
@@ -216,12 +224,98 @@ function StreakCalendarModal({
   );
 }
 
-export function HomeScreen() {
+function ActivityGlance({ onNavigateGames }: { onNavigateGames?: () => void }) {
+  const dailyQuests = useXpStore((s) => s.dailyQuests);
+  const weeklyQuests = useXpStore((s) => s.weeklyQuests);
+  const activeAdventure = useAdventureStore((s) => s.activeAdventure);
+  const canSpin = useAdventureStore((s) => s.canSpinToday);
+  const [remaining, setRemaining] = useState(0);
+
+  const dailyDone = dailyQuests.filter(q => q.completed).length;
+  const weeklyDone = weeklyQuests.filter(q => q.completed).length;
+  const activeZone = activeAdventure ? ADVENTURE_ZONES.find(z => z.id === activeAdventure.zoneId) : null;
+
+  useEffect(() => {
+    if (!activeAdventure) return;
+    const update = () => setRemaining(Math.max(0, activeAdventure.endsAt - Date.now()));
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [activeAdventure]);
+
+  const formatTime = (ms: number) => {
+    if (ms <= 0) return 'Done!';
+    const totalSec = Math.ceil(ms / 1000);
+    const hrs = Math.floor(totalSec / 3600);
+    const min = Math.floor((totalSec % 3600) / 60);
+    if (hrs > 0) return `${hrs}h ${min}m`;
+    return `${min}m`;
+  };
+
+  return (
+    <View className="px-6 mt-3 mb-1">
+      <View
+        className="bg-white rounded-[24px] border border-gray-100 overflow-hidden"
+        style={{ shadowColor: '#22314A', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 }}
+      >
+        <View className="px-4 py-2.5 border-b border-gray-100">
+          <Text className="text-[11px] font-black text-gray-500 uppercase tracking-[0.7px]">Today at a glance</Text>
+        </View>
+        <View className="flex-row">
+          {/* Quests */}
+          <TouchableOpacity className="flex-1 py-3.5 items-center border-r border-gray-100" activeOpacity={0.7} onPress={onNavigateGames}>
+            <Text className="text-[16px] mb-0.5">{'\u{1F3AF}'}</Text>
+            <Text className="text-[11px] font-black text-gray-700">{dailyDone}/{dailyQuests.length}</Text>
+            <Text className="text-[9px] font-semibold text-gray-400">Quests</Text>
+          </TouchableOpacity>
+
+          {/* Weekly */}
+          <TouchableOpacity className="flex-1 py-3.5 items-center border-r border-gray-100" activeOpacity={0.7} onPress={onNavigateGames}>
+            <Text className="text-[16px] mb-0.5">{'\u{1F3C6}'}</Text>
+            <Text className="text-[11px] font-black text-gray-700">{weeklyDone}/{weeklyQuests.length}</Text>
+            <Text className="text-[9px] font-semibold text-gray-400">Weekly</Text>
+          </TouchableOpacity>
+
+          {/* Adventure */}
+          <TouchableOpacity className="flex-1 py-3.5 items-center border-r border-gray-100" activeOpacity={0.7} onPress={onNavigateGames}>
+            {activeAdventure && activeZone ? (
+              <>
+                <Text className="text-[16px] mb-0.5">{activeZone.emoji}</Text>
+                <Text className="text-[11px] font-black text-pet-orange-dark">
+                  {remaining <= 0 ? 'Loot!' : formatTime(remaining)}
+                </Text>
+                <Text className="text-[9px] font-semibold text-gray-400">Adventure</Text>
+              </>
+            ) : (
+              <>
+                <Text className="text-[16px] mb-0.5">{'\u{1F30D}'}</Text>
+                <Text className="text-[11px] font-black text-gray-700">Go!</Text>
+                <Text className="text-[9px] font-semibold text-gray-400">Adventure</Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          {/* Spin */}
+          <TouchableOpacity className="flex-1 py-3.5 items-center" activeOpacity={0.7} onPress={onNavigateGames}>
+            <Text className="text-[16px] mb-0.5">{'\u{1F3B0}'}</Text>
+            <Text className={`text-[11px] font-black ${canSpin() ? 'text-pet-gold-dark' : 'text-gray-400'}`}>
+              {canSpin() ? 'Free!' : 'Done'}
+            </Text>
+            <Text className="text-[9px] font-semibold text-gray-400">Spin</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void } = {}) {
   const [reflectionModalVisible, setReflectionModalVisible] = useState(false);
   const [helpVisible, setHelpVisible] = useState(false);
   const [streakVisible, setStreakVisible] = useState(false);
   const [showParty, setShowParty] = useState(false);
   const [isFalling, setIsFalling] = useState(false);
+  const [loginPopupVisible, setLoginPopupVisible] = useState(false);
   const partyAnim = useRef(new Animated.Value(0)).current;
   const prevStreakRef = useRef(0);
   const prevAllHighRef = useRef(false);
@@ -237,9 +331,11 @@ export function HomeScreen() {
     clearExcitedBurst,
     triggerExcitedBurst,
     streakDays,
-    skin,
-    setSkin,
   } = usePetStore();
+
+  const { equippedItemId, items: shopItems, unequipItem } = useShopStore();
+  const equippedItem = equippedItemId ? shopItems.find((i) => i.id === equippedItemId) : null;
+  const equippedSkinKey = equippedItem?.skinKey ?? 'default';
 
   const moodText = getMoodText();
   const needMessage = getPetNeeds(hunger, happiness, energy);
@@ -257,9 +353,18 @@ export function HomeScreen() {
       ? 'excited'
       : anySadStat
         ? 'sad'
-        : skin === 'headphones'
+        : equippedSkinKey === 'headphones'
           ? 'dancing'
           : 'breathing';
+
+  // Login calendar auto-popup on daily first open
+  const lastLoginClaimDate = useAdventureStore((s) => s.lastLoginClaimDate);
+  useEffect(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    if (lastLoginClaimDate !== today) {
+      setLoginPopupVisible(true);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     tick();
@@ -278,10 +383,10 @@ export function HomeScreen() {
 
   // Auto-deselect headphones if any stat drops to 50% or below
   useEffect(() => {
-    if (skin === 'headphones' && anySadStat) {
-      setSkin('default');
+    if (equippedSkinKey === 'headphones' && anySadStat) {
+      unequipItem();
     }
-  }, [skin, anySadStat, setSkin]);
+  }, [equippedSkinKey, anySadStat, unequipItem]);
 
   useEffect(() => {
     if (streakDays > prevStreakRef.current) {
@@ -300,7 +405,7 @@ export function HomeScreen() {
   const lastTapXRef = useRef(0);
   const lastTapYRef = useRef(0);
 
-  const handleTouchCapture = useCallback((e: GestureResponderEvent) => {
+  const handleDoubleTap = useCallback((e: GestureResponderEvent) => {
     const now = Date.now();
     const { pageX, pageY } = e.nativeEvent;
     const dx = Math.abs(pageX - lastTapXRef.current);
@@ -331,20 +436,26 @@ export function HomeScreen() {
 
   return (
     <View className="flex-1 bg-pet-background">
-      <TouchableOpacity
-        onPress={() => setHelpVisible(true)}
-        activeOpacity={0.9}
-        className="absolute top-4 right-4 z-30 w-11 h-11 rounded-full bg-pet-blue items-center justify-center border border-pet-blue-dark/70"
-        style={{
-          shadowColor: '#3792A6',
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.3,
-          shadowRadius: 8,
-          elevation: 8,
-        }}
-      >
-        <MaterialCommunityIcons name="lightbulb-on-outline" size={20} color="#ffffff" />
-      </TouchableOpacity>
+      {/* XP Bar + Help button row */}
+      <View className="absolute top-0 left-0 right-0 z-30 flex-row items-center">
+        <View className="flex-1">
+          <XpBar />
+        </View>
+        <TouchableOpacity
+          onPress={() => setHelpVisible(true)}
+          activeOpacity={0.9}
+          className="mr-4 w-11 h-11 rounded-full bg-pet-blue items-center justify-center border border-pet-blue-dark/70"
+          style={{
+            shadowColor: '#3792A6',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.3,
+            shadowRadius: 8,
+            elevation: 8,
+          }}
+        >
+          <MaterialCommunityIcons name="lightbulb-on-outline" size={20} color="#ffffff" />
+        </TouchableOpacity>
+      </View>
 
       <View className="absolute -top-8 -left-6 w-36 h-36 rounded-full bg-pet-blue-light/35" />
       <View className="absolute top-[340px] -right-10 w-44 h-44 rounded-full bg-pet-blue-light/40" />
@@ -374,14 +485,14 @@ export function HomeScreen() {
         <View
           className="bg-pet-blue-light/25 rounded-b-[44px] overflow-hidden"
           style={{ height: 390 }}
-          onTouchStartCapture={handleTouchCapture}
+          onTouchEnd={handleDoubleTap}
         >
           <SkyCloud className="top-10 left-6" />
           <SkyCloud className="top-20 right-10 scale-90" />
           <SkyCloud className="top-52 left-12 scale-75" />
           <View className="absolute inset-0 bg-white/35 rounded-b-[44px]" />
           {needMessage && !isExcitedBurst && <NeedBubble message={needMessage} />}
-          <PetRenderer activeModel={activeModel} onExcitedFinished={clearExcitedBurst} equippedSkin={skin} />
+          <PetRenderer activeModel={activeModel} onExcitedFinished={clearExcitedBurst} equippedSkin={equippedSkinKey} />
         </View>
 
         <View className="items-center -mt-14 mb-4 z-10 px-6">
@@ -395,9 +506,17 @@ export function HomeScreen() {
               elevation: 8,
             }}
           >
-            <View className="bg-pet-blue px-6 py-2.5">
-              <Text className="text-white text-[11px] font-bold tracking-[1px] uppercase">Companion Status</Text>
-            </View>
+            <LinearGradient
+              colors={['#4FB0C6', '#6BC6D9']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              className="px-6 py-2.5"
+            >
+              <View className="flex-row items-center justify-between">
+                <Text className="text-white text-[11px] font-bold tracking-[1px] uppercase">Companion Status</Text>
+                <Text className="text-white/80 text-[10px] font-semibold">Live Mood Tracker</Text>
+              </View>
+            </LinearGradient>
             <View className="bg-white px-6 py-5 items-center">
               <Text className="text-[40px] leading-[42px] font-black text-gray-800">{name}</Text>
               <View className="flex-row items-center gap-2 mt-2.5">
@@ -418,6 +537,12 @@ export function HomeScreen() {
           </View>
         </View>
 
+        {/* Activity Glance */}
+        <ActivityGlance onNavigateGames={onNavigateGames} />
+
+        <View className="px-6 mt-4 mb-2">
+          <Text className="text-[17px] font-black text-gray-800">Care Panel</Text>
+        </View>
         <CareActions />
 
         <View className="px-6 mt-6">
@@ -437,7 +562,12 @@ export function HomeScreen() {
                   <Text className="text-2xl">{'\u{1FA9E}'}</Text>
                 </View>
                 <View className="flex-1">
-                  <Text className="text-[17px] font-black text-white">Reflection Prompt</Text>
+                  <View className="flex-row items-center">
+                    <Text className="text-[17px] font-black text-white">Reflection Prompt</Text>
+                    <View className="bg-pet-purple ml-2 px-2 py-0.5 rounded-full">
+                      <Text className="text-[9px] font-black text-white">+25 XP</Text>
+                    </View>
+                  </View>
                   <Text className="text-[13px] text-pet-blue-light mt-0.5">Talk to {name} and reset your vibe.</Text>
                 </View>
                 <View className="w-9 h-9 rounded-full bg-black/10 items-center justify-center">
@@ -448,15 +578,6 @@ export function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        <View className="mt-7 mb-4">
-          <View className="px-6 mb-4 flex-row items-center justify-between">
-            <Text className="text-lg font-black text-gray-800 tracking-[0.4px]">Outfit Studio</Text>
-            <View className="bg-pet-blue-light/35 px-3 py-1 rounded-full border border-pet-blue/40">
-              <Text className="text-[11px] font-semibold text-pet-blue-dark">Open Shop</Text>
-            </View>
-          </View>
-          <SkinSelector />
-        </View>
       </ScrollView>
 
       <ReflectionModal
@@ -465,6 +586,16 @@ export function HomeScreen() {
       />
       <HelpModal visible={helpVisible} onClose={() => setHelpVisible(false)} />
       <StreakCalendarModal visible={streakVisible} onClose={() => setStreakVisible(false)} streakDays={streakDays} />
+      <LevelUpModal />
+
+      {/* Daily Login Calendar Auto-Popup */}
+      <Modal visible={loginPopupVisible} transparent animationType="fade" onRequestClose={() => setLoginPopupVisible(false)}>
+        <Pressable className="flex-1 bg-black/40 justify-center px-4" onPress={() => setLoginPopupVisible(false)}>
+          <Pressable onPress={() => {}}>
+            <LoginCalendar onClaimed={() => setLoginPopupVisible(false)} />
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }

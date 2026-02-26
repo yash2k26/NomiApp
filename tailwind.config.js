@@ -34,6 +34,16 @@ module.exports = {
           light: '#B8AFF9',
           dark: '#766BD1',
         },
+        'pet-orange': {
+          DEFAULT: '#FF9F43',
+          light: '#FFD4A3',
+          dark: '#E88A2D',
+        },
+        'pet-gold': {
+          DEFAULT: '#FFD700',
+          light: '#FFF3B0',
+          dark: '#CCA800',
+        },
         'pet-background': '#F8F9FE',
       },
       borderRadius: {

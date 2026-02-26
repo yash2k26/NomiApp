@@ -1,33 +1,30 @@
-// Solana Client - Foundation for future blockchain integration
-// Currently uses mock data for development
+import { Connection, PublicKey, LAMPORTS_PER_SOL, clusterApiUrl } from '@solana/web3.js';
 
-const DEVNET_URL = 'https://api.devnet.solana.com';
+const CLUSTER = 'devnet';
+const DEVNET_URL = clusterApiUrl(CLUSTER);
 
-export const solanaClient = {
-  network: 'devnet' as const,
-  rpcUrl: DEVNET_URL,
+// Shared RPC connection (works in Expo Go — no native modules needed)
+export const connection = new Connection(DEVNET_URL, 'confirmed');
+
+export const APP_IDENTITY = {
+  name: 'Oracle Pet',
+  uri: 'https://oraclepet.app',
+  icon: 'favicon.ico',
 };
 
-export async function connectWallet(): Promise<{ address: string; balance: number } | null> {
-  // Placeholder - will integrate Solana Mobile Wallet Adapter
-  console.log('Wallet connection placeholder');
-  return null;
+/**
+ * Fetch real SOL balance for an address.
+ */
+export async function getBalance(address: string): Promise<number> {
+  try {
+    const pubkey = new PublicKey(address);
+    const lamports = await connection.getBalance(pubkey);
+    return lamports / LAMPORTS_PER_SOL;
+  } catch (error) {
+    console.error('[solanaClient] getBalance error:', error);
+    return 0;
+  }
 }
 
-export async function mintPetNFT(walletAddress: string): Promise<string | null> {
-  // Placeholder - will integrate Metaplex for minting
-  console.log('Mint pet NFT placeholder for wallet:', walletAddress);
-  return null;
-}
-
-export async function loadPetNFT(walletAddress: string): Promise<{ mintAddress: string; name: string } | null> {
-  // Placeholder - will query NFTs owned by wallet
-  console.log('Load pet NFT placeholder for wallet:', walletAddress);
-  return null;
-}
-
-export async function getBalance(walletAddress: string): Promise<number> {
-  // Placeholder - will query actual balance
-  console.log('Get balance placeholder for wallet:', walletAddress);
-  return 0;
-}
+export { PublicKey, LAMPORTS_PER_SOL };
+export type { Connection };
