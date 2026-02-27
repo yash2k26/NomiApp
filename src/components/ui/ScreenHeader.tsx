@@ -21,18 +21,22 @@ export function ScreenHeader({
 }: ScreenHeaderProps) {
   return (
     <LinearGradient
-      colors={['#4FB0C6', '#6CCBDE']}
+      colors={['#57CBE2', '#7CC8FF', '#9DA6FF']}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
-      className={`rounded-[28px] border border-white/40 ${compact ? 'px-4 py-4' : 'px-5 py-5'}`}
+      className={`rounded-[28px] border border-white/40 overflow-hidden ${compact ? 'px-4 py-4' : 'px-5 py-5'}`}
       style={{
-        shadowColor: '#2C8293',
+        shadowColor: '#5A87C7',
         shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.18,
-        shadowRadius: 12,
-        elevation: 6,
+        shadowOpacity: 0.22,
+        shadowRadius: 14,
+        elevation: 7,
       }}
     >
+      <View className="absolute -top-7 -right-5 w-24 h-24 rounded-full bg-white/20" />
+      <View className="absolute -bottom-8 -left-4 w-20 h-20 rounded-full bg-white/15" />
+      <Text className="absolute top-2 right-4 text-white/80 text-[14px]">{'\u2728'}</Text>
+      <Text className="absolute bottom-2 right-10 text-white/70 text-[12px]">{'\u{1F31F}'}</Text>
       <View className="flex-row items-start justify-between">
         <View className="flex-1 pr-3">
           {!!eyebrow && (

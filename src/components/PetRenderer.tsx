@@ -1,4 +1,4 @@
-import React, { useRef, memo, useState, Suspense, useEffect, useCallback } from 'react';
+import React, { useRef, memo, useState, Suspense, useEffect, useCallback, useMemo } from 'react';
 import { View, Text, Platform, LogBox, ActivityIndicator } from 'react-native';
 import { Canvas, useFrame } from '@react-three/fiber/native';
 import { useGLTF, OrbitControls } from '@react-three/drei/native';
@@ -7,9 +7,11 @@ import type { GLTF } from 'three-stdlib';
 
 LogBox.ignoreLogs(['EXGL: gl.pixelStorei()', 'THREE.THREE.Clock']);
 
-const MODEL = require('../../assets/pets/nomi-all.glb');
-const ACCESSORY_HEADPHONES = require('../../assets/shop/headphones.glb');
-const ACCESSORY_HOODIE = require('../../assets/shop/hoodie_black.glb');
+// Single combined GLB with pet + all accessories baked in
+const MODEL = require('../../assets/pets/nomi-combined.glb');
+
+// External animation GLB for falling-back on double-tap
+const FALLING_BACK_ANIM = require('../../assets/animation/fallingback.glb');
 
 type GLTFResult = GLTF & {
   nodes: Record<string, THREE.Object3D>;
@@ -18,39 +20,32 @@ type GLTFResult = GLTF & {
 
 export type ActiveModel = 'breathing' | 'excited' | 'sad' | 'falling' | 'dancing';
 
-const CLIP_NAME_MAP: Record<ActiveModel, string> = {
+// Clips baked into nomi-combined.glb
+const CLIP_NAME_MAP: Partial<Record<ActiveModel, string>> = {
   breathing: 'Breathing',
   excited: 'Excited',
   sad: 'Sad',
-  falling: 'Fall',
   dancing: 'Dance',
 };
 
 const HEAD_BONE_NAME = 'mixamorig:Head';
 
-// ── Accessory components — only mount when equipped ──
-function HeadphonesAccessory({ parentBone }: { parentBone: THREE.Object3D }) {
-  const gltf = useGLTF(ACCESSORY_HEADPHONES) as GLTFResult;
+// Accessory node names matching the merge script output
+const ACCESSORY_NODES = {
+  headphones: 'Accessory_Headphones',
+  crown: 'Accessory_Crown',
+  hoodie: 'Accessory_Hoodie',
+} as const;
 
-  useEffect(() => {
-    const wrapper = new THREE.Group();
-    wrapper.scale.set(0.26, 0.14, 0.16);
-    wrapper.position.set(0, 0.1, 0);
-    wrapper.add(gltf.scene);
-    parentBone.add(wrapper);
+// Preload the falling-back animation GLB
+useGLTF.preload(FALLING_BACK_ANIM);
 
-    return () => {
-      parentBone.remove(wrapper);
-      wrapper.remove(gltf.scene);
-    };
-  }, [parentBone, gltf.scene]);
-
+// ── Crown spin component (needs useFrame) ──
+function CrownSpinner({ crownNode }: { crownNode: THREE.Object3D }) {
+  useFrame((_state, delta) => {
+    crownNode.rotation.y += delta * 1.5;
+  });
   return null;
-}
-
-function HoodieAccessory() {
-  const gltf = useGLTF(ACCESSORY_HOODIE) as GLTFResult;
-  return <primitive object={gltf.scene} scale={0.5} position={[0, 0, 0]} />;
 }
 
 interface PetModelProps {
@@ -63,13 +58,58 @@ function PetModel({ activeModel, onAnimationDone, equippedSkin }: PetModelProps)
   const mixerRef = useRef<THREE.AnimationMixer | null>(null);
   const activeActionRef = useRef<THREE.AnimationAction | null>(null);
   const [headBone, setHeadBone] = useState<THREE.Object3D | null>(null);
+  const [crownNode, setCrownNode] = useState<THREE.Object3D | null>(null);
+  const accessoryRefsRef = useRef<Record<string, THREE.Object3D | null>>({});
+
   const gltf = useGLTF(MODEL) as GLTFResult;
   const { scene, animations } = gltf;
 
+  // Load external animation GLB
+  const fallingBackGltf = useGLTF(FALLING_BACK_ANIM) as GLTFResult;
+
+  // Merge all animation clips into one array
+  const allAnimations = useMemo(() => {
+    const clips = [...animations];
+
+    // Debug: log baked clip names and track prefixes
+    console.log('[PetModel] baked clips:', animations.map(c => c.name));
+    if (animations[0]?.tracks[0]) {
+      console.log('[PetModel] baked track sample:', animations[0].tracks[0].name);
+    }
+
+    // fallingback.glb has multiple baked clips — log all to identify the right one
+    const fbClips = fallingBackGltf.animations;
+    console.log('[PetModel] fallingback clips:', fbClips.map((c, i) => `[${i}] "${c.name}" ${c.duration.toFixed(2)}s tracks:${c.tracks.length}`));
+    if (fbClips.length > 0 && fbClips[fbClips.length - 1].tracks[0]) {
+      console.log('[PetModel] fallingback last clip track sample:', fbClips[fbClips.length - 1].tracks[0].name);
+    }
+
+    // Add ALL fallingback clips so we can test each one
+    for (let i = 0; i < fbClips.length; i++) {
+      const renamed = fbClips[i].clone();
+
+      // Retarget: strip path prefix so tracks bind to bones by name
+      // e.g. "Armature/mixamorig:Hips.position" → "mixamorig:Hips.position"
+      for (const track of renamed.tracks) {
+        const lastSlash = track.name.lastIndexOf('/');
+        if (lastSlash !== -1) {
+          track.name = track.name.substring(lastSlash + 1);
+        }
+      }
+
+      renamed.name = i === fbClips.length - 1 ? 'FallingBack' : `FallingBack_${i}`;
+      clips.push(renamed);
+    }
+
+    return clips;
+  }, [animations, fallingBackGltf.animations]);
+
+  // Setup: find bones, find accessory groups, hide all accessories initially
   useEffect(() => {
     const mixer = new THREE.AnimationMixer(scene);
     mixerRef.current = mixer;
 
+    // Find head bone
     let headBoneFound = scene.getObjectByName(HEAD_BONE_NAME);
     if (!headBoneFound) {
       scene.traverse((child: THREE.Object3D) => {
@@ -80,15 +120,56 @@ function PetModel({ activeModel, onAnimationDone, equippedSkin }: PetModelProps)
     }
     if (headBoneFound) setHeadBone(headBoneFound);
 
+    // Find and initially hide all accessory groups
+    for (const [key, nodeName] of Object.entries(ACCESSORY_NODES)) {
+      const node = scene.getObjectByName(nodeName);
+      if (node) {
+        node.visible = false;
+        accessoryRefsRef.current[key] = node;
+        if (key === 'crown') setCrownNode(node);
+      }
+    }
+
     return () => {
       mixer.stopAllAction();
       mixerRef.current = null;
     };
   }, [scene]);
 
+  // Toggle accessory visibility + re-parent head accessories to head bone
+  useEffect(() => {
+    const refs = accessoryRefsRef.current;
+
+    for (const [key] of Object.entries(ACCESSORY_NODES)) {
+      const node = refs[key];
+      if (!node) continue;
+
+      const isEquipped = equippedSkin === key;
+      node.visible = isEquipped;
+
+      if (isEquipped && headBone && (key === 'headphones' || key === 'crown')) {
+        // Re-parent to head bone if not already
+        if (node.parent !== headBone) {
+          node.parent?.remove(node);
+
+          if (key === 'headphones') {
+            node.scale.set(0.26, 0.14, 0.16);
+            node.position.set(0, 0.1, 0);
+          } else if (key === 'crown') {
+            node.scale.set(0.2, 0.2, 0.2);
+            node.position.set(0, 0.85, 0);
+          }
+
+          headBone.add(node);
+        }
+      }
+    }
+  }, [equippedSkin, headBone]);
+
+  // Animation switching — uses both baked clips and external animation clips
   useEffect(() => {
     const mixer = mixerRef.current;
-    if (!mixer || !animations || animations.length === 0) {
+    if (!mixer || allAnimations.length === 0) {
       if (activeModel === 'excited' || activeModel === 'falling') {
         const t = setTimeout(() => onAnimationDone?.(), 1500);
         return () => clearTimeout(t);
@@ -96,12 +177,17 @@ function PetModel({ activeModel, onAnimationDone, equippedSkin }: PetModelProps)
       return;
     }
 
-    const clipName = CLIP_NAME_MAP[activeModel];
-    const clip = animations.find(c => c.name === clipName);
+    // Resolve clip name: baked clips use CLIP_NAME_MAP, falling uses 'FallingBack' from external
+    const clipName = activeModel === 'falling' ? 'FallingBack' : CLIP_NAME_MAP[activeModel];
+    if (!clipName) return;
+
+    const clip = allAnimations.find(c => c.name === clipName);
     if (!clip) {
-      console.warn(`[PetModel] clip "${clipName}" not found`);
+      console.warn(`[PetModel] clip "${clipName}" not found in:`, allAnimations.map(c => c.name));
       return;
     }
+
+    console.log(`[PetModel] playing "${clipName}" duration=${clip.duration.toFixed(2)}s tracks=${clip.tracks.length}`);
 
     if (activeActionRef.current) {
       activeActionRef.current.fadeOut(0.15);
@@ -110,7 +196,7 @@ function PetModel({ activeModel, onAnimationDone, equippedSkin }: PetModelProps)
     const action = mixer.clipAction(clip);
     action.reset();
 
-    if (activeModel === 'excited') {
+    if (activeModel === 'excited' || activeModel === 'falling') {
       action.setLoop(THREE.LoopOnce, 1);
       action.clampWhenFinished = true;
     } else {
@@ -122,16 +208,16 @@ function PetModel({ activeModel, onAnimationDone, equippedSkin }: PetModelProps)
 
     const onFinished = () => onAnimationDone?.();
 
-    if (activeModel === 'excited') {
+    if (activeModel === 'excited' || activeModel === 'falling') {
       mixer.addEventListener('finished', onFinished);
     }
 
     return () => {
-      if (activeModel === 'excited') {
+      if (activeModel === 'excited' || activeModel === 'falling') {
         mixer.removeEventListener('finished', onFinished);
       }
     };
-  }, [activeModel, animations, onAnimationDone]);
+  }, [activeModel, allAnimations, onAnimationDone]);
 
   useFrame((_state, delta) => {
     mixerRef.current?.update(delta);
@@ -140,12 +226,9 @@ function PetModel({ activeModel, onAnimationDone, equippedSkin }: PetModelProps)
   return (
     <group position={[0, -1, 0]}>
       <primitive object={scene} />
-      {/* Accessories only load their GLB when mounted */}
-      {equippedSkin === 'headphones' && headBone && (
-        <HeadphonesAccessory parentBone={headBone} />
-      )}
-      {equippedSkin === 'hoodie' && (
-        <HoodieAccessory />
+      {/* Crown spin — only active when crown is equipped & node found */}
+      {equippedSkin === 'crown' && crownNode && (
+        <CrownSpinner crownNode={crownNode} />
       )}
     </group>
   );

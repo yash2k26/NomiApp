@@ -2,8 +2,11 @@ import { useRef, useEffect, useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, Animated } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import { usePetStore, STAMINA_COSTS, STAMINA_MAX } from '../store/petStore';
+import { usePetStore, STAMINA_COSTS, getEffectiveStaminaMax } from '../store/petStore';
+import { usePremiumStore } from '../store/premiumStore';
 import { XpFloatText } from './XpFloatText';
+import { CareModal } from './CareModal';
+import type { CareAction } from '../data/careVariants';
 
 interface StatBarProps {
   label: string;
@@ -57,7 +60,9 @@ function StatBar({ label, value, icon, barColor, trackColor }: StatBarProps) {
 
 function StaminaBar() {
   const getStamina = usePetStore((s) => s.getStamina);
+  const premium = usePremiumStore((s) => s.isPremium);
   const [stamina, setStamina] = useState(() => getStamina());
+  const maxStamina = getEffectiveStaminaMax();
   const widthAnim = useRef(new Animated.Value(stamina)).current;
 
   useEffect(() => {
@@ -84,9 +89,15 @@ function StaminaBar() {
         <View className="flex-row items-center">
           <Text className="text-sm mr-1.5">{'\u{1F50B}'}</Text>
           <Text className="text-[11px] font-black tracking-[1px] uppercase text-pet-purple-dark">Stamina</Text>
+          {premium && (
+            <View className="ml-1.5 bg-pet-gold/20 px-1.5 py-0.5 rounded-full flex-row items-center">
+              <Text className="text-[9px]">{'\u26A1'}</Text>
+              <Text className="text-[8px] font-black text-pet-gold-dark ml-0.5">2x</Text>
+            </View>
+          )}
         </View>
         <Text className={`text-[13px] font-black ${isLow ? 'text-pet-pink-dark' : 'text-pet-purple'}`}>
-          {Math.floor(stamina)}/{STAMINA_MAX}
+          {Math.floor(stamina)}/{maxStamina}
         </Text>
       </View>
       <View className="h-3 rounded-full overflow-hidden bg-pet-purple-light/30 border border-pet-purple-light/50">
@@ -94,16 +105,16 @@ function StaminaBar() {
           className={`h-full rounded-full ${isLow ? 'bg-pet-pink-dark' : 'bg-pet-purple'}`}
           style={{
             width: widthAnim.interpolate({
-              inputRange: [0, STAMINA_MAX],
+              inputRange: [0, maxStamina],
               outputRange: ['0%', '100%'],
               extrapolate: 'clamp',
             }),
           }}
         />
       </View>
-      {stamina < STAMINA_MAX && (
+      {stamina < maxStamina && (
         <Text className="text-[9px] text-gray-400 font-semibold mt-1 text-right">
-          +1 every 6 min
+          +1 every {premium ? '3' : '6'} min
         </Text>
       )}
     </View>
@@ -180,9 +191,10 @@ function ActionButton({ icon, label, bgColor, onPress, disabled, staminaCost, co
 }
 
 export function CareActions() {
-  const { hunger, happiness, energy, feedPet, playWithPet, restPet, getStamina, isOnCooldown, getCooldownRemaining, canAffordStamina } = usePetStore();
+  const { hunger, happiness, energy, getStamina, isOnCooldown, getCooldownRemaining } = usePetStore();
   const needsAttention = hunger < 25 || happiness < 25 || energy < 25;
   const [xpFloat, setXpFloat] = useState<{ amount: number; key: number } | null>(null);
+  const [careModalAction, setCareModalAction] = useState<CareAction | null>(null);
   const [, setTick] = useState(0);
 
   // Re-render every second for cooldown countdowns
@@ -196,25 +208,19 @@ export function CareActions() {
   }, []);
 
   const handleFeed = useCallback(() => {
-    if (isOnCooldown('feed') || !canAffordStamina('feed')) return;
-    feedPet();
-    showXpFloat(8);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-  }, [feedPet, showXpFloat, isOnCooldown, canAffordStamina]);
+    if (isOnCooldown('feed')) return;
+    setCareModalAction('feed');
+  }, [isOnCooldown]);
 
   const handlePlay = useCallback(() => {
-    if (isOnCooldown('play') || !canAffordStamina('play')) return;
-    playWithPet();
-    showXpFloat(12);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-  }, [playWithPet, showXpFloat, isOnCooldown, canAffordStamina]);
+    if (isOnCooldown('play')) return;
+    setCareModalAction('play');
+  }, [isOnCooldown]);
 
   const handleRest = useCallback(() => {
-    if (isOnCooldown('rest') || !canAffordStamina('rest')) return;
-    restPet();
-    showXpFloat(5);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-  }, [restPet, showXpFloat, isOnCooldown, canAffordStamina]);
+    if (isOnCooldown('rest')) return;
+    setCareModalAction('rest');
+  }, [isOnCooldown]);
 
   const currentStamina = getStamina();
 
@@ -320,6 +326,16 @@ export function CareActions() {
           />
         </View>
       </View>
+
+      <CareModal
+        visible={careModalAction !== null}
+        action={careModalAction ?? 'feed'}
+        onClose={() => setCareModalAction(null)}
+        onActionComplete={(xpAmount) => {
+          showXpFloat(xpAmount);
+          setCareModalAction(null);
+        }}
+      />
     </View>
   );
 }

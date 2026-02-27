@@ -3,7 +3,7 @@ import './src/polyfills';
 
 import { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { View, Text, TouchableOpacity, LogBox } from 'react-native';
+import { View, Text, TouchableOpacity, LogBox, AppState } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useWalletStore } from './src/store/walletStore';
@@ -11,6 +11,10 @@ import { usePetStore, hydratePetStore } from './src/store/petStore';
 import { useShopStore } from './src/store/shopStore';
 import { useXpStore } from './src/store/xpStore';
 import { useAdventureStore } from './src/store/adventureStore';
+import { usePremiumStore } from './src/store/premiumStore';
+import { usePersonalityStore } from './src/store/personalityStore';
+import { useEventStore } from './src/store/eventStore';
+import { useNotificationStore } from './src/store/notificationStore';
 import { WalletConnect } from './src/components';
 import { HomeScreen, ProfileScreen, MintScreen, ShopScreen } from './src/screens';
 import { GamesScreen } from './src/screens/GamesScreen';
@@ -53,8 +57,8 @@ function TabBar({ activeTab, onTabPress }: { activeTab: Tab; onTabPress: (tab: T
       style={{
         shadowColor: '#22314A',
         shadowOffset: { width: 0, height: -6 },
-        shadowOpacity: 0.06,
-        shadowRadius: 10,
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
         elevation: 10,
       }}
     >
@@ -67,7 +71,7 @@ function TabBar({ activeTab, onTabPress }: { activeTab: Tab; onTabPress: (tab: T
             activeOpacity={0.8}
             className="flex-1 items-center"
           >
-            <View className={`px-6 py-1.5 rounded-[16px] mb-1 ${isActive ? 'bg-pet-blue/15 border border-pet-blue-light' : ''}`}>
+            <View className={`px-6 py-1.5 rounded-[16px] mb-1 ${isActive ? 'bg-pet-blue/20 border border-pet-blue-light' : ''}`}>
               <Text className={`text-[21px] ${!isActive ? 'opacity-35' : ''}`}>
                 {tab.icon}
               </Text>
@@ -95,10 +99,36 @@ export default function App() {
   const hydrateShop = useShopStore((s) => s.hydrateShop);
   const hydrateXp = useXpStore((s) => s.hydrateXp);
   const hydrateAdventure = useAdventureStore((s) => s.hydrateAdventure);
+  const hydratePremium = usePremiumStore((s) => s.hydratePremium);
+  const hydratePersonality = usePersonalityStore((s) => s.hydratePersonality);
+  const hydrateEvents = useEventStore((s) => s.hydrateEvents);
+  const hydrateNotifications = useNotificationStore((s) => s.hydrateNotifications);
+  const requestNotificationPermission = useNotificationStore((s) => s.requestPermission);
+  const scheduleReturnNotifications = useNotificationStore((s) => s.scheduleReturnNotifications);
 
   useEffect(() => {
-    Promise.all([hydratePetStore(), hydrateWallet(), hydrateShop(), hydrateXp(), hydrateAdventure()]).finally(() => setHydrated(true));
-  }, [hydrateWallet, hydrateShop, hydrateXp, hydrateAdventure]);
+    Promise.all([hydratePetStore(), hydrateWallet(), hydrateShop(), hydrateXp(), hydrateAdventure(), hydratePremium(), hydratePersonality(), hydrateEvents(), hydrateNotifications()]).finally(() => setHydrated(true));
+  }, [hydrateWallet, hydrateShop, hydrateXp, hydrateAdventure, hydratePremium, hydratePersonality, hydrateEvents, hydrateNotifications]);
+
+  // Request notification permission after first pet mint
+  useEffect(() => {
+    if (hasPet) {
+      requestNotificationPermission();
+    }
+  }, [hasPet, requestNotificationPermission]);
+
+  // Schedule return notifications when app goes to background, cancel when foreground
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'background' || state === 'inactive') {
+        scheduleReturnNotifications();
+      } else if (state === 'active') {
+        // Cancel return notifications when user comes back
+        useNotificationStore.getState().cancelAll();
+      }
+    });
+    return () => sub.remove();
+  }, [scheduleReturnNotifications]);
 
   const renderScreen = () => {
     switch (activeTab) {

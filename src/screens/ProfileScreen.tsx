@@ -8,6 +8,11 @@ import { useXpStore, getTitleForLevel } from '../store/xpStore';
 import { useAdventureStore, EVOLUTION_STAGES } from '../store/adventureStore';
 import { XpBar } from '../components/XpBar';
 import { AchievementBadge } from '../components/AchievementBadge';
+import { PremiumCard } from '../components/PremiumCard';
+import { usePremiumStore } from '../store/premiumStore';
+import { TIER_CONFIGS } from '../data/premiumTiers';
+import { useShopStore } from '../store/shopStore';
+import { useNotificationStore } from '../store/notificationStore';
 import { ScreenHeader } from '../components/ui/ScreenHeader';
 
 interface InfoCardProps {
@@ -189,9 +194,53 @@ function EvolutionCard() {
   );
 }
 
+function CollectiblesRow() {
+  const items = useShopStore((s) => s.items);
+  const owned = items.filter((i) => i.owned);
+  const byRarity = {
+    common: owned.filter((i) => i.rarity === 'common').length,
+    rare: owned.filter((i) => i.rarity === 'rare').length,
+    epic: owned.filter((i) => i.rarity === 'epic').length,
+    legendary: owned.filter((i) => i.rarity === 'legendary').length,
+  };
+
+  return (
+    <View className="py-3.5 border-b border-gray-100">
+      <Text className="text-[12px] font-semibold text-gray-500 mb-2">Collectibles</Text>
+      <View className="flex-row" style={{ gap: 8 }}>
+        {byRarity.common > 0 && (
+          <View className="bg-gray-100 px-2.5 py-1 rounded-full">
+            <Text className="text-[10px] font-black text-gray-500">{byRarity.common} Common</Text>
+          </View>
+        )}
+        {byRarity.rare > 0 && (
+          <View className="bg-blue-50 px-2.5 py-1 rounded-full">
+            <Text className="text-[10px] font-black text-blue-500">{byRarity.rare} Rare</Text>
+          </View>
+        )}
+        {byRarity.epic > 0 && (
+          <View className="bg-purple-50 px-2.5 py-1 rounded-full">
+            <Text className="text-[10px] font-black text-purple-500">{byRarity.epic} Epic</Text>
+          </View>
+        )}
+        {byRarity.legendary > 0 && (
+          <View className="bg-amber-50 px-2.5 py-1 rounded-full">
+            <Text className="text-[10px] font-black text-amber-500">{byRarity.legendary} Legendary</Text>
+          </View>
+        )}
+        {owned.length === 0 && (
+          <Text className="text-[11px] text-gray-400 font-semibold">No items yet</Text>
+        )}
+      </View>
+    </View>
+  );
+}
+
 export function ProfileScreen() {
   const { address, balance, disconnectWallet, refreshBalance } = useWalletStore();
   const { name, mintAddress, skin, clearPet, streakDays } = usePetStore();
+  const premium = usePremiumStore((s) => s.isPremium);
+  const tier = usePremiumStore((s) => s.tier);
 
   const shortAddress = address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Not connected';
   const shortMintAddress = mintAddress ? `${mintAddress.slice(0, 6)}...${mintAddress.slice(-4)}` : 'N/A';
@@ -211,13 +260,13 @@ export function ProfileScreen() {
 
       <ScrollView className="flex-1 px-6 pt-6" contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
         <ScreenHeader
-          eyebrow="Player Card"
+          eyebrow={premium ? `${TIER_CONFIGS[tier].label} Member` : 'Player Card'}
           title="Profile"
           subtitle="Wallet, title progress, and companion identity."
-          badge="All synced · v2"
+          badge={premium ? `${TIER_CONFIGS[tier].emoji} Nomi Plus` : 'All synced \u00B7 v2'}
           rightSlot={(
             <View className="w-14 h-14 rounded-2xl bg-white/20 border border-white/40 items-center justify-center">
-              <Text className="text-2xl">{'\u{1F984}'}</Text>
+              <Text className="text-2xl">{premium ? TIER_CONFIGS[tier].emoji : '\u{1F984}'}</Text>
             </View>
           )}
         />
@@ -225,6 +274,8 @@ export function ProfileScreen() {
         <ProgressCard />
 
         <EvolutionCard />
+
+        <PremiumCard />
 
         <View className="mt-1" />
 
@@ -245,15 +296,39 @@ export function ProfileScreen() {
         <InfoCard title="Companion" icon={'\u{1F43E}'} accent="bg-pet-blue">
           <InfoRow label="Name" value={name} />
           <InfoRow label="NFT Mint" value={shortMintAddress} />
+          {premium && (
+            <InfoRow
+              label="Tier"
+              value={`${TIER_CONFIGS[tier].emoji} ${TIER_CONFIGS[tier].label}`}
+              valueColor="text-pet-gold-dark"
+            />
+          )}
           <InfoRow label="Outfit" value={skinDisplayName} valueColor="text-pet-blue" />
           <InfoRow label="Streak" value={`${streakDays} day${streakDays === 1 ? '' : 's'}`} valueColor="text-pet-blue-dark" />
           <InfoRow label="Adventures" value={`${useAdventureStore.getState().completedAdventures} completed`} valueColor="text-pet-orange-dark" />
           <InfoRow label="Mini-Games" value={`${useAdventureStore.getState().miniGamesWon} won`} valueColor="text-pet-purple" />
+          <CollectiblesRow />
         </InfoCard>
 
         <InfoCard title="App" icon={'\u2699'} accent="bg-pet-blue-dark">
           <InfoRow label="Version" value="2.1.0" />
           <InfoRow label="Build" value="Design Refresh" valueColor="text-pet-blue-dark" />
+          <View className="flex-row justify-between py-3.5 border-b border-gray-100 items-center">
+            <Text className="text-[12px] font-semibold text-gray-500">Notifications</Text>
+            <TouchableOpacity
+              onPress={() => {
+                const ns = useNotificationStore.getState();
+                ns.setEnabled(!ns.enabled);
+              }}
+              activeOpacity={0.7}
+            >
+              <View className={`px-3 py-1 rounded-full ${useNotificationStore.getState().enabled ? 'bg-pet-green' : 'bg-gray-300'}`}>
+                <Text className="text-[10px] font-black text-white">
+                  {useNotificationStore.getState().enabled ? 'ON' : 'OFF'}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          </View>
         </InfoCard>
 
         <TouchableOpacity onPress={handleDisconnect} activeOpacity={0.9}>

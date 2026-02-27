@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, Animated, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import { useXpStore, getTitleForLevel, LEVEL_REWARDS } from '../store/xpStore';
+import { useXpStore, getTitleForLevel, LEVEL_REWARDS, LEVEL_PERKS, getNextPerkLevel } from '../store/xpStore';
 
 export function LevelUpModal() {
   const pendingLevelUp = useXpStore((s) => s.pendingLevelUp);
@@ -16,6 +16,8 @@ export function LevelUpModal() {
   const level = pendingLevelUp ?? 1;
   const title = getTitleForLevel(level);
   const rewards = LEVEL_REWARDS[level];
+  const perk = LEVEL_PERKS[level];
+  const nextPerk = getNextPerkLevel(level);
 
   useEffect(() => {
     if (!visible) return;
@@ -106,13 +108,30 @@ export function LevelUpModal() {
           </Text>
 
           {rewards && rewards.length > 0 && (
-            <View className="bg-pet-gold-light/50 px-5 py-2.5 rounded-2xl mb-4">
+            <View className="bg-pet-gold-light/50 px-5 py-2.5 rounded-2xl mb-3">
               {rewards.map((r, i) => (
                 <Text key={i} className="text-[13px] font-bold text-pet-gold-dark text-center">
                   {r.type === 'title' ? `New Title: "${r.value}"` : `Unlocked: ${r.value}`}
                 </Text>
               ))}
             </View>
+          )}
+
+          {perk && (
+            <View className="bg-pet-purple-light/30 px-5 py-3 rounded-2xl mb-3 border border-pet-purple/20">
+              <Text className="text-[11px] font-black text-pet-purple-dark text-center uppercase tracking-[0.5px] mb-1">
+                New Perk Unlocked
+              </Text>
+              <Text className="text-[15px] font-black text-pet-purple text-center">
+                {perk.label}
+              </Text>
+            </View>
+          )}
+
+          {nextPerk && (
+            <Text className="text-[11px] font-semibold text-gray-400 text-center mb-2">
+              Next perk at Level {nextPerk}: {LEVEL_PERKS[nextPerk].label}
+            </Text>
           )}
 
           <TouchableOpacity onPress={handleDismiss} activeOpacity={0.85} className="w-full mt-2">

@@ -10,10 +10,16 @@ import { PetRenderer, CareActions, ReflectionModal, type ActiveModel } from '../
 import { XpBar } from '../components/XpBar';
 import { LevelUpModal } from '../components/LevelUpModal';
 import { LoginCalendar } from '../components/LoginCalendar';
+import { DialogueBubble } from '../components/DialogueBubble';
+import { DiaryModal } from '../components/DiaryModal';
+import { EventOverlay } from '../components/EventOverlay';
+import { TouchInteractionLayer } from '../components/TouchInteractionLayer';
 import { useXpStore } from '../store/xpStore';
+import { useEventStore } from '../store/eventStore';
+import { usePersonalityStore, getActionDialogue, type DialogueContext } from '../store/personalityStore';
 import { ADVENTURE_ZONES } from '../store/adventureStore';
 
-const FALLING_DURATION = 3000;
+const FALLING_DURATION = 3500;
 
 function NeedBubble({ message }: { message: string }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -313,6 +319,7 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
   const [reflectionModalVisible, setReflectionModalVisible] = useState(false);
   const [helpVisible, setHelpVisible] = useState(false);
   const [streakVisible, setStreakVisible] = useState(false);
+  const [diaryVisible, setDiaryVisible] = useState(false);
   const [showParty, setShowParty] = useState(false);
   const [isFalling, setIsFalling] = useState(false);
   const [loginPopupVisible, setLoginPopupVisible] = useState(false);
@@ -339,6 +346,12 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
 
   const moodText = getMoodText();
   const needMessage = getPetNeeds(hunger, happiness, energy);
+  const level = useXpStore((s) => s.level);
+
+  // Personality & dialogue
+  const { generateDialogue, generateIdleDialogue, currentDialogue, getUnreadDiaryCount } = usePersonalityStore();
+  const unreadDiary = getUnreadDiaryCount();
+  const lastTickAtRef = useRef(usePetStore.getState().lastTickAt);
 
   const shownHunger = Math.round(hunger);
   const shownHappiness = Math.round(happiness);
@@ -357,6 +370,21 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
           ? 'dancing'
           : 'breathing';
 
+  // Build dialogue context
+  const dialogueCtx = useCallback((): DialogueContext => {
+    const hoursSince = (Date.now() - lastTickAtRef.current) / (1000 * 60 * 60);
+    return {
+      hunger, happiness, energy,
+      mood: moodText,
+      name,
+      streakDays,
+      equippedSkin: equippedSkinKey,
+      level,
+      hoursSinceLastOpen: hoursSince,
+      isFirstOpenToday: false, // store handles this internally
+    };
+  }, [hunger, happiness, energy, moodText, name, streakDays, equippedSkinKey, level]);
+
   // Login calendar auto-popup on daily first open
   const lastLoginClaimDate = useAdventureStore((s) => s.lastLoginClaimDate);
   useEffect(() => {
@@ -368,11 +396,45 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
 
   useEffect(() => {
     tick();
+    // Generate initial dialogue on open
+    const hoursSince = (Date.now() - usePetStore.getState().lastTickAt) / (1000 * 60 * 60);
+    generateDialogue({ ...dialogueCtx(), hoursSinceLastOpen: hoursSince, isFirstOpenToday: true });
     const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') tick();
+      if (state === 'active') {
+        tick();
+        generateDialogue(dialogueCtx());
+      }
     });
     return () => sub.remove();
-  }, [tick]);
+  }, [tick, generateDialogue, dialogueCtx]);
+
+  // Idle dialogue timer — every 45-90 seconds
+  useEffect(() => {
+    const scheduleIdle = () => {
+      const delay = 45000 + Math.random() * 45000;
+      return setTimeout(() => {
+        if (activeModel === 'breathing' || activeModel === 'dancing') {
+          generateIdleDialogue(dialogueCtx());
+        }
+        idleTimerRef.current = scheduleIdle();
+      }, delay);
+    };
+    const idleTimerRef = { current: scheduleIdle() };
+    return () => clearTimeout(idleTimerRef.current);
+  }, [activeModel, generateIdleDialogue, dialogueCtx]);
+
+  // Random event check — every 60 seconds
+  const checkAndTriggerEvent = useEventStore((s) => s.checkAndTriggerEvent);
+  const evolutionStage = useAdventureStore((s) => s.evolutionStage);
+  const statsAbove70 = shownHunger >= 70 && shownHappiness >= 70 && shownEnergy >= 70;
+  useEffect(() => {
+    const interval = setInterval(() => {
+      checkAndTriggerEvent(statsAbove70, evolutionStage);
+    }, 60000);
+    // Also check once on mount (after a short delay)
+    const initialCheck = setTimeout(() => checkAndTriggerEvent(statsAbove70, evolutionStage), 5000);
+    return () => { clearInterval(interval); clearTimeout(initialCheck); };
+  }, [checkAndTriggerEvent, statsAbove70, evolutionStage]);
 
   useEffect(() => {
     if (!prevAllHighRef.current && allHighStats) {
@@ -401,30 +463,14 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
     prevStreakRef.current = streakDays;
   }, [streakDays, partyAnim]);
 
-  const lastTapRef = useRef(0);
-  const lastTapXRef = useRef(0);
-  const lastTapYRef = useRef(0);
-
-  const handleDoubleTap = useCallback((e: GestureResponderEvent) => {
-    const now = Date.now();
-    const { pageX, pageY } = e.nativeEvent;
-    const dx = Math.abs(pageX - lastTapXRef.current);
-    const dy = Math.abs(pageY - lastTapYRef.current);
-
-    const timeDiff = now - lastTapRef.current;
-    if (timeDiff < 400 && dx < 50 && dy < 50) {
-      if (!isFalling) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        if (isExcitedBurst) {
-          clearExcitedBurst();
-        }
-        setIsFalling(true);
+  // Called by TouchInteractionLayer on double-tap
+  const handleDoubleTap = useCallback((_e: GestureResponderEvent) => {
+    if (!isFalling) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      if (isExcitedBurst) {
+        clearExcitedBurst();
       }
-      lastTapRef.current = 0;
-    } else {
-      lastTapRef.current = now;
-      lastTapXRef.current = pageX;
-      lastTapYRef.current = pageY;
+      setIsFalling(true);
     }
   }, [isFalling, isExcitedBurst, clearExcitedBurst]);
 
@@ -436,15 +482,15 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
 
   return (
     <View className="flex-1 bg-pet-background">
-      {/* XP Bar + Help button row */}
-      <View className="absolute top-0 left-0 right-0 z-30 flex-row items-center">
-        <View className="flex-1">
-          <XpBar />
-        </View>
+      {/* Random Event Overlay */}
+      <EventOverlay />
+
+      {/* Help button */}
+      <View className="absolute top-2 right-4 z-30">
         <TouchableOpacity
           onPress={() => setHelpVisible(true)}
           activeOpacity={0.9}
-          className="mr-4 w-11 h-11 rounded-full bg-pet-blue items-center justify-center border border-pet-blue-dark/70"
+          className="w-11 h-11 rounded-full bg-pet-blue items-center justify-center border border-pet-blue-dark/70"
           style={{
             shadowColor: '#3792A6',
             shadowOffset: { width: 0, height: 4 },
@@ -456,6 +502,7 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
           <MaterialCommunityIcons name="lightbulb-on-outline" size={20} color="#ffffff" />
         </TouchableOpacity>
       </View>
+      {/* Removed NOMI SKY CLUB label — space reclaimed */}
 
       <View className="absolute -top-8 -left-6 w-36 h-36 rounded-full bg-pet-blue-light/35" />
       <View className="absolute top-[340px] -right-10 w-44 h-44 rounded-full bg-pet-blue-light/40" />
@@ -485,14 +532,15 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
         <View
           className="bg-pet-blue-light/25 rounded-b-[44px] overflow-hidden"
           style={{ height: 390 }}
-          onTouchEnd={handleDoubleTap}
         >
-          <SkyCloud className="top-10 left-6" />
-          <SkyCloud className="top-20 right-10 scale-90" />
-          <SkyCloud className="top-52 left-12 scale-75" />
-          <View className="absolute inset-0 bg-white/35 rounded-b-[44px]" />
-          {needMessage && !isExcitedBurst && <NeedBubble message={needMessage} />}
-          <PetRenderer activeModel={activeModel} onExcitedFinished={clearExcitedBurst} equippedSkin={equippedSkinKey} />
+          <TouchInteractionLayer viewHeight={390} onDoubleTap={handleDoubleTap}>
+            <SkyCloud className="top-10 left-6" />
+            <SkyCloud className="top-20 right-10 scale-90" />
+            <SkyCloud className="top-52 left-12 scale-75" />
+            <View className="absolute inset-0 bg-white/35 rounded-b-[44px]" />
+            {!isExcitedBurst && <DialogueBubble message={currentDialogue ?? needMessage} />}
+            <PetRenderer activeModel={activeModel} onExcitedFinished={clearExcitedBurst} equippedSkin={equippedSkinKey} />
+          </TouchInteractionLayer>
         </View>
 
         <View className="items-center -mt-14 mb-4 z-10 px-6">
@@ -537,6 +585,35 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
           </View>
         </View>
 
+        {/* XP Bar */}
+        <View className="px-6 mt-3">
+          <XpBar />
+        </View>
+
+        {/* Diary Button */}
+        <View className="px-6 mt-3">
+          <TouchableOpacity onPress={() => setDiaryVisible(true)} activeOpacity={0.85}>
+            <View
+              className="bg-white rounded-2xl border border-pet-blue-light/50 px-4 py-3 flex-row items-center"
+              style={{ shadowColor: '#4FB0C6', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.08, shadowRadius: 6, elevation: 2 }}
+            >
+              <View className="w-9 h-9 rounded-xl bg-pet-blue-light/20 items-center justify-center mr-3">
+                <Text className="text-lg">{'\u{1F4D6}'}</Text>
+              </View>
+              <View className="flex-1">
+                <Text className="text-[12px] font-black text-gray-700">Nomi's Diary</Text>
+                <Text className="text-[10px] text-gray-400 font-semibold">See what Nomi did while you were away</Text>
+              </View>
+              {unreadDiary > 0 && (
+                <View className="bg-pet-blue w-6 h-6 rounded-full items-center justify-center">
+                  <Text className="text-[10px] font-black text-white">{unreadDiary}</Text>
+                </View>
+              )}
+              <MaterialCommunityIcons name="chevron-right" size={18} color="#9ca3af" style={{ marginLeft: 4 }} />
+            </View>
+          </TouchableOpacity>
+        </View>
+
         {/* Activity Glance */}
         <ActivityGlance onNavigateGames={onNavigateGames} />
 
@@ -547,8 +624,11 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
 
         <View className="px-6 mt-6">
           <TouchableOpacity onPress={() => setReflectionModalVisible(true)} activeOpacity={0.9}>
-            <View
-              className="rounded-[30px] p-5 border border-pet-blue-dark/20 bg-pet-blue"
+            <LinearGradient
+              colors={['#4FB0C6', '#67BEE4', '#8AA8FF']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              className="rounded-[30px] p-5 border border-pet-blue-dark/20"
               style={{
                 shadowColor: '#3792A6',
                 shadowOffset: { width: 0, height: 8 },
@@ -574,7 +654,7 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
                   <Text className="text-white text-lg font-semibold">{'\u{203A}'}</Text>
                 </View>
               </View>
-            </View>
+            </LinearGradient>
           </TouchableOpacity>
         </View>
 
@@ -586,6 +666,7 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
       />
       <HelpModal visible={helpVisible} onClose={() => setHelpVisible(false)} />
       <StreakCalendarModal visible={streakVisible} onClose={() => setStreakVisible(false)} streakDays={streakDays} />
+      <DiaryModal visible={diaryVisible} onClose={() => setDiaryVisible(false)} />
       <LevelUpModal />
 
       {/* Daily Login Calendar Auto-Popup */}

@@ -7,7 +7,7 @@ export type PetSkin = 'default' | 'headphones';
 
 // ── Stamina system ──
 export const STAMINA_MAX = 100;
-export const STAMINA_REGEN_PER_HOUR = 10; // +1 every 6 minutes
+export const STAMINA_REGEN_PER_HOUR = 10; // +1 every 6 minutes (base, premium = 20)
 export const STAMINA_COSTS: Record<string, number> = {
   feed: 15,
   play: 25,
@@ -16,7 +16,7 @@ export const STAMINA_COSTS: Record<string, number> = {
   miniGame: 25,
 };
 
-// ── Cooldown durations (milliseconds) ──
+// ── Cooldown durations (milliseconds) — base values, premium halves/removes ──
 export const COOLDOWN_DURATIONS: Record<string, number> = {
   feed: 20 * 60 * 1000,      // 20 minutes
   play: 30 * 60 * 1000,      // 30 minutes
@@ -26,6 +26,37 @@ export const COOLDOWN_DURATIONS: Record<string, number> = {
   miniGame_quicktap: 15 * 60 * 1000,
   miniGame_pattern: 20 * 60 * 1000,  // 20 minutes
 };
+
+/** Get effective stamina max (level-perk-aware) */
+export function getEffectiveStaminaMax(): number {
+  try {
+    const { getPerksForLevel } = require('./xpStore');
+    const level = require('./xpStore').useXpStore.getState().level;
+    return STAMINA_MAX + getPerksForLevel(level).maxStaminaBonus;
+  } catch {
+    return STAMINA_MAX;
+  }
+}
+
+/** Get effective cooldown duration (premium + level-perk aware) */
+export function getEffectiveCooldown(action: string): number {
+  const base = COOLDOWN_DURATIONS[action] ?? 0;
+  let result = base;
+  try {
+    const { getPremiumCooldownMultiplier } = require('./premiumStore');
+    result = Math.round(result * getPremiumCooldownMultiplier(action));
+  } catch {}
+  // Level perk cooldown reduction (stacks with premium)
+  try {
+    const { getPerksForLevel } = require('./xpStore');
+    const level = require('./xpStore').useXpStore.getState().level;
+    const perks = getPerksForLevel(level);
+    if (perks.cooldownReduction > 0) {
+      result = Math.round(result * (1 - perks.cooldownReduction));
+    }
+  } catch {}
+  return result;
+}
 
 // --- Mood-to-Model mapping ---
 // breathing.glb = default idle model, Sad.glb = any stat < 50%
@@ -86,6 +117,8 @@ interface PetState {
   lastStaminaRegenAt: number;
   // Cooldown system — maps action key → timestamp when cooldown expires
   cooldowns: Record<string, number>;
+  // Oracle's Blessing (level 50 perk)
+  lastBlessingAt: number;
 }
 
 interface PetActions {
@@ -111,6 +144,8 @@ interface PetActions {
   isOnCooldown: (action: string) => boolean;
   getCooldownRemaining: (action: string) => number; // ms remaining, 0 if ready
   startCooldown: (action: string) => void;
+  // Variant-based care action
+  performCareAction: (variantId: string) => boolean;
 }
 
 type PetStore = PetState & PetActions;
@@ -159,7 +194,7 @@ const STORAGE_KEY = 'oracle-pet-state';
 const PERSISTED_KEYS: (keyof PetState)[] = [
   'id', 'name', 'mintAddress', 'hunger', 'happiness', 'energy',
   'skin', 'hasPet', 'lastTickAt', 'lastActiveDate', 'streakDays',
-  'stamina', 'lastStaminaRegenAt', 'cooldowns',
+  'stamina', 'lastStaminaRegenAt', 'cooldowns', 'lastBlessingAt',
 ];
 
 function savePetState(state: PetState) {
@@ -206,10 +241,28 @@ function checkExcitedTrigger(state: PetStore) {
 function computeRegenedStamina(stamina: number, lastRegenAt: number): { stamina: number; lastRegenAt: number } {
   const now = Date.now();
   const elapsedMs = now - lastRegenAt;
-  const regenPerMs = STAMINA_REGEN_PER_HOUR / (60 * 60 * 1000);
+  // Use premium-aware regen rate
+  let regenRate = STAMINA_REGEN_PER_HOUR;
+  try {
+    const { getPremiumRegenRate } = require('./premiumStore');
+    regenRate = getPremiumRegenRate();
+  } catch {}
+  const regenPerMs = regenRate / (60 * 60 * 1000);
   const regened = elapsedMs * regenPerMs;
-  const newStamina = Math.min(STAMINA_MAX, stamina + regened);
+  const maxStamina = getEffectiveStaminaMax();
+  const newStamina = Math.min(maxStamina, stamina + regened);
   return { stamina: newStamina, lastRegenAt: now };
+}
+
+// --- Helper: get level perk care stat bonus ---
+function getCareStatBonus(): number {
+  try {
+    const { getPerksForLevel } = require('./xpStore');
+    const level = require('./xpStore').useXpStore.getState().level;
+    return getPerksForLevel(level).careStatBonus;
+  } catch {
+    return 0;
+  }
 }
 
 // --- Store ---
@@ -231,6 +284,7 @@ export const usePetStore = create<PetStore>((set, get) => ({
   stamina: STAMINA_MAX,
   lastStaminaRegenAt: Date.now(),
   cooldowns: {},
+  lastBlessingAt: 0,
 
   triggerExcitedBurst: () => {
     set({ isExcitedBurst: true, excitedPlayedAt: Date.now() });
@@ -277,7 +331,7 @@ export const usePetStore = create<PetStore>((set, get) => ({
   },
 
   startCooldown: (action: string) => {
-    const duration = COOLDOWN_DURATIONS[action] ?? 0;
+    const duration = getEffectiveCooldown(action);
     if (duration === 0) return;
     const { cooldowns } = get();
     set({ cooldowns: { ...cooldowns, [action]: Date.now() + duration } });
@@ -300,12 +354,19 @@ export const usePetStore = create<PetStore>((set, get) => ({
     const self = get();
     if (!self.consumeStamina(STAMINA_COSTS.feed)) return;
     self.startCooldown('feed');
+    const bonus = getCareStatBonus();
     set((state) => ({
-      hunger: clamp(state.hunger + 25, 0, 100),
-      happiness: clamp(state.happiness + 5, 0, 100),
+      hunger: clamp(state.hunger + 25 + bonus, 0, 100),
+      happiness: clamp(state.happiness + 5 + bonus, 0, 100),
     }));
     savePetState(get());
     checkExcitedTrigger(get());
+    // Personality
+    try {
+      const ps = require('./personalityStore').usePersonalityStore.getState();
+      ps.recordMemory('fed');
+      ps.updateTraits('fed');
+    } catch {}
     const xp = useXpStore.getState();
     xp.addXp(8, 'feed');
     xp.incrementCounter('feedCount');
@@ -319,13 +380,19 @@ export const usePetStore = create<PetStore>((set, get) => ({
     const self = get();
     if (!self.consumeStamina(STAMINA_COSTS.play)) return;
     self.startCooldown('play');
+    const bonus = getCareStatBonus();
     set((state) => ({
-      happiness: clamp(state.happiness + 20, 0, 100),
+      happiness: clamp(state.happiness + 20 + bonus, 0, 100),
       energy: clamp(state.energy - 15, 0, 100),
       hunger: clamp(state.hunger - 10, 0, 100),
     }));
     savePetState(get());
     checkExcitedTrigger(get());
+    try {
+      const ps = require('./personalityStore').usePersonalityStore.getState();
+      ps.recordMemory('played');
+      ps.updateTraits('played');
+    } catch {}
     const xp = useXpStore.getState();
     xp.addXp(12, 'play');
     xp.incrementCounter('playCount');
@@ -338,12 +405,18 @@ export const usePetStore = create<PetStore>((set, get) => ({
     const self = get();
     if (!self.consumeStamina(STAMINA_COSTS.rest)) return;
     self.startCooldown('rest');
+    const bonus = getCareStatBonus();
     set((state) => ({
-      energy: clamp(state.energy + 30, 0, 100),
-      happiness: clamp(state.happiness + 5, 0, 100),
+      energy: clamp(state.energy + 30 + bonus, 0, 100),
+      happiness: clamp(state.happiness + 5 + bonus, 0, 100),
     }));
     savePetState(get());
     checkExcitedTrigger(get());
+    try {
+      const ps = require('./personalityStore').usePersonalityStore.getState();
+      ps.recordMemory('rested');
+      ps.updateTraits('rested');
+    } catch {}
     const xp = useXpStore.getState();
     xp.addXp(5, 'rest');
     xp.incrementCounter('restCount');
@@ -352,16 +425,87 @@ export const usePetStore = create<PetStore>((set, get) => ({
     xp.checkWellnessXp(s.hunger, s.happiness, s.energy);
   },
 
+  performCareAction: (variantId: string) => {
+    const { ALL_CARE_VARIANTS } = require('../data/careVariants');
+    const variant = ALL_CARE_VARIANTS.find((v: any) => v.id === variantId);
+    if (!variant) return false;
+
+    const self = get();
+
+    // Check unlock condition
+    if (variant.unlockCondition && variant.unlockCondition.type !== 'none') {
+      if (variant.unlockCondition.type === 'level') {
+        const level = useXpStore.getState().level;
+        if (level < (variant.unlockCondition.value ?? 0)) return false;
+      }
+      if (variant.unlockCondition.type === 'premium') {
+        const { getCurrentTier, isAtLeastTier } = require('./premiumStore');
+        if (!isAtLeastTier(getCurrentTier(), variant.unlockCondition.tierRequired)) return false;
+      }
+    }
+
+    // Check cooldown
+    if (self.isOnCooldown(variant.cooldownKey)) return false;
+
+    // Check & consume stamina
+    if (!self.consumeStamina(variant.staminaCost)) return false;
+
+    // Start cooldown
+    self.startCooldown(variant.cooldownKey);
+
+    // Apply stat effects with level perk bonus
+    const bonus = getCareStatBonus();
+    const fx = variant.statEffects;
+    set((state: PetState) => ({
+      hunger: clamp(state.hunger + fx.hunger + (fx.hunger > 0 ? bonus : 0), 0, 100),
+      happiness: clamp(state.happiness + fx.happiness + (fx.happiness > 0 ? bonus : 0), 0, 100),
+      energy: clamp(state.energy + fx.energy + (fx.energy > 0 ? bonus : 0), 0, 100),
+    }));
+    savePetState(get());
+    checkExcitedTrigger(get());
+
+    // Personality
+    const memoryMap: Record<string, string> = { feed: 'fed', play: 'played', rest: 'rested' };
+    try {
+      const ps = require('./personalityStore').usePersonalityStore.getState();
+      ps.recordMemory(memoryMap[variant.action] ?? variant.action);
+      ps.updateTraits(memoryMap[variant.action] ?? variant.action);
+    } catch {}
+
+    // XP + quest progress
+    const xp = useXpStore.getState();
+    xp.addXp(variant.xpReward, variant.action);
+    const counterMap: Record<string, string> = { feed: 'feedCount', play: 'playCount', rest: 'restCount' };
+    if (counterMap[variant.action]) {
+      xp.incrementCounter(counterMap[variant.action] as any);
+    }
+    xp.updateQuestProgress(variant.action as any);
+
+    const s = get();
+    xp.checkAchievements({ hunger: s.hunger, happiness: s.happiness, energy: s.energy });
+    if (variant.action === 'feed' || variant.action === 'rest') {
+      xp.checkWellnessXp(s.hunger, s.happiness, s.energy);
+    }
+
+    return true;
+  },
+
   reflectProductiveDay: () => {
     const self = get();
     if (!self.consumeStamina(STAMINA_COSTS.reflect)) return;
     self.startCooldown('reflect');
+    const bonus = getCareStatBonus();
     set((state) => ({
-      happiness: clamp(state.happiness + 15, 0, 100),
-      energy: clamp(state.energy + 5, 0, 100),
+      happiness: clamp(state.happiness + 15 + bonus, 0, 100),
+      energy: clamp(state.energy + 5 + bonus, 0, 100),
     }));
     savePetState(get());
     checkExcitedTrigger(get());
+    try {
+      const ps = require('./personalityStore').usePersonalityStore.getState();
+      ps.recordMemory('reflected');
+      ps.updateTraits('reflected');
+    } catch {}
     const xp = useXpStore.getState();
     xp.addXp(20, 'reflect');
     xp.incrementCounter('reflectCount');
@@ -372,12 +516,18 @@ export const usePetStore = create<PetStore>((set, get) => ({
     const self = get();
     if (!self.consumeStamina(STAMINA_COSTS.reflect)) return;
     self.startCooldown('reflect');
+    const bonus = getCareStatBonus();
     set((state) => ({
-      energy: clamp(state.energy + 20, 0, 100),
-      happiness: clamp(state.happiness + 10, 0, 100),
+      energy: clamp(state.energy + 20 + bonus, 0, 100),
+      happiness: clamp(state.happiness + 10 + bonus, 0, 100),
     }));
     savePetState(get());
     checkExcitedTrigger(get());
+    try {
+      const ps = require('./personalityStore').usePersonalityStore.getState();
+      ps.recordMemory('reflected');
+      ps.updateTraits('reflected');
+    } catch {}
     const xp = useXpStore.getState();
     xp.addXp(20, 'reflect');
     xp.incrementCounter('reflectCount');
@@ -388,12 +538,18 @@ export const usePetStore = create<PetStore>((set, get) => ({
     const self = get();
     if (!self.consumeStamina(STAMINA_COSTS.reflect)) return;
     self.startCooldown('reflect');
+    const bonus = getCareStatBonus();
     set((state) => ({
-      happiness: clamp(state.happiness + 20, 0, 100),
-      energy: clamp(state.energy + 10, 0, 100),
+      happiness: clamp(state.happiness + 20 + bonus, 0, 100),
+      energy: clamp(state.energy + 10 + bonus, 0, 100),
     }));
     savePetState(get());
     checkExcitedTrigger(get());
+    try {
+      const ps = require('./personalityStore').usePersonalityStore.getState();
+      ps.recordMemory('reflected');
+      ps.updateTraits('reflected');
+    } catch {}
     const xp = useXpStore.getState();
     xp.addXp(20, 'reflect');
     xp.incrementCounter('reflectCount');
@@ -433,6 +589,7 @@ export const usePetStore = create<PetStore>((set, get) => ({
       stamina: STAMINA_MAX,
       lastStaminaRegenAt: Date.now(),
       cooldowns: {},
+      lastBlessingAt: 0,
     });
     savePetState(get());
   },
@@ -465,6 +622,30 @@ export const usePetStore = create<PetStore>((set, get) => ({
       lastStaminaRegenAt: regen.lastRegenAt,
     }));
 
+    // Generate diary entry if away 2+ hours
+    if (elapsedHours >= 2) {
+      try {
+        const ps = require('./personalityStore').usePersonalityStore.getState();
+        const state = get();
+        const adventureStore = require('./adventureStore').useAdventureStore.getState();
+        const activeZone = adventureStore.activeAdventure
+          ? require('./adventureStore').ADVENTURE_ZONES.find((z: any) => z.id === adventureStore.activeAdventure.zoneId)?.name
+          : undefined;
+        ps.generateDiaryEntry({
+          hunger: state.hunger,
+          happiness: state.happiness,
+          energy: state.energy,
+          mood: computeMood(state.hunger, state.happiness, state.energy, false),
+          equippedSkin: state.skin,
+          hoursAway: elapsedHours,
+          activeAdventureZone: activeZone,
+        });
+        if (elapsedHours >= 6) {
+          ps.recordMemory('long_absence');
+        }
+      } catch {}
+    }
+
     // Daily streak tracking
     const today = new Date().toISOString().slice(0, 10);
     if (today !== lastActiveDate) {
@@ -485,6 +666,27 @@ export const usePetStore = create<PetStore>((set, get) => ({
       xp.checkAndRefreshQuests();
       xp.checkAchievements({ streakDays: newStreak });
     }
+
+    // Oracle's Blessing (level 50 perk): +1 to all stats every 10 minutes
+    try {
+      const { getPerksForLevel } = require('./xpStore');
+      const level = require('./xpStore').useXpStore.getState().level;
+      const perks = getPerksForLevel(level);
+      if (perks.oracleBlessing) {
+        const { lastBlessingAt } = get();
+        const blessingInterval = 10 * 60 * 1000; // 10 minutes
+        const intervals = Math.floor((now - (lastBlessingAt || now)) / blessingInterval);
+        if (intervals > 0) {
+          const boost = Math.min(intervals, 6); // cap at 6 (1 hour of absence)
+          set((state) => ({
+            hunger: clamp(state.hunger + boost, 0, 100),
+            happiness: clamp(state.happiness + boost, 0, 100),
+            energy: clamp(state.energy + boost, 0, 100),
+            lastBlessingAt: now,
+          }));
+        }
+      }
+    } catch {}
 
     savePetState(get());
   },

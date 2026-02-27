@@ -53,6 +53,100 @@ export const LEVEL_REWARDS: Record<number, { type: 'item' | 'title'; value: stri
   50: [{ type: 'title', value: 'Oracle' }],
 };
 
+// ── Level Perks (tangible gameplay rewards at milestone levels) ──
+export const LEVEL_PERKS: Record<number, { type: string; label: string }> = {
+  3:  { type: 'maxStamina',      label: '+5 Max Stamina' },
+  5:  { type: 'shopDiscount',    label: '5% Shop Discount' },
+  7:  { type: 'maxStamina',      label: '+5 Max Stamina' },
+  10: { type: 'freeSpins',       label: '+1 Free Daily Spin' },
+  12: { type: 'cooldownReduce',  label: '10% Cooldown Reduction' },
+  15: { type: 'maxStamina',      label: '+10 Max Stamina' },
+  18: { type: 'extraEvents',     label: '+1 Daily Event' },
+  20: { type: 'shopDiscount',    label: '10% Shop Discount' },
+  22: { type: 'maxStamina',      label: '+5 Max Stamina' },
+  25: { type: 'careStat',        label: '+2 Care Action Bonus' },
+  28: { type: 'cooldownReduce',  label: '20% Cooldown Reduction' },
+  30: { type: 'freeSpins',       label: '+1 Free Daily Spin' },
+  33: { type: 'maxStamina',      label: '+10 Max Stamina' },
+  35: { type: 'shopDiscount',    label: '15% Shop Discount' },
+  38: { type: 'lootBonus',       label: '+5% Loot Bonus' },
+  40: { type: 'xpMultiplier',    label: '+0.15x XP Multiplier' },
+  42: { type: 'extraEvents',     label: '+1 Daily Event' },
+  45: { type: 'careStat',        label: '+4 Care Action Bonus' },
+  48: { type: 'lootBonus',       label: '+10% Loot Bonus' },
+  50: { type: 'oracleBlessing',  label: "Oracle's Blessing: +1 all stats/10min" },
+};
+
+export interface LevelPerks {
+  maxStaminaBonus: number;
+  shopDiscount: number;
+  cooldownReduction: number;
+  freeSpinBonus: number;
+  extraEventsPerDay: number;
+  careStatBonus: number;
+  lootBonus: number;
+  xpMultiplierBonus: number;
+  oracleBlessing: boolean;
+}
+
+/** Returns cumulative perks active at a given level */
+export function getPerksForLevel(level: number): LevelPerks {
+  const perks: LevelPerks = {
+    maxStaminaBonus: 0,
+    shopDiscount: 0,
+    cooldownReduction: 0,
+    freeSpinBonus: 0,
+    extraEventsPerDay: 0,
+    careStatBonus: 0,
+    lootBonus: 0,
+    xpMultiplierBonus: 0,
+    oracleBlessing: false,
+  };
+
+  for (const [lvl, perk] of Object.entries(LEVEL_PERKS)) {
+    if (level < Number(lvl)) continue;
+    switch (perk.type) {
+      case 'maxStamina': {
+        const val = perk.label.includes('+10') ? 10 : 5;
+        perks.maxStaminaBonus += val;
+        break;
+      }
+      case 'shopDiscount':
+        perks.shopDiscount = perk.label.includes('15%') ? 0.15 : perk.label.includes('10%') ? 0.10 : 0.05;
+        break;
+      case 'cooldownReduce':
+        perks.cooldownReduction = perk.label.includes('20%') ? 0.20 : 0.10;
+        break;
+      case 'freeSpins':
+        perks.freeSpinBonus += 1;
+        break;
+      case 'extraEvents':
+        perks.extraEventsPerDay += 1;
+        break;
+      case 'careStat':
+        perks.careStatBonus = perk.label.includes('+4') ? 4 : 2;
+        break;
+      case 'lootBonus':
+        perks.lootBonus = perk.label.includes('10%') ? 0.10 : 0.05;
+        break;
+      case 'xpMultiplier':
+        perks.xpMultiplierBonus = 0.15;
+        break;
+      case 'oracleBlessing':
+        perks.oracleBlessing = true;
+        break;
+    }
+  }
+
+  return perks;
+}
+
+/** Returns the next level that has a perk unlock, or null if at/past max */
+export function getNextPerkLevel(currentLevel: number): number | null {
+  const levels = Object.keys(LEVEL_PERKS).map(Number).sort((a, b) => a - b);
+  return levels.find(l => l > currentLevel) ?? null;
+}
+
 // ── Daily Quests ──
 export type QuestType = 'feed' | 'play' | 'rest' | 'reflect' | 'equip' | 'allStats';
 
@@ -478,12 +572,21 @@ export const useXpStore = create<XpStore>((set, get) => ({
 
   getCurrentMultiplier: () => {
     // Lazy import to avoid circular dependency
+    let base = 1.0;
     try {
       const petStore = require('./petStore').usePetStore;
       const { hunger, happiness, energy } = petStore.getState();
-      return getXpMultiplier(hunger, happiness, energy);
-    } catch {
-      return 1.0;
-    }
+      base = getXpMultiplier(hunger, happiness, energy);
+    } catch {}
+    // Premium bonus
+    try {
+      const { getPremiumXpBonus } = require('./premiumStore');
+      base += getPremiumXpBonus();
+    } catch {}
+    // Level perk XP bonus
+    const { level } = get();
+    const perks = getPerksForLevel(level);
+    base += perks.xpMultiplierBonus;
+    return base;
   },
 }));

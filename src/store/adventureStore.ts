@@ -94,7 +94,20 @@ export interface LootReward {
 function rollLoot(zone: AdventureZone, statsBonus: boolean): LootReward {
   const rand = Math.random();
   // Stats > 80% at departure gives +15% rare/legendary chance
-  const bonus = statsBonus ? 0.15 : 0;
+  // Premium adds +10% to rare/legendary
+  let premiumBonus = 0;
+  try {
+    const { getPremiumLootBonus } = require('./premiumStore');
+    premiumBonus = getPremiumLootBonus();
+  } catch {}
+  // Level perk loot bonus
+  let levelLootBonus = 0;
+  try {
+    const { getPerksForLevel } = require('./xpStore');
+    const level = require('./xpStore').useXpStore.getState().level;
+    levelLootBonus = getPerksForLevel(level).lootBonus;
+  } catch {}
+  const bonus = (statsBonus ? 0.15 : 0) + premiumBonus + levelLootBonus;
 
   let rarity: LootRarity;
   if (rand < 0.03 + bonus * 0.02) {
@@ -324,6 +337,19 @@ export const useAdventureStore = create<AdventureStore>((set, get) => ({
       xpStore.updateWeeklyQuestProgress('adventuresSent');
     } catch {}
 
+    // Schedule notification for adventure completion
+    try {
+      const ns = require('./notificationStore').useNotificationStore.getState();
+      ns.scheduleAdventureComplete(now + zone.durationMs, zone.name);
+    } catch {}
+
+    // Record personality memory
+    try {
+      const ps = require('./personalityStore').usePersonalityStore.getState();
+      ps.recordMemory('adventure_start', zone.name);
+      ps.updateTraits('adventure_start');
+    } catch {}
+
     return true;
   },
 
@@ -372,6 +398,13 @@ export const useAdventureStore = create<AdventureStore>((set, get) => ({
       set({ evolutionShards: get().evolutionShards + 1 });
     }
 
+    // Record personality memory
+    try {
+      const ps = require('./personalityStore').usePersonalityStore.getState();
+      ps.recordMemory('adventure_complete');
+      ps.updateTraits('adventure_complete');
+    } catch {}
+
     set({ pendingLoot: null });
     saveAdventureState(get());
     return pendingLoot;
@@ -381,24 +414,56 @@ export const useAdventureStore = create<AdventureStore>((set, get) => ({
   canSpinToday: () => {
     const today = new Date().toISOString().slice(0, 10);
     const { lastSpinDate, extraSpinsToday } = get();
-    if (lastSpinDate !== today) return true; // free spin available
-    return extraSpinsToday < 3; // max 3 paid spins
+    // Premium: 3 free spins, 5 paid. Free: 1 free, 3 paid.
+    let spinConfig = { maxFreeSpins: 1, maxPaidSpins: 3, paidSpinCost: 0.2 };
+    try {
+      const { getPremiumSpinConfig } = require('./premiumStore');
+      spinConfig = getPremiumSpinConfig();
+    } catch {}
+    // Level perk: extra free spins
+    try {
+      const { getPerksForLevel } = require('./xpStore');
+      const level = require('./xpStore').useXpStore.getState().level;
+      spinConfig.maxFreeSpins += getPerksForLevel(level).freeSpinBonus;
+    } catch {}
+    if (lastSpinDate !== today) return true; // first spin of the day
+    return extraSpinsToday < (spinConfig.maxFreeSpins - 1 + spinConfig.maxPaidSpins);
   },
 
   doSpin: () => {
     const today = new Date().toISOString().slice(0, 10);
     const { lastSpinDate, extraSpinsToday } = get();
 
-    const isFreeSpin = lastSpinDate !== today;
-    if (!isFreeSpin && extraSpinsToday >= 3) return null;
+    let spinConfig = { maxFreeSpins: 1, maxPaidSpins: 3, paidSpinCost: 0.2 };
+    try {
+      const { getPremiumSpinConfig } = require('./premiumStore');
+      spinConfig = getPremiumSpinConfig();
+    } catch {}
+    // Level perk: extra free spins
+    try {
+      const { getPerksForLevel } = require('./xpStore');
+      const level = require('./xpStore').useXpStore.getState().level;
+      spinConfig.maxFreeSpins += getPerksForLevel(level).freeSpinBonus;
+    } catch {}
 
-    // If not free spin, deduct 0.2 SOL
-    if (!isFreeSpin) {
-      try {
-        const walletStore = require('./walletStore').useWalletStore.getState();
-        if (walletStore.balance < 0.2) return null;
-        walletStore.deductBalance(0.2);
-      } catch { return null; }
+    const totalFreeSpins = spinConfig.maxFreeSpins;
+    const isNewDay = lastSpinDate !== today;
+    const spinsUsedToday = isNewDay ? 0 : extraSpinsToday + 1; // +1 for the first free spin
+    const isFreeSpin = spinsUsedToday < totalFreeSpins;
+    const maxTotal = totalFreeSpins + spinConfig.maxPaidSpins;
+
+    if (!isNewDay && (extraSpinsToday + 1) >= maxTotal) return null;
+
+    // If not free spin, deduct SOL (premium = 0 cost)
+    if (!isFreeSpin && !isNewDay) {
+      const cost = spinConfig.paidSpinCost;
+      if (cost > 0) {
+        try {
+          const walletStore = require('./walletStore').useWalletStore.getState();
+          if (walletStore.balance < cost) return null;
+          walletStore.deductBalance(cost);
+        } catch { return null; }
+      }
     }
 
     const segmentIndex = spinWheel();
@@ -414,8 +479,8 @@ export const useAdventureStore = create<AdventureStore>((set, get) => ({
 
     if (result.staminaRefill) {
       try {
-        const petStore = require('./petStore').usePetStore;
-        petStore.setState({ stamina: 100, lastStaminaRegenAt: Date.now() });
+        const petMod = require('./petStore');
+        petMod.usePetStore.setState({ stamina: petMod.getEffectiveStaminaMax(), lastStaminaRegenAt: Date.now() });
       } catch {}
     }
 
@@ -462,10 +527,15 @@ export const useAdventureStore = create<AdventureStore>((set, get) => ({
       loginCalendarStartDate: get().loginCalendarStartDate || today,
     });
 
-    // Award XP
+    // Award XP (premium gets 1.5x calendar XP)
     try {
+      let calendarMult = 1.0;
+      try {
+        const { getPremiumCalendarMultiplier } = require('./premiumStore');
+        calendarMult = getPremiumCalendarMultiplier();
+      } catch {}
       const xpStore = require('./xpStore').useXpStore.getState();
-      xpStore.addXp(dayReward.xpReward, 'login-calendar');
+      xpStore.addXp(Math.round(dayReward.xpReward * calendarMult), 'login-calendar');
     } catch {}
 
     // Weekly quest: login every day
@@ -477,16 +547,17 @@ export const useAdventureStore = create<AdventureStore>((set, get) => ({
     // Handle special bonuses
     if (dayReward.bonusLabel === '+20 Stamina') {
       try {
-        const petStore = require('./petStore').usePetStore;
-        const current = petStore.getState().getStamina();
-        petStore.setState({ stamina: Math.min(100, current + 20), lastStaminaRegenAt: Date.now() });
+        const petMod = require('./petStore');
+        const current = petMod.usePetStore.getState().getStamina();
+        const maxStam = petMod.getEffectiveStaminaMax();
+        petMod.usePetStore.setState({ stamina: Math.min(maxStam, current + 20), lastStaminaRegenAt: Date.now() });
       } catch {}
     }
 
     if (dayReward.bonusLabel === 'Stamina Potion') {
       try {
-        const petStore = require('./petStore').usePetStore;
-        petStore.setState({ stamina: 100, lastStaminaRegenAt: Date.now() });
+        const petMod = require('./petStore');
+        petMod.usePetStore.setState({ stamina: petMod.getEffectiveStaminaMax(), lastStaminaRegenAt: Date.now() });
       } catch {}
     }
 

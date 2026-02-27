@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { useShopStore, type ShopItem } from '../store/shopStore';
+import { useShopStore, type ShopItem, type ItemRarity, getItemLockState } from '../store/shopStore';
 import { useWalletStore } from '../store/walletStore';
+import { usePremiumStore, getCurrentTier } from '../store/premiumStore';
+import { isAtLeastTier, type PremiumTier } from '../data/premiumTiers';
 import { ScreenHeader } from '../components/ui/ScreenHeader';
 
 type ShopSection = 'All' | 'Accessories' | 'Animations' | 'Clothes' | 'Shoes' | 'Other';
@@ -49,20 +51,41 @@ function CategoryPill({
   );
 }
 
+const RARITY_COLORS: Record<ItemRarity, { bg: string; text: string; label: string }> = {
+  common: { bg: 'bg-gray-200', text: 'text-gray-600', label: 'Common' },
+  rare: { bg: 'bg-blue-100', text: 'text-blue-600', label: 'Rare' },
+  epic: { bg: 'bg-purple-100', text: 'text-purple-600', label: 'Epic' },
+  legendary: { bg: 'bg-amber-100', text: 'text-amber-600', label: 'Legendary' },
+};
+
+const RARITY_BORDER: Record<ItemRarity, string> = {
+  common: '#D1D5DB',
+  rare: '#93C5FD',
+  epic: '#C4B5FD',
+  legendary: '#FCD34D',
+};
+
 function ShopCard({
   item,
   equipped,
+  isPremium,
   onBuy,
   onEquip,
   onUnequip,
 }: {
   item: ShopItem;
   equipped: boolean;
+  isPremium: boolean;
   onBuy: () => void;
   onEquip: () => void;
   onUnequip: () => void;
 }) {
+  const rarityInfo = RARITY_COLORS[item.rarity];
+  const lockState = getItemLockState(item);
+  const isLocked = lockState.locked && !item.owned;
+
   const handlePress = () => {
+    if (isLocked) return;
     if (!item.owned) {
       onBuy();
     } else if (equipped) {
@@ -74,24 +97,44 @@ function ShopCard({
 
   return (
     <View
-      className={`flex-1 bg-white rounded-3xl p-4 border ${
-        equipped ? 'border-pet-blue border-2' : 'border-gray-100'
+      className={`flex-1 bg-white rounded-[28px] p-4 border-2 ${
+        equipped ? 'border-pet-blue' : ''
       }`}
       style={{
+        borderColor: equipped ? undefined : RARITY_BORDER[item.rarity],
         shadowColor: equipped ? '#4FB0C6' : '#22314A',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: equipped ? 0.15 : 0.05,
         shadowRadius: 10,
         elevation: equipped ? 5 : 2,
+        opacity: isLocked ? 0.6 : 1,
       }}
     >
+      <LinearGradient
+        colors={equipped ? ['#D9F4F8', '#ECFBFF'] : ['#F7FAFF', '#FFFFFF']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        className="absolute inset-0 rounded-[28px]"
+      />
+      <View className="absolute top-1.5 left-2.5 flex-row" style={{ gap: 4 }}>
+        <View className={`px-2 py-0.5 rounded-full ${rarityInfo.bg}`}>
+          <Text className={`text-[9px] font-black ${rarityInfo.text}`}>{rarityInfo.label.toUpperCase()}</Text>
+        </View>
+        {item.tierTag && (
+          <View className="px-2 py-0.5 rounded-full bg-amber-100">
+            <Text className="text-[9px] font-black text-amber-600">
+              {item.tierTag === 'diamond_exclusive' ? '\u{1F48E}' : '\u{1F451}'}
+            </Text>
+          </View>
+        )}
+      </View>
       <View className="items-center mb-3">
         <View
-          className={`w-16 h-16 rounded-2xl items-center justify-center ${
-            equipped ? 'bg-pet-blue/15' : 'bg-gray-50'
+          className={`w-16 h-16 rounded-2xl items-center justify-center border ${
+            equipped ? 'bg-pet-blue/15 border-pet-blue/30' : 'bg-gray-50 border-gray-100'
           }`}
         >
-          <Text className="text-4xl">{item.image}</Text>
+          <Text className="text-4xl">{isLocked ? '\u{1F512}' : item.image}</Text>
         </View>
       </View>
 
@@ -103,30 +146,46 @@ function ShopCard({
       </Text>
 
       <View className="flex-row items-center justify-center mt-2 mb-3">
-        <Text className="text-[14px] font-black text-pet-blue-dark">{item.price}</Text>
-        <Text className="text-[11px] font-bold text-gray-400 ml-1">SOL</Text>
+        {isPremium && !item.owned ? (
+          <Text className="text-[14px] font-black text-pet-green">FREE</Text>
+        ) : (
+          <>
+            <Text className="text-[14px] font-black text-pet-blue-dark">{item.price}</Text>
+            <Text className="text-[11px] font-bold text-gray-400 ml-1">SOL</Text>
+          </>
+        )}
       </View>
 
-      <TouchableOpacity onPress={handlePress} activeOpacity={0.85}>
-        {!item.owned ? (
-          <LinearGradient
-            colors={['#3792A6', '#4FB0C6']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            className="py-2.5 rounded-xl items-center"
-          >
-            <Text className="text-white text-[12px] font-black tracking-wider uppercase">Buy</Text>
-          </LinearGradient>
-        ) : equipped ? (
-          <View className="py-2.5 rounded-xl items-center bg-pet-blue/15 border border-pet-blue/40">
-            <Text className="text-pet-blue-dark text-[12px] font-black tracking-wider uppercase">Equipped</Text>
-          </View>
-        ) : (
-          <View className="py-2.5 rounded-xl items-center bg-gray-100 border border-gray-200">
-            <Text className="text-gray-600 text-[12px] font-black tracking-wider uppercase">Equip</Text>
-          </View>
-        )}
-      </TouchableOpacity>
+      {isLocked ? (
+        <View className="py-2.5 rounded-xl items-center bg-gray-200 border border-gray-300">
+          <Text className="text-[9px] font-black text-gray-500 uppercase tracking-wider">
+            {'\u{1F512}'} {lockState.reason}
+          </Text>
+        </View>
+      ) : (
+        <TouchableOpacity onPress={handlePress} activeOpacity={0.85}>
+          {!item.owned ? (
+            <LinearGradient
+              colors={isPremium ? ['#FFD700', '#CCA800'] : ['#48B4CD', '#66CBE1']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              className="py-2.5 rounded-xl items-center"
+            >
+              <Text className="text-white text-[12px] font-black tracking-wider uppercase">
+                {isPremium ? '\u{1F48E} Claim Free' : 'Adopt'}
+              </Text>
+            </LinearGradient>
+          ) : equipped ? (
+            <View className="py-2.5 rounded-xl items-center bg-pet-blue/15 border border-pet-blue/40">
+              <Text className="text-pet-blue-dark text-[12px] font-black tracking-wider uppercase">Equipped</Text>
+            </View>
+          ) : (
+            <View className="py-2.5 rounded-xl items-center bg-gray-100 border border-gray-200">
+              <Text className="text-gray-600 text-[12px] font-black tracking-wider uppercase">Equip</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -135,25 +194,41 @@ export function ShopScreen() {
   const { items, buyItem, equipItem, unequipItem, equippedItemId, hydrateShop } = useShopStore();
   const [selectedSection, setSelectedSection] = useState<ShopSection>('All');
   const balance = useWalletStore((s) => s.balance);
+  const premium = usePremiumStore((s) => s.isPremium);
+  const tier = usePremiumStore((s) => s.tier);
 
   useEffect(() => {
     hydrateShop();
   }, [hydrateShop]);
 
+  // Filter out items locked behind a higher tier
+  const TIER_TAG_MAP: Record<string, PremiumTier> = {
+    gold_exclusive: 'gold',
+    diamond_exclusive: 'diamond',
+  };
+
+  const visibleItems = useMemo(() => {
+    return items.filter((i) => {
+      if (!i.tierTag) return true;
+      const required = TIER_TAG_MAP[i.tierTag];
+      return required ? isAtLeastTier(tier, required) : true;
+    });
+  }, [items, tier]);
+
   const sectioned = useMemo(() => {
     const bySection: Record<Exclude<ShopSection, 'All'>, ShopItem[]> = {
-      Accessories: items.filter((i) => i.category === 'Accessories'),
+      Accessories: visibleItems.filter((i) => i.category === 'Accessories'),
       Animations: [],
-      Clothes: items.filter((i) => i.category === 'Hats' || i.category === 'Shirts'),
-      Shoes: items.filter((i) => i.category === 'Shoes'),
-      Other: items.filter((i) => !['Accessories', 'Hats', 'Shirts', 'Shoes'].includes(i.category)),
+      Clothes: visibleItems.filter((i) => i.category === 'Hats' || i.category === 'Shirts'),
+      Shoes: visibleItems.filter((i) => i.category === 'Shoes'),
+      Other: visibleItems.filter((i) => !['Accessories', 'Hats', 'Shirts', 'Shoes'].includes(i.category)),
     };
     return bySection;
-  }, [items]);
+  }, [visibleItems]);
 
   const filtered =
     selectedSection === 'All'
-      ? items
+      ? visibleItems
       : sectioned[selectedSection as Exclude<ShopSection, 'All'>] ?? [];
 
   const sectionOrder: Exclude<ShopSection, 'All'>[] = [
@@ -206,13 +281,15 @@ export function ShopScreen() {
     <View className="flex-1 bg-pet-background">
       <View className="absolute -top-8 -left-12 w-44 h-44 rounded-full bg-pet-blue-light/30" />
       <View className="absolute top-44 -right-12 w-52 h-52 rounded-full bg-pet-purple-light/20" />
+      <Text className="absolute top-12 left-8 text-[16px] opacity-45">{'\u2728'}</Text>
+      <Text className="absolute top-20 right-8 text-[14px] opacity-35">{'\u{1F31F}'}</Text>
 
       <View className="px-6 pt-4 pb-3">
         <ScreenHeader
           eyebrow="Nomi Boutique"
           title="Shop"
           subtitle="Cute gear and outfits for your companion."
-          badge="Fresh drops daily � v2"
+          badge="Fresh drops daily · v2"
           rightSlot={(
             <View className="bg-white/20 rounded-2xl px-3.5 py-2 border border-white/40">
               <View className="flex-row items-center">
@@ -241,6 +318,13 @@ export function ShopScreen() {
             />
           ))}
         </ScrollView>
+      </View>
+
+      <View className="px-6 mb-3">
+        <View className="rounded-2xl border border-pet-pink-light/70 bg-white px-4 py-2.5 flex-row items-center">
+          <Text className="text-base mr-2">{'\u{1F49D}'}</Text>
+          <Text className="text-[12px] font-semibold text-gray-600 flex-1">Cute combo tip: pair hats with shoes for extra charm.</Text>
+        </View>
       </View>
 
       <ScrollView
@@ -276,6 +360,7 @@ export function ShopScreen() {
                           key={item.id}
                           item={item}
                           equipped={equippedItemId === item.id}
+                          isPremium={premium}
                           onBuy={() => handleBuy(item)}
                           onEquip={() => handleEquip(item)}
                           onUnequip={handleUnequip}
@@ -313,6 +398,7 @@ export function ShopScreen() {
                       key={item.id}
                       item={item}
                       equipped={equippedItemId === item.id}
+                      isPremium={premium}
                       onBuy={() => handleBuy(item)}
                       onEquip={() => handleEquip(item)}
                       onUnequip={handleUnequip}
@@ -334,3 +420,4 @@ export function ShopScreen() {
     </View>
   );
 }
+

@@ -1,7 +1,9 @@
 import { useEffect, useRef } from 'react';
 import { View, Text, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useXpStore, getTitleForLevel } from '../store/xpStore';
+import { useXpStore, getTitleForLevel, getNextPerkLevel, LEVEL_PERKS } from '../store/xpStore';
+import { usePremiumStore } from '../store/premiumStore';
+import { TIER_CONFIGS } from '../data/premiumTiers';
 
 export function XpBar() {
   const level = useXpStore((s) => s.level);
@@ -9,9 +11,13 @@ export function XpBar() {
   const getXpToNextLevel = useXpStore((s) => s.getXpToNextLevel);
   const getLevelProgress = useXpStore((s) => s.getLevelProgress);
 
+  const premiumTier = usePremiumStore((s) => s.tier);
+
   const xpNeeded = getXpToNextLevel();
   const progress = getLevelProgress();
   const title = getTitleForLevel(level);
+  const nextPerk = getNextPerkLevel(level);
+  const tierConfig = premiumTier !== 'none' ? TIER_CONFIGS[premiumTier] : null;
 
   const widthAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -37,7 +43,7 @@ export function XpBar() {
     return () => pulse.stop();
   }, [pulseAnim]);
 
-  return (
+  const content = (
     <View className="flex-row items-center px-4 py-2">
       {/* Level Badge */}
       <Animated.View
@@ -45,11 +51,19 @@ export function XpBar() {
         className="w-12 h-12 rounded-full items-center justify-center mr-3 border-2 border-pet-gold"
       >
         <LinearGradient
-          colors={['#9381FF', '#766BD1']}
+          colors={tierConfig ? tierConfig.gradientColors : ['#9381FF', '#766BD1']}
           className="w-full h-full rounded-full items-center justify-center"
         >
           <Text className="text-white text-[16px] font-black">{level}</Text>
         </LinearGradient>
+        {tierConfig && (
+          <View
+            className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full items-center justify-center border-2 border-white"
+            style={{ backgroundColor: tierConfig.badgeColor }}
+          >
+            <Text className="text-[8px]">{tierConfig.emoji}</Text>
+          </View>
+        )}
       </Animated.View>
 
       {/* XP Bar + Info */}
@@ -83,7 +97,28 @@ export function XpBar() {
             />
           </Animated.View>
         </View>
+
+        {nextPerk && (
+          <Text className="text-[9px] font-semibold text-gray-400 mt-1">
+            Next perk: Lv.{nextPerk} — {LEVEL_PERKS[nextPerk].label}
+          </Text>
+        )}
       </View>
+    </View>
+  );
+
+  return (
+    <View
+      className="bg-white rounded-[20px] border border-gray-100"
+      style={{
+        shadowColor: '#22314A',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.06,
+        shadowRadius: 10,
+        elevation: 3,
+      }}
+    >
+      {content}
     </View>
   );
 }

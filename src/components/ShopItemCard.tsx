@@ -1,5 +1,6 @@
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import type { ShopItem } from '@/store/shopStore';
+import { useXpStore, getPerksForLevel } from '@/store/xpStore';
 
 const COLORS = {
   card: '#262626',
@@ -8,6 +9,7 @@ const COLORS = {
   textMuted: '#9CA3AF',
   primary: '#8B5CF6',
   success: '#10B981',
+  strikethrough: '#6B7280',
 };
 
 interface ShopItemCardProps {
@@ -16,17 +18,36 @@ interface ShopItemCardProps {
 }
 
 export function ShopItemCard({ item, onBuy }: ShopItemCardProps) {
+  const level = useXpStore((s) => s.level);
+  const perks = getPerksForLevel(level);
+  const discount = perks.shopDiscount;
+  const discountedPrice = discount > 0
+    ? Math.round(item.price * (1 - discount) * 100) / 100
+    : item.price;
+
   return (
     <View style={styles.card}>
+      {discount > 0 && !item.owned && (
+        <View style={styles.discountBadge}>
+          <Text style={styles.discountBadgeText}>-{Math.round(discount * 100)}%</Text>
+        </View>
+      )}
       <View style={styles.preview}>
         <Text style={styles.previewEmoji}>{item.image}</Text>
       </View>
-      
+
       <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
       <Text style={styles.category}>{item.category}</Text>
-      
+
       <View style={styles.footer}>
-        <Text style={styles.price}>{item.price} SOL</Text>
+        {discount > 0 && !item.owned ? (
+          <View>
+            <Text style={styles.originalPrice}>{item.price} SOL</Text>
+            <Text style={styles.price}>{discountedPrice} SOL</Text>
+          </View>
+        ) : (
+          <Text style={styles.price}>{item.price} SOL</Text>
+        )}
         <TouchableOpacity
           onPress={onBuy}
           activeOpacity={0.8}
@@ -79,6 +100,27 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: COLORS.success,
+  },
+  originalPrice: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    color: COLORS.strikethrough,
+    textDecorationLine: 'line-through',
+  },
+  discountBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: '#EF4444',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    zIndex: 1,
+  },
+  discountBadgeText: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
   },
   buyBtn: {
     backgroundColor: COLORS.primary,
