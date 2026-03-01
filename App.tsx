@@ -1,9 +1,9 @@
 // Polyfills MUST be imported before anything else
 import './src/polyfills';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { View, Text, TouchableOpacity, LogBox, AppState, Animated, Easing } from 'react-native';
+import { View, Text, TouchableOpacity, LogBox, AppState, BackHandler, Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useWalletStore } from './src/store/walletStore';
@@ -15,9 +15,10 @@ import { usePremiumStore } from './src/store/premiumStore';
 import { usePersonalityStore } from './src/store/personalityStore';
 import { useEventStore } from './src/store/eventStore';
 import { useNotificationStore } from './src/store/notificationStore';
-import { WalletConnect } from './src/components';
+import { WalletConnect, WelcomeIntro } from './src/components';
 import { HomeScreen, ProfileScreen, MintScreen, ShopScreen } from './src/screens';
 import { GamesScreen } from './src/screens/GamesScreen';
+import { petTypography } from './src/theme/typography';
 
 import './global.css';
 
@@ -53,7 +54,7 @@ const TABS: { key: Tab; icon: string; label: string }[] = [
 function TabBar({ activeTab, onTabPress }: { activeTab: Tab; onTabPress: (tab: Tab) => void }) {
   return (
     <View
-      className="flex-row bg-white rounded-t-[34px] pb-7 pt-3 border-t border-pet-blue-light/70"
+      className="flex-row bg-white rounded-t-[38px] pb-7 pt-4 border-t border-pet-blue-light/70"
       style={{
         shadowColor: '#2D6B90',
         shadowOffset: { width: 0, height: -10 },
@@ -71,13 +72,16 @@ function TabBar({ activeTab, onTabPress }: { activeTab: Tab; onTabPress: (tab: T
             activeOpacity={0.8}
             className="flex-1 items-center"
           >
-            <View className={`px-6 py-1.5 rounded-[18px] mb-1 ${isActive ? 'bg-pet-blue/15 border border-pet-blue-light/80' : ''}`}>
-              <Text className={`text-[21px] ${!isActive ? 'opacity-45' : ''}`}>
+            <View className={`px-6 py-2 rounded-[20px] mb-1.5 ${isActive ? 'bg-pet-blue/15 border border-pet-blue-light/80' : ''}`}>
+              <Text className={`text-[22px] ${!isActive ? 'opacity-45' : ''}`}>
                 {tab.icon}
               </Text>
             </View>
             <View className="items-center">
-              <Text className={`text-[10px] font-black uppercase tracking-[0.8px] ${isActive ? 'text-pet-blue-dark' : 'text-gray-300'}`}>
+              <Text
+                className={`text-[10px] font-black uppercase tracking-[1px] ${isActive ? 'text-pet-blue-dark' : 'text-gray-300'}`}
+                style={{ fontFamily: petTypography.strong }}
+              >
                 {tab.label}
               </Text>
               <View className={`mt-1 h-1.5 rounded-full ${isActive ? 'w-7 bg-pet-blue' : 'w-1 bg-transparent'}`} />
@@ -91,10 +95,8 @@ function TabBar({ activeTab, onTabPress }: { activeTab: Tab; onTabPress: (tab: T
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('home');
-  const [displayTab, setDisplayTab] = useState<Tab>('home');
+  const [showWelcomeIntro, setShowWelcomeIntro] = useState(true);
   const [hydrated, setHydrated] = useState(false);
-  const transition = useRef(new Animated.Value(1)).current;
-  const isTransitioningRef = useRef(false);
   const connected = useWalletStore((s) => s.connected);
   const hasPet = usePetStore((s) => s.hasPet);
 
@@ -112,6 +114,33 @@ export default function App() {
   useEffect(() => {
     Promise.all([hydratePetStore(), hydrateWallet(), hydrateShop(), hydrateXp(), hydrateAdventure(), hydratePremium(), hydratePersonality(), hydrateEvents(), hydrateNotifications()]).finally(() => setHydrated(true));
   }, [hydrateWallet, hydrateShop, hydrateXp, hydrateAdventure, hydratePremium, hydratePersonality, hydrateEvents, hydrateNotifications]);
+
+  // Android system back gesture/button behavior for custom, non-stack navigation flow.
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+
+    const onBackPress = () => {
+      if (!hydrated) return true;
+
+      // Wallet flow: go back from wallet connect to intro page.
+      if (!connected && !showWelcomeIntro) {
+        setShowWelcomeIntro(true);
+        return true;
+      }
+
+      // Main app: back from non-home tabs returns to Home first.
+      if (connected && hasPet && activeTab !== 'home') {
+        setActiveTab('home');
+        return true;
+      }
+
+      // Let Android handle default behavior (app background/exit).
+      return false;
+    };
+
+    const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => sub.remove();
+  }, [hydrated, connected, hasPet, showWelcomeIntro, activeTab]);
 
   // Request notification permission after first pet mint
   useEffect(() => {
@@ -136,7 +165,7 @@ export default function App() {
   const renderScreen = (tab: Tab) => {
     switch (tab) {
       case 'home':
-        return <HomeScreen onNavigateGames={() => handleTabPress('games')} />;
+        return <HomeScreen onNavigateGames={() => setActiveTab('games')} />;
       case 'games':
         return <GamesScreen />;
       case 'shop':
@@ -144,29 +173,6 @@ export default function App() {
       case 'profile':
         return <ProfileScreen />;
     }
-  };
-
-  const handleTabPress = (nextTab: Tab) => {
-    if (nextTab === activeTab || isTransitioningRef.current) return;
-    isTransitioningRef.current = true;
-
-    Animated.timing(transition, {
-      toValue: 0,
-      duration: 140,
-      easing: Easing.out(Easing.quad),
-      useNativeDriver: true,
-    }).start(() => {
-      setActiveTab(nextTab);
-      setDisplayTab(nextTab);
-      Animated.timing(transition, {
-        toValue: 1,
-        duration: 220,
-        easing: Easing.inOut(Easing.quad),
-        useNativeDriver: true,
-      }).start(() => {
-        isTransitioningRef.current = false;
-      });
-    });
   };
 
   if (!hydrated) {
@@ -182,14 +188,19 @@ export default function App() {
   }
 
   if (!connected) {
+    if (showWelcomeIntro) {
+      return (
+        <GestureHandlerRootView className="flex-1">
+          <WelcomeIntro onContinue={() => setShowWelcomeIntro(false)} />
+          <StatusBar style="light" />
+        </GestureHandlerRootView>
+      );
+    }
+
     return (
       <GestureHandlerRootView className="flex-1">
-        <SafeAreaProvider>
-          <SafeAreaView className="flex-1 bg-pet-background" edges={['top']}>
-            <WalletConnect />
-            <StatusBar style="dark" />
-          </SafeAreaView>
-        </SafeAreaProvider>
+        <WalletConnect />
+        <StatusBar style="light" />
       </GestureHandlerRootView>
     );
   }
@@ -211,23 +222,8 @@ export default function App() {
     <GestureHandlerRootView className="flex-1">
       <SafeAreaProvider>
         <SafeAreaView className="flex-1 bg-pet-background" edges={['top']}>
-          <Animated.View
-            className="flex-1"
-            style={{
-              opacity: transition,
-              transform: [
-                {
-                  translateY: transition.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [8, 0],
-                  }),
-                },
-              ],
-            }}
-          >
-            {renderScreen(displayTab)}
-          </Animated.View>
-          <TabBar activeTab={activeTab} onTabPress={handleTabPress} />
+          <View className="flex-1">{renderScreen(activeTab)}</View>
+          <TabBar activeTab={activeTab} onTabPress={setActiveTab} />
           <StatusBar style="dark" />
         </SafeAreaView>
       </SafeAreaProvider>

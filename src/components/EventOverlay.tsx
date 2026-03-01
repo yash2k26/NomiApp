@@ -31,6 +31,8 @@ function RewardPopup({ reward, onDone }: { reward: EventReward; onDone: () => vo
   if (reward.coins > 0) rewards.push(`+${reward.coins} SOL`);
   if (reward.staminaRefill > 0) rewards.push(`+${reward.staminaRefill} Stamina`);
   if (reward.happiness > 0) rewards.push(`+${reward.happiness} Happiness`);
+  if (reward.hunger > 0) rewards.push(`+${reward.hunger} Hunger`);
+  if (reward.energy > 0) rewards.push(`+${reward.energy} Energy`);
   if (reward.shards > 0) rewards.push(`+${reward.shards} Shard!`);
 
   return (

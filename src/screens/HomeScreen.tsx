@@ -18,6 +18,7 @@ import { useXpStore } from '../store/xpStore';
 import { useEventStore } from '../store/eventStore';
 import { usePersonalityStore, getActionDialogue, type DialogueContext } from '../store/personalityStore';
 import { ADVENTURE_ZONES } from '../store/adventureStore';
+import { petTypography } from '../theme/typography';
 
 const FALLING_DURATION = 3500;
 
@@ -261,11 +262,11 @@ function ActivityGlance({ onNavigateGames }: { onNavigateGames?: () => void }) {
   return (
     <View className="px-6 mt-3 mb-1">
       <View
-        className="bg-white rounded-[24px] border border-gray-100 overflow-hidden"
+        className="bg-white rounded-[28px] border border-gray-100 overflow-hidden"
         style={{ shadowColor: '#22314A', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 }}
       >
-        <View className="px-4 py-2.5 border-b border-gray-100">
-          <Text className="text-[11px] font-black text-gray-500 uppercase tracking-[0.7px]">Today at a glance</Text>
+        <View className="px-5 py-3 border-b border-gray-100">
+          <Text className="text-[11px] font-black text-gray-500 uppercase tracking-[0.8px]" style={{ fontFamily: petTypography.strong }}>Today at a glance</Text>
         </View>
         <View className="flex-row">
           {/* Quests */}
@@ -483,7 +484,7 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
   return (
     <View className="flex-1 bg-pet-background">
       <LinearGradient
-        colors={['#EAF7FF', '#DFF2FF', '#F3FAFF']}
+        colors={['#EDF8FF', '#E4F3FF', '#F5FBFF']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         className="absolute inset-0"
@@ -492,11 +493,11 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
       <EventOverlay />
 
       {/* Help button */}
-      <View className="absolute top-2 right-4 z-30">
+      <View className="absolute top-3 right-5 z-30">
         <TouchableOpacity
           onPress={() => setHelpVisible(true)}
           activeOpacity={0.9}
-          className="w-11 h-11 rounded-full bg-pet-blue items-center justify-center border border-pet-blue-dark/70"
+          className="w-12 h-12 rounded-full bg-pet-blue items-center justify-center border border-pet-blue-dark/70"
           style={{
             shadowColor: '#3792A6',
             shadowOffset: { width: 0, height: 4 },
@@ -535,22 +536,22 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
         bounces
       >
         <View
-          className="bg-pet-blue-light/25 rounded-b-[44px] overflow-hidden"
+          className="bg-pet-blue-light/25 rounded-b-[52px] overflow-hidden"
           style={{ height: 390 }}
         >
           <TouchInteractionLayer viewHeight={390} onDoubleTap={handleDoubleTap}>
             <SkyCloud className="top-10 left-6" />
             <SkyCloud className="top-20 right-10 scale-90" />
             <SkyCloud className="top-52 left-12 scale-75" />
-            <View className="absolute inset-0 bg-white/35 rounded-b-[44px]" />
+            <View className="absolute inset-0 bg-white/35 rounded-b-[52px]" />
             {!isExcitedBurst && <DialogueBubble message={currentDialogue ?? needMessage} />}
             <PetRenderer activeModel={activeModel} onExcitedFinished={clearExcitedBurst} equippedSkin={equippedSkinKey} />
           </TouchInteractionLayer>
         </View>
 
-        <View className="items-center -mt-14 mb-4 z-10 px-6">
+        <View className="items-center -mt-14 mb-5 z-10 px-6">
           <View
-            className="w-full rounded-[30px] overflow-hidden border border-pet-blue-light/50"
+            className="w-full rounded-[34px] overflow-hidden border border-pet-blue-light/55"
             style={{
               shadowColor: '#24324A',
               shadowOffset: { width: 0, height: 10 },
@@ -563,15 +564,15 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
               colors={['#4FB0C6', '#6BC6D9']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
-              className="px-6 py-2.5"
+              className="px-6 py-3"
             >
               <View className="flex-row items-center justify-between">
-                <Text className="text-white text-[11px] font-bold tracking-[1px] uppercase">Companion Status</Text>
-                <Text className="text-white/80 text-[10px] font-semibold">Live Mood Tracker</Text>
+                <Text className="text-white text-[11px] font-bold tracking-[1px] uppercase" style={{ fontFamily: petTypography.strong }}>Companion Status</Text>
+                <Text className="text-white/80 text-[10px] font-semibold" style={{ fontFamily: petTypography.body }}>Live Mood Tracker</Text>
               </View>
             </LinearGradient>
-            <View className="bg-white px-6 py-5 items-center">
-              <Text className="text-[40px] leading-[42px] font-black text-gray-800">{name}</Text>
+            <View className="bg-white px-6 py-6 items-center">
+              <Text className="text-[40px] leading-[42px] font-black text-gray-800" style={{ fontFamily: petTypography.display }}>{name}</Text>
               <View className="flex-row items-center gap-2 mt-2.5">
                 <MoodBadge moodText={moodText} isExcited={isExcitedBurst} isUrgent={!!needMessage} />
                 {streakDays > 0 && (
@@ -596,18 +597,18 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
         </View>
 
         {/* Diary Button */}
-        <View className="px-6 mt-3">
+        <View className="px-6 mt-4">
           <TouchableOpacity onPress={() => setDiaryVisible(true)} activeOpacity={0.85}>
             <View
-              className="bg-white rounded-2xl border border-pet-blue-light/50 px-4 py-3 flex-row items-center"
+              className="bg-white rounded-[26px] border border-pet-blue-light/50 px-5 py-4 flex-row items-center"
               style={{ shadowColor: '#4FB0C6', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.08, shadowRadius: 6, elevation: 2 }}
             >
-              <View className="w-9 h-9 rounded-xl bg-pet-blue-light/20 items-center justify-center mr-3">
+              <View className="w-10 h-10 rounded-2xl bg-pet-blue-light/20 items-center justify-center mr-3">
                 <Text className="text-lg">{'\u{1F4D6}'}</Text>
               </View>
               <View className="flex-1">
-                <Text className="text-[12px] font-black text-gray-700">Nomi's Diary</Text>
-                <Text className="text-[10px] text-gray-400 font-semibold">See what Nomi did while you were away</Text>
+                <Text className="text-[13px] font-black text-gray-700" style={{ fontFamily: petTypography.heading }}>Nomi's Diary</Text>
+                <Text className="text-[11px] text-gray-400 font-semibold mt-0.5" style={{ fontFamily: petTypography.body }}>See what Nomi did while you were away</Text>
               </View>
               {unreadDiary > 0 && (
                 <View className="bg-pet-blue w-6 h-6 rounded-full items-center justify-center">

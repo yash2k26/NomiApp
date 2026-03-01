@@ -1,117 +1,180 @@
-﻿import { View, Text, TouchableOpacity, ActivityIndicator, Linking } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator, Linking, Image, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useWalletStore } from '../store/walletStore';
-import { ScreenHeader } from './ui/ScreenHeader';
+import { petTypography } from '../theme/typography';
+
+const HANGING_IMG = require('../../assets/Photos/hanging.png');
+const HEADPHONE_GUY_IMG = require('../../assets/Photos/headphoneguy.png');
+
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
 export function WalletConnect() {
   const { connectWallet, isConnecting, error } = useWalletStore();
 
   return (
     <View className="flex-1">
+      {/* Full-bleed gradient */}
       <LinearGradient
-        colors={['#E7F6FF', '#D7EEFF', '#EAF8FF']}
-        locations={[0, 0.4, 1]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        className="absolute inset-0"
+        colors={['#5BA3D9', '#6DB4E0', '#7EC2E5', '#6FAFD6']}
+        locations={[0, 0.3, 0.65, 1]}
+        start={{ x: 0.2, y: 0 }}
+        end={{ x: 0.8, y: 1 }}
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
       />
 
-      <View className="absolute -top-10 -right-8 w-40 h-40 rounded-full bg-pet-blue-light/45" />
-      <View className="absolute top-56 -left-12 w-48 h-48 rounded-full bg-pet-blue-light/30" />
+      {/* Soft ambient circles */}
+      <View
+        className="absolute rounded-full bg-white/10"
+        style={{ width: 220, height: 220, top: -60, right: -50 }}
+      />
+      <View
+        className="absolute rounded-full bg-white/8"
+        style={{ width: 160, height: 160, top: SCREEN_H * 0.45, left: -60 }}
+      />
+      <View
+        className="absolute rounded-full bg-white/6"
+        style={{ width: 100, height: 100, bottom: 120, right: -20 }}
+      />
 
-      <View className="flex-1 px-6 pt-6 pb-8">
-        <ScreenHeader
-          eyebrow="Welcome"
-          title="Nomi"
-          subtitle="Connect your wallet to start your companion journey."
-          badge="Solana Devnet · v2"
-          rightSlot={(
-            <View className="w-12 h-12 rounded-2xl bg-white/20 border border-white/40 items-center justify-center">
-              <Text className="text-2xl">{'\u{1F43E}'}</Text>
-            </View>
-          )}
+      {/* Hanging character — top left */}
+      <Image
+        source={HANGING_IMG}
+        resizeMode="contain"
+        style={{
+          position: 'absolute',
+          top: -40,
+          left: 0,
+          width: SCREEN_W * 0.65,
+          height: 220,
+        }}
+      />
+
+      {/* Headphone guy — peeking from right, clipped */}
+      <View style={{ position: 'absolute', top: 175, right: 0, width: 160, height: 260, overflow: 'hidden' }}>
+        <Image
+          source={HEADPHONE_GUY_IMG}
+          resizeMode="contain"
+          style={{
+            width: 270,
+            height: 220,
+            position: 'absolute',
+            right: -78,
+            top: 20,
+            transform: [{ rotate: '-90deg' }],
+          }}
         />
+      </View>
 
-        <View className="flex-1 justify-center">
-          <View
-            className="w-full bg-white rounded-[28px] p-5 border border-gray-100"
-            style={{
-              shadowColor: '#22314A',
-              shadowOffset: { width: 0, height: 8 },
-              shadowOpacity: 0.07,
-              shadowRadius: 14,
-              elevation: 4,
-            }}
+      {/* ─── Hero Copy ─── */}
+      <View className="absolute left-0 right-0 px-8" style={{ top: SCREEN_H * 0.44 }}>
+        {/* Pill badge */}
+        <View className="self-start mb-4 px-3.5 py-1.5 rounded-full bg-white/20 border border-white/30">
+          <Text
+            className="text-white/95 text-[10px] uppercase tracking-[1.5px]"
+            style={{ fontFamily: petTypography.strong }}
           >
-            <View className="flex-row items-center mb-4">
-              <MaterialCommunityIcons name="heart-pulse" size={18} color="#3792A6" />
-              <View className="ml-2.5 flex-1">
-                <Text className="text-[13px] font-bold text-gray-800">Care loop gameplay</Text>
-                <Text className="text-[11px] text-gray-500">Feed, play, rest and keep stats balanced.</Text>
-              </View>
-            </View>
-            <View className="flex-row items-center mb-4">
-              <MaterialCommunityIcons name="account-voice" size={18} color="#4FB0C6" />
-              <View className="ml-2.5 flex-1">
-                <Text className="text-[13px] font-bold text-gray-800">Reflective companion</Text>
-                <Text className="text-[11px] text-gray-500">Your responses shape mood and growth.</Text>
-              </View>
-            </View>
-            <View className="flex-row items-center">
-              <MaterialCommunityIcons name="shield-check" size={18} color="#3792A6" />
-              <View className="ml-2.5 flex-1">
-                <Text className="text-[13px] font-bold text-gray-800">Wallet-owned pet NFT</Text>
-                <Text className="text-[11px] text-gray-500">Progress stays with your wallet.</Text>
-              </View>
-            </View>
-          </View>
-
-          {!!error && (
-            <View className="w-full bg-red-50 border border-red-200 rounded-2xl px-4 py-3 mt-4">
-              <Text className="text-[12px] text-red-600 font-semibold text-center">{error}</Text>
-              {error.includes('No Solana wallet') && (
-                <TouchableOpacity
-                  onPress={() => Linking.openURL('https://phantom.app/download')}
-                  className="mt-2"
-                >
-                  <Text className="text-[11px] text-pet-blue-dark font-bold text-center underline">
-                    Get Phantom Wallet
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          )}
+            Your Pocket Companion
+          </Text>
         </View>
 
-        <TouchableOpacity onPress={connectWallet} disabled={isConnecting} activeOpacity={0.9} className="w-full">
-          <LinearGradient
-            colors={['#3792A6', '#4FB0C6']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            className="py-4 rounded-2xl items-center"
+        {/* Title */}
+        <Text
+          className="text-white text-[52px] leading-[52px]"
+          style={{ fontFamily: petTypography.display }}
+        >
+          Nomi
+        </Text>
+
+        {/* Tagline — two lines, visual hierarchy */}
+        <Text
+          className="text-white/50 text-[15px] leading-[22px] mt-3"
+          style={{ fontFamily: petTypography.body }}
+        >
+          Raise it. Bond with it. Own it forever.
+        </Text>
+        <Text
+          className="text-white/85 text-[14px] leading-[20px] mt-2"
+          style={{ fontFamily: petTypography.body }}
+        >
+          A living pet on the blockchain that grows{'\n'}with every moment you spend together.
+        </Text>
+
+        {/* Feature pills */}
+        <View className="flex-row flex-wrap mt-5 gap-2">
+          {['On-chain NFT', 'Real emotions', 'Daily rituals'].map((tag) => (
+            <View
+              key={tag}
+              className="px-3 py-1.5 rounded-full border border-white/25 bg-white/10"
+            >
+              <Text
+                className="text-white/90 text-[11px]"
+                style={{ fontFamily: petTypography.heading }}
+              >
+                {tag}
+              </Text>
+            </View>
+          ))}
+        </View>
+      </View>
+
+      {/* ─── Bottom Section ─── */}
+      <View className="absolute left-0 right-0 bottom-0 px-7 pb-10">
+        {/* Error */}
+        {!!error && (
+          <View className="bg-white/95 rounded-2xl px-4 py-3 mb-4 border border-red-200/60">
+            <Text className="text-[12px] text-red-600 font-semibold text-center">{error}</Text>
+            {error.includes('No Solana wallet') && (
+              <TouchableOpacity onPress={() => Linking.openURL('https://phantom.app/download')} className="mt-1.5">
+                <Text className="text-[11px] text-white font-bold text-center underline">
+                  Get Phantom Wallet
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        {/* CTA button */}
+        <TouchableOpacity onPress={connectWallet} disabled={isConnecting} activeOpacity={0.85}>
+          <View
+            className="rounded-[28px] py-[18px] items-center bg-white"
             style={{
-              opacity: isConnecting ? 0.75 : 1,
-              shadowColor: '#3792A6',
-              shadowOffset: { width: 0, height: 6 },
-              shadowOpacity: 0.25,
-              shadowRadius: 10,
-              elevation: 6,
+              shadowColor: '#1A4E6E',
+              shadowOffset: { width: 0, height: 12 },
+              shadowOpacity: 0.2,
+              shadowRadius: 20,
+              elevation: 8,
+              opacity: isConnecting ? 0.85 : 1,
             }}
           >
             {isConnecting ? (
               <View className="flex-row items-center">
-                <ActivityIndicator color="#FFF" size="small" />
-                <Text className="text-white text-[16px] font-black ml-2">Connecting...</Text>
+                <ActivityIndicator color="#3A8BB5" size="small" />
+                <Text
+                  className="text-[#3A8BB5] text-[16px] ml-2.5 uppercase tracking-[1px]"
+                  style={{ fontFamily: petTypography.strong }}
+                >
+                  Connecting...
+                </Text>
               </View>
             ) : (
-              <Text className="text-white text-[16px] font-black tracking-[0.6px] uppercase">Connect Wallet</Text>
+              <Text
+                className="text-[#3A8BB5] text-[16px] uppercase tracking-[1px]"
+                style={{ fontFamily: petTypography.strong }}
+              >
+                Connect Wallet
+              </Text>
             )}
-          </LinearGradient>
+          </View>
         </TouchableOpacity>
+
+        {/* Fine print */}
+        <Text
+          className="text-white/45 text-[11px] text-center mt-4 tracking-[0.3px]"
+          style={{ fontFamily: petTypography.body }}
+        >
+          Solana Devnet  ·  Powered by Phantom
+        </Text>
       </View>
     </View>
   );
 }
-
-

@@ -8,6 +8,7 @@ import { useWalletStore } from '../store/walletStore';
 import { usePremiumStore, getCurrentTier } from '../store/premiumStore';
 import { isAtLeastTier, type PremiumTier } from '../data/premiumTiers';
 import { ScreenHeader } from '../components/ui/ScreenHeader';
+import { petTypography } from '../theme/typography';
 
 type ShopSection = 'All' | 'Accessories' | 'Animations' | 'Clothes' | 'Shoes' | 'Other';
 const SECTIONS: ShopSection[] = ['All', 'Accessories', 'Animations', 'Clothes', 'Shoes', 'Other'];
@@ -34,15 +35,16 @@ function CategoryPill({
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.85}>
       <View
-        className={`px-4 py-2.5 rounded-full mr-2 flex-row items-center ${
+        className={`px-5 py-3 rounded-full mr-2.5 flex-row items-center ${
           active ? 'bg-pet-blue' : 'bg-white border border-gray-200'
         }`}
       >
         <Text className={`text-[13px] mr-1.5 ${active ? '' : 'opacity-60'}`}>{icon}</Text>
         <Text
-          className={`text-[12px] font-bold ${
+          className={`text-[12px] font-bold tracking-[0.4px] ${
             active ? 'text-white' : 'text-gray-500'
           }`}
+          style={{ fontFamily: petTypography.heading }}
         >
           {label}
         </Text>
@@ -97,7 +99,7 @@ function ShopCard({
 
   return (
     <View
-      className={`flex-1 bg-white rounded-[28px] p-4 border-2 ${
+      className={`flex-1 bg-white rounded-[32px] p-5 border-2 ${
         equipped ? 'border-pet-blue' : ''
       }`}
       style={{
@@ -111,10 +113,10 @@ function ShopCard({
       }}
     >
       <LinearGradient
-        colors={equipped ? ['#D9F4F8', '#ECFBFF'] : ['#F7FAFF', '#FFFFFF']}
+        colors={equipped ? ['#DAF1F9', '#EFF9FF'] : ['#F8FBFF', '#FFFFFF']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        className="absolute inset-0 rounded-[28px]"
+        className="absolute inset-0 rounded-[32px]"
       />
       <View className="absolute top-1.5 left-2.5 flex-row" style={{ gap: 4 }}>
         <View className={`px-2 py-0.5 rounded-full ${rarityInfo.bg}`}>
@@ -128,7 +130,7 @@ function ShopCard({
           </View>
         )}
       </View>
-      <View className="items-center mb-3">
+      <View className="items-center mb-4 mt-1">
         <View
           className={`w-16 h-16 rounded-2xl items-center justify-center border ${
             equipped ? 'bg-pet-blue/15 border-pet-blue/30' : 'bg-gray-50 border-gray-100'
@@ -138,14 +140,14 @@ function ShopCard({
         </View>
       </View>
 
-      <Text className="text-[13px] font-black text-gray-800 text-center" numberOfLines={1}>
+      <Text className="text-[15px] font-black text-gray-800 text-center" numberOfLines={1} style={{ fontFamily: petTypography.heading }}>
         {item.name}
       </Text>
       <Text className="text-[10px] font-semibold text-gray-400 text-center mt-0.5 uppercase tracking-wider">
         {item.category}
       </Text>
 
-      <View className="flex-row items-center justify-center mt-2 mb-3">
+      <View className="flex-row items-center justify-center mt-3 mb-4">
         {isPremium && !item.owned ? (
             <Text className="text-[14px] font-black text-pet-blue-dark">FREE</Text>
         ) : (
@@ -169,18 +171,18 @@ function ShopCard({
               colors={isPremium ? ['#4AA2CB', '#3B8BB4'] : ['#48B4CD', '#66CBE1']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
-              className="py-2.5 rounded-xl items-center"
+              className="py-3 rounded-2xl items-center"
             >
               <Text className="text-white text-[12px] font-black tracking-wider uppercase">
                 {isPremium ? '\u{1F48E} Claim Free' : 'Adopt'}
               </Text>
             </LinearGradient>
           ) : equipped ? (
-            <View className="py-2.5 rounded-xl items-center bg-pet-blue/15 border border-pet-blue/40">
+            <View className="py-3 rounded-2xl items-center bg-pet-blue/15 border border-pet-blue/40">
               <Text className="text-pet-blue-dark text-[12px] font-black tracking-wider uppercase">Equipped</Text>
             </View>
           ) : (
-            <View className="py-2.5 rounded-xl items-center bg-gray-100 border border-gray-200">
+            <View className="py-3 rounded-2xl items-center bg-gray-100 border border-gray-200">
               <Text className="text-gray-600 text-[12px] font-black tracking-wider uppercase">Equip</Text>
             </View>
           )}
@@ -290,7 +292,7 @@ export function ShopScreen() {
       <Text className="absolute top-12 left-8 text-[16px] opacity-45">{'\u2728'}</Text>
       <Text className="absolute top-20 right-8 text-[14px] opacity-35">{'\u{1F31F}'}</Text>
 
-      <View className="px-6 pt-4 pb-3">
+      <View className="px-6 pt-5 pb-4">
         <ScreenHeader
           eyebrow="Nomi Boutique"
           title="Shop"
@@ -308,7 +310,7 @@ export function ShopScreen() {
         />
       </View>
 
-      <View className="px-6 mb-4">
+      <View className="px-6 mb-5">
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -326,17 +328,17 @@ export function ShopScreen() {
         </ScrollView>
       </View>
 
-      <View className="px-6 mb-3">
-        <View className="rounded-2xl border border-pet-blue-light/70 bg-white px-4 py-2.5 flex-row items-center">
+      <View className="px-6 mb-4">
+        <View className="rounded-[24px] border border-pet-blue-light/70 bg-white px-5 py-3 flex-row items-center">
           <Text className="text-base mr-2">{'\u{1F49D}'}</Text>
-          <Text className="text-[12px] font-semibold text-pet-blue-dark flex-1">Try matching outfit pieces for a softer look.</Text>
+          <Text className="text-[12px] font-semibold text-pet-blue-dark flex-1" style={{ fontFamily: petTypography.body }}>Try matching outfit pieces for a softer look.</Text>
         </View>
       </View>
 
       <ScrollView
         className="flex-1"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 32 }}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
       >
         {selectedSection === 'All' ? (
           sectionOrder.map((section) => {

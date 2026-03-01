@@ -13,7 +13,7 @@ export function AppModal({ visible, onClose, children, sheet = true }: AppModalP
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable className="flex-1 bg-black/60" onPress={onClose}>
         <Pressable
-          className={sheet ? 'mt-auto bg-pet-blue-dark rounded-t-[28px] border-t border-pet-blue-light/30 p-6' : 'm-6 bg-pet-blue-dark rounded-[24px] border border-pet-blue-light/30 p-6'}
+          className={sheet ? 'mt-auto bg-pet-blue-dark rounded-t-[34px] border-t border-pet-blue-light/30 px-6 pt-6 pb-8' : 'm-6 bg-pet-blue-dark rounded-[30px] border border-pet-blue-light/30 p-6'}
           onPress={(e) => e.stopPropagation()}
         >
           {children}

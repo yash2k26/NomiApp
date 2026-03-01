@@ -208,7 +208,7 @@ const PERSISTED_KEYS: (keyof PetState)[] = [
   'stamina', 'lastStaminaRegenAt', 'cooldowns', 'lastBlessingAt',
 ];
 
-function savePetState(state: PetState) {
+export function savePetState(state: PetState) {
   const data: Record<string, any> = {};
   for (const key of PERSISTED_KEYS) {
     data[key] = state[key];

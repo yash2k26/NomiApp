@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import { Animated, Pressable, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { petTypography } from '../../theme/typography';
 
 interface BaseButtonProps {
   label: string;
@@ -38,12 +39,13 @@ function ButtonShell({
   };
 
   const content = (
-    <View className="h-[52px] rounded-[14px] items-center justify-center flex-row px-5">
+    <View className="h-[54px] rounded-[18px] items-center justify-center flex-row px-6">
       {!!icon && <Text className="text-[14px] mr-2">{icon}</Text>}
       <Text
         className={`text-[15px] font-semibold ${
           variant === 'ghost' ? 'text-pet-blue-light' : variant === 'secondary' ? 'text-pet-blue-light' : 'text-white'
         }`}
+        style={{ fontFamily: petTypography.heading, letterSpacing: 0.2 }}
       >
         {label}
       </Text>
@@ -64,16 +66,16 @@ function ButtonShell({
             colors={['#4FA6FF', '#3C8EF0']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
-            className="rounded-[14px]"
+            className="rounded-[18px]"
           >
             {content}
           </LinearGradient>
         ) : variant === 'secondary' ? (
-          <View className="rounded-[14px] border border-pet-blue-light/40 bg-pet-blue-dark/25">
+          <View className="rounded-[18px] border border-pet-blue-light/40 bg-pet-blue-dark/25">
             {content}
           </View>
         ) : (
-          <View className="rounded-[14px] border border-transparent bg-transparent">
+          <View className="rounded-[18px] border border-transparent bg-transparent">
             {content}
           </View>
         )}
