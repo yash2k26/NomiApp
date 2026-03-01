@@ -10,8 +10,8 @@ LogBox.ignoreLogs(['EXGL: gl.pixelStorei()', 'THREE.THREE.Clock']);
 // Single combined GLB with pet + all accessories baked in
 const MODEL = require('../../assets/pets/nomi-combined.glb');
 
-// External animation GLB for falling-back on double-tap
-const FALLING_BACK_ANIM = require('../../assets/animation/fallingback.glb');
+// External animation GLB for Gangnam on double-tap
+const GANGNAM_ANIM = require('../../assets/animation/Gangam.glb');
 
 type GLTFResult = GLTF & {
   nodes: Record<string, THREE.Object3D>;
@@ -37,8 +37,8 @@ const ACCESSORY_NODES = {
   hoodie: 'Accessory_Hoodie',
 } as const;
 
-// Preload the falling-back animation GLB
-useGLTF.preload(FALLING_BACK_ANIM);
+// Preload the punch animation GLB
+useGLTF.preload(GANGNAM_ANIM);
 
 // ── Crown spin component (needs useFrame) ──
 function CrownSpinner({ crownNode }: { crownNode: THREE.Object3D }) {
@@ -64,32 +64,19 @@ function PetModel({ activeModel, onAnimationDone, equippedSkin }: PetModelProps)
   const gltf = useGLTF(MODEL) as GLTFResult;
   const { scene, animations } = gltf;
 
-  // Load external animation GLB
-  const fallingBackGltf = useGLTF(FALLING_BACK_ANIM) as GLTFResult;
+  // Load external Gangnam animation GLB
+  const gangnamGltf = useGLTF(GANGNAM_ANIM) as GLTFResult;
 
   // Merge all animation clips into one array
   const allAnimations = useMemo(() => {
     const clips = [...animations];
 
-    // Debug: log baked clip names and track prefixes
-    console.log('[PetModel] baked clips:', animations.map(c => c.name));
-    if (animations[0]?.tracks[0]) {
-      console.log('[PetModel] baked track sample:', animations[0].tracks[0].name);
-    }
-
-    // fallingback.glb has multiple baked clips — log all to identify the right one
-    const fbClips = fallingBackGltf.animations;
-    console.log('[PetModel] fallingback clips:', fbClips.map((c, i) => `[${i}] "${c.name}" ${c.duration.toFixed(2)}s tracks:${c.tracks.length}`));
-    if (fbClips.length > 0 && fbClips[fbClips.length - 1].tracks[0]) {
-      console.log('[PetModel] fallingback last clip track sample:', fbClips[fbClips.length - 1].tracks[0].name);
-    }
-
-    // Add ALL fallingback clips so we can test each one
-    for (let i = 0; i < fbClips.length; i++) {
-      const renamed = fbClips[i].clone();
+    // Gangam.glb — add all clips, use the last one as 'Gangnam'
+    const gangnamClips = gangnamGltf.animations;
+    for (let i = 0; i < gangnamClips.length; i++) {
+      const renamed = gangnamClips[i].clone();
 
       // Retarget: strip path prefix so tracks bind to bones by name
-      // e.g. "Armature/mixamorig:Hips.position" → "mixamorig:Hips.position"
       for (const track of renamed.tracks) {
         const lastSlash = track.name.lastIndexOf('/');
         if (lastSlash !== -1) {
@@ -97,12 +84,12 @@ function PetModel({ activeModel, onAnimationDone, equippedSkin }: PetModelProps)
         }
       }
 
-      renamed.name = i === fbClips.length - 1 ? 'FallingBack' : `FallingBack_${i}`;
+      renamed.name = i === gangnamClips.length - 1 ? 'Gangnam' : `Gangnam_${i}`;
       clips.push(renamed);
     }
 
     return clips;
-  }, [animations, fallingBackGltf.animations]);
+  }, [animations, gangnamGltf.animations]);
 
   // Setup: find bones, find accessory groups, hide all accessories initially
   useEffect(() => {
@@ -177,8 +164,10 @@ function PetModel({ activeModel, onAnimationDone, equippedSkin }: PetModelProps)
       return;
     }
 
-    // Resolve clip name: baked clips use CLIP_NAME_MAP, falling uses 'FallingBack' from external
-    const clipName = activeModel === 'falling' ? 'FallingBack' : CLIP_NAME_MAP[activeModel];
+    // Resolve clip name: baked clips use CLIP_NAME_MAP, falling uses 'Gangnam' from external
+    const clipName = activeModel === 'falling'
+      ? (equippedSkin === 'headphones' ? 'Dance' : 'Gangnam')
+      : CLIP_NAME_MAP[activeModel];
     if (!clipName) return;
 
     const clip = allAnimations.find(c => c.name === clipName);
@@ -186,8 +175,6 @@ function PetModel({ activeModel, onAnimationDone, equippedSkin }: PetModelProps)
       console.warn(`[PetModel] clip "${clipName}" not found in:`, allAnimations.map(c => c.name));
       return;
     }
-
-    console.log(`[PetModel] playing "${clipName}" duration=${clip.duration.toFixed(2)}s tracks=${clip.tracks.length}`);
 
     if (activeActionRef.current) {
       activeActionRef.current.fadeOut(0.15);
@@ -290,7 +277,9 @@ export const PetRenderer = memo(function PetRenderer({ activeModel = 'breathing'
           enablePan={false}
           minPolarAngle={Math.PI / 4}
           maxPolarAngle={Math.PI / 1.5}
-          rotateSpeed={0.5}
+          rotateSpeed={1.2}
+          enableDamping
+          dampingFactor={0.12}
         />
 
         <Suspense fallback={null}>

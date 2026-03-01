@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
+﻿import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useState } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -36,7 +36,7 @@ export function MintScreen() {
           eyebrow="Genesis Companion"
           title="Mint Nomi"
           subtitle="Create your first companion NFT and begin your care journey."
-          badge="Cost: 0.01 SOL � v2"
+          badge="Cost: 0.01 SOL · v2"
           rightSlot={(
             <View className="bg-white/20 rounded-xl px-3 py-1.5 border border-white/35">
               <Text className="text-white text-[10px] font-black">{balance.toFixed(2)} SOL</Text>
@@ -118,3 +118,5 @@ export function MintScreen() {
     </View>
   );
 }
+
+

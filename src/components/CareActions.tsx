@@ -6,7 +6,7 @@ import { usePetStore, STAMINA_COSTS, getEffectiveStaminaMax } from '../store/pet
 import { usePremiumStore } from '../store/premiumStore';
 import { XpFloatText } from './XpFloatText';
 import { CareModal } from './CareModal';
-import type { CareAction } from '../data/careVariants';
+import { getVariantsForAction, type CareAction } from '../data/careVariants';
 
 interface StatBarProps {
   label: string;
@@ -38,13 +38,13 @@ function StatBar({ label, value, icon, barColor, trackColor }: StatBarProps) {
           </View>
           <Text className="text-[11px] font-bold tracking-[1px] uppercase text-gray-500">{label}</Text>
         </View>
-        <Text className={`text-[13px] font-black ${isLow ? 'text-pet-pink-dark' : 'text-gray-700'}`}>
+        <Text className={`text-[13px] font-black ${isLow ? 'text-pet-blue-dark' : 'text-gray-700'}`}>
           {Math.round(value)}%
         </Text>
       </View>
       <View className={`h-4 rounded-full overflow-hidden ${trackColor} border border-white/50`}>
         <Animated.View
-          className={`h-full rounded-full ${isLow ? 'bg-pet-pink-dark' : barColor}`}
+          className={`h-full rounded-full ${isLow ? 'bg-pet-blue-dark' : barColor}`}
           style={{
             width: widthAnim.interpolate({
               inputRange: [0, 100],
@@ -88,21 +88,21 @@ function StaminaBar() {
       <View className="flex-row items-center justify-between mb-2">
         <View className="flex-row items-center">
           <Text className="text-sm mr-1.5">{'\u{1F50B}'}</Text>
-          <Text className="text-[11px] font-black tracking-[1px] uppercase text-pet-purple-dark">Stamina</Text>
+          <Text className="text-[11px] font-black tracking-[1px] uppercase text-pet-blue-dark">Stamina</Text>
           {premium && (
-            <View className="ml-1.5 bg-pet-gold/20 px-1.5 py-0.5 rounded-full flex-row items-center">
+            <View className="ml-1.5 bg-pet-blue-light/50 border border-pet-blue-light px-1.5 py-0.5 rounded-full flex-row items-center">
               <Text className="text-[9px]">{'\u26A1'}</Text>
-              <Text className="text-[8px] font-black text-pet-gold-dark ml-0.5">2x</Text>
+              <Text className="text-[8px] font-black text-pet-blue-dark ml-0.5">2x</Text>
             </View>
           )}
         </View>
-        <Text className={`text-[13px] font-black ${isLow ? 'text-pet-pink-dark' : 'text-pet-purple'}`}>
+        <Text className={`text-[13px] font-black ${isLow ? 'text-pet-blue-dark' : 'text-pet-blue'}`}>
           {Math.floor(stamina)}/{maxStamina}
         </Text>
       </View>
-      <View className="h-3 rounded-full overflow-hidden bg-pet-purple-light/30 border border-pet-purple-light/50">
+      <View className="h-3 rounded-full overflow-hidden bg-pet-blue-light/35 border border-pet-blue-light/70">
         <Animated.View
-          className={`h-full rounded-full ${isLow ? 'bg-pet-pink-dark' : 'bg-pet-purple'}`}
+          className={`h-full rounded-full ${isLow ? 'bg-pet-blue-dark' : 'bg-pet-blue'}`}
           style={{
             width: widthAnim.interpolate({
               inputRange: [0, maxStamina],
@@ -207,20 +207,36 @@ export function CareActions() {
     setXpFloat({ amount, key: Date.now() });
   }, []);
 
+  // Per-variant cooldown checks: button is available if ANY variant is off cooldown
+  const feedVariants = getVariantsForAction('feed');
+  const playVariants = getVariantsForAction('play');
+  const restVariants = getVariantsForAction('rest');
+
+  const feedAllCooldown = feedVariants.every(v => isOnCooldown(v.cooldownKey));
+  const playAllCooldown = playVariants.every(v => isOnCooldown(v.cooldownKey));
+  const restAllCooldown = restVariants.every(v => isOnCooldown(v.cooldownKey));
+
+  const feedMinRemaining = feedAllCooldown
+    ? Math.min(...feedVariants.map(v => getCooldownRemaining(v.cooldownKey)))
+    : 0;
+  const playMinRemaining = playAllCooldown
+    ? Math.min(...playVariants.map(v => getCooldownRemaining(v.cooldownKey)))
+    : 0;
+  const restMinRemaining = restAllCooldown
+    ? Math.min(...restVariants.map(v => getCooldownRemaining(v.cooldownKey)))
+    : 0;
+
   const handleFeed = useCallback(() => {
-    if (isOnCooldown('feed')) return;
     setCareModalAction('feed');
-  }, [isOnCooldown]);
+  }, []);
 
   const handlePlay = useCallback(() => {
-    if (isOnCooldown('play')) return;
     setCareModalAction('play');
-  }, [isOnCooldown]);
+  }, []);
 
   const handleRest = useCallback(() => {
-    if (isOnCooldown('rest')) return;
     setCareModalAction('rest');
-  }, [isOnCooldown]);
+  }, []);
 
   const currentStamina = getStamina();
 
@@ -267,22 +283,22 @@ export function CareActions() {
             label="Hunger"
             value={hunger}
             icon={'\u{1F356}'}
-            barColor="bg-pet-orange"
-            trackColor="bg-pet-orange-light/40"
+            barColor="bg-[#5FAED4]"
+            trackColor="bg-pet-blue-light/35"
           />
           <StatBar
             label="Happiness"
             value={happiness}
             icon={'\u{1F496}'}
-            barColor="bg-pet-pink"
-            trackColor="bg-pet-pink-light/40"
+            barColor="bg-[#4A9ECB]"
+            trackColor="bg-pet-blue-light/35"
           />
           <StatBar
             label="Energy"
             value={energy}
             icon={'\u26A1'}
-            barColor="bg-pet-green"
-            trackColor="bg-pet-green-light/40"
+            barColor="bg-[#388BB7]"
+            trackColor="bg-pet-blue-light/35"
           />
         </View>
       </View>
@@ -300,29 +316,29 @@ export function CareActions() {
           <ActionButton
             icon={'\u{1F355}'}
             label="Feed"
-            bgColor="bg-pet-orange-dark"
+            bgColor="bg-[#4FABC9]"
             onPress={handleFeed}
-            disabled={hunger >= 100 || currentStamina < STAMINA_COSTS.feed}
+            disabled={hunger >= 100 || currentStamina < STAMINA_COSTS.feed || feedAllCooldown}
             staminaCost={STAMINA_COSTS.feed}
-            cooldownRemaining={getCooldownRemaining('feed')}
+            cooldownRemaining={feedMinRemaining}
           />
           <ActionButton
             icon={'\u{1F3AE}'}
             label="Play"
-            bgColor="bg-pet-pink"
+            bgColor="bg-[#479FC7]"
             onPress={handlePlay}
-            disabled={energy < 15 || currentStamina < STAMINA_COSTS.play}
+            disabled={energy < 15 || currentStamina < STAMINA_COSTS.play || playAllCooldown}
             staminaCost={STAMINA_COSTS.play}
-            cooldownRemaining={getCooldownRemaining('play')}
+            cooldownRemaining={playMinRemaining}
           />
           <ActionButton
             icon={'\u{1F634}'}
             label="Rest"
-            bgColor="bg-pet-green-dark"
+            bgColor="bg-[#3B8AB3]"
             onPress={handleRest}
-            disabled={energy >= 100 || currentStamina < STAMINA_COSTS.rest}
+            disabled={energy >= 100 || currentStamina < STAMINA_COSTS.rest || restAllCooldown}
             staminaCost={STAMINA_COSTS.rest}
-            cooldownRemaining={getCooldownRemaining('rest')}
+            cooldownRemaining={restMinRemaining}
           />
         </View>
       </View>

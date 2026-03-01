@@ -25,17 +25,16 @@ export function XpBar() {
   useEffect(() => {
     Animated.spring(widthAnim, {
       toValue: progress,
-      friction: 8,
-      tension: 40,
+      friction: 9,
+      tension: 42,
       useNativeDriver: false,
     }).start();
   }, [progress, widthAnim]);
 
-  // Subtle pulse on the level badge
   useEffect(() => {
     const pulse = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.08, duration: 1200, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1.06, duration: 1200, useNativeDriver: true }),
         Animated.timing(pulseAnim, { toValue: 1, duration: 1200, useNativeDriver: true }),
       ])
     );
@@ -43,82 +42,79 @@ export function XpBar() {
     return () => pulse.stop();
   }, [pulseAnim]);
 
-  const content = (
-    <View className="flex-row items-center px-4 py-2">
-      {/* Level Badge */}
-      <Animated.View
-        style={{ transform: [{ scale: pulseAnim }] }}
-        className="w-12 h-12 rounded-full items-center justify-center mr-3 border-2 border-pet-gold"
-      >
-        <LinearGradient
-          colors={tierConfig ? tierConfig.gradientColors : ['#9381FF', '#766BD1']}
-          className="w-full h-full rounded-full items-center justify-center"
-        >
-          <Text className="text-white text-[16px] font-black">{level}</Text>
-        </LinearGradient>
-        {tierConfig && (
-          <View
-            className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full items-center justify-center border-2 border-white"
-            style={{ backgroundColor: tierConfig.badgeColor }}
-          >
-            <Text className="text-[8px]">{tierConfig.emoji}</Text>
-          </View>
-        )}
-      </Animated.View>
-
-      {/* XP Bar + Info */}
-      <View className="flex-1">
-        <View className="flex-row items-center justify-between mb-1">
-          <Text className="text-[11px] font-black text-pet-purple-dark uppercase tracking-[0.6px]">
-            {title}
-          </Text>
-          <Text className="text-[10px] font-bold text-gray-400">
-            {xpInCurrentLevel} / {xpNeeded} XP
-          </Text>
-        </View>
-
-        {/* Bar Track */}
-        <View className="h-[6px] bg-pet-purple-light/30 rounded-full overflow-hidden">
-          <Animated.View
-            style={{
-              width: widthAnim.interpolate({
-                inputRange: [0, 1],
-                outputRange: ['0%', '100%'],
-              }),
-              height: '100%',
-              borderRadius: 999,
-            }}
-          >
-            <LinearGradient
-              colors={['#9381FF', '#B8AFF9']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={{ flex: 1, borderRadius: 999 }}
-            />
-          </Animated.View>
-        </View>
-
-        {nextPerk && (
-          <Text className="text-[9px] font-semibold text-gray-400 mt-1">
-            Next perk: Lv.{nextPerk} — {LEVEL_PERKS[nextPerk].label}
-          </Text>
-        )}
-      </View>
-    </View>
-  );
-
   return (
     <View
-      className="bg-white rounded-[20px] border border-gray-100"
+      className="bg-white rounded-[22px] border border-pet-blue-light/75"
       style={{
-        shadowColor: '#22314A',
+        shadowColor: '#2E6E93',
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.06,
+        shadowOpacity: 0.08,
         shadowRadius: 10,
         elevation: 3,
       }}
     >
-      {content}
+      <View className="flex-row items-center px-4 py-2.5">
+        <Animated.View
+          style={{ transform: [{ scale: pulseAnim }] }}
+          className="w-12 h-12 rounded-full items-center justify-center mr-3 border-2 border-pet-blue-light"
+        >
+          <LinearGradient
+            colors={tierConfig ? tierConfig.gradientColors : ['#4A9ECB', '#3A84AF']}
+            className="w-full h-full rounded-full items-center justify-center"
+          >
+            <Text className="text-white text-[16px] font-black">{level}</Text>
+          </LinearGradient>
+          {tierConfig && (
+            <View
+              className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full items-center justify-center border-2 border-white"
+              style={{ backgroundColor: tierConfig.badgeColor }}
+            >
+              <Text className="text-[8px]">{tierConfig.emoji}</Text>
+            </View>
+          )}
+        </Animated.View>
+
+        <View className="flex-1">
+          <View className="flex-row items-center justify-between mb-1">
+            <Text className="text-[11px] font-black text-pet-blue-dark uppercase tracking-[0.6px]">
+              {title}
+            </Text>
+            <View className="px-2.5 py-1 rounded-full bg-pet-blue-light/45 border border-pet-blue-light/90">
+              <Text className="text-[10px] font-black text-pet-blue-dark">
+                {xpInCurrentLevel} / {xpNeeded} XP
+              </Text>
+            </View>
+          </View>
+
+          <View className="h-[6px] bg-pet-blue-light/45 rounded-full overflow-hidden">
+            <Animated.View
+              style={{
+                width: widthAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: ['0%', '100%'],
+                }),
+                height: '100%',
+                borderRadius: 999,
+              }}
+            >
+              <LinearGradient
+                colors={['#4A9ECB', '#78C1E5']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={{ flex: 1, borderRadius: 999 }}
+              />
+            </Animated.View>
+          </View>
+
+          {nextPerk && (
+            <View className="self-start mt-1 px-2 py-0.5 rounded-full bg-white border border-pet-blue-light/70">
+              <Text className="text-[9px] font-semibold text-pet-blue-dark">
+                Next perk: Lv.{nextPerk} - {LEVEL_PERKS[nextPerk].label}
+              </Text>
+            </View>
+          )}
+        </View>
+      </View>
     </View>
   );
 }

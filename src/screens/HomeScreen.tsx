@@ -287,7 +287,7 @@ function ActivityGlance({ onNavigateGames }: { onNavigateGames?: () => void }) {
             {activeAdventure && activeZone ? (
               <>
                 <Text className="text-[16px] mb-0.5">{activeZone.emoji}</Text>
-                <Text className="text-[11px] font-black text-pet-orange-dark">
+                <Text className="text-[11px] font-black text-pet-blue-dark">
                   {remaining <= 0 ? 'Loot!' : formatTime(remaining)}
                 </Text>
                 <Text className="text-[9px] font-semibold text-gray-400">Adventure</Text>
@@ -304,7 +304,7 @@ function ActivityGlance({ onNavigateGames }: { onNavigateGames?: () => void }) {
           {/* Spin */}
           <TouchableOpacity className="flex-1 py-3.5 items-center" activeOpacity={0.7} onPress={onNavigateGames}>
             <Text className="text-[16px] mb-0.5">{'\u{1F3B0}'}</Text>
-            <Text className={`text-[11px] font-black ${canSpin() ? 'text-pet-gold-dark' : 'text-gray-400'}`}>
+            <Text className={`text-[11px] font-black ${canSpin() ? 'text-pet-blue-dark' : 'text-gray-400'}`}>
               {canSpin() ? 'Free!' : 'Done'}
             </Text>
             <Text className="text-[9px] font-semibold text-gray-400">Spin</Text>
@@ -482,6 +482,12 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
 
   return (
     <View className="flex-1 bg-pet-background">
+      <LinearGradient
+        colors={['#EAF7FF', '#DFF2FF', '#F3FAFF']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        className="absolute inset-0"
+      />
       {/* Random Event Overlay */}
       <EventOverlay />
 
@@ -511,14 +517,13 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
           <Animated.View
             style={{
               opacity: partyAnim.interpolate({ inputRange: [0, 0.2, 1], outputRange: [0, 1, 0] }),
-              transform: [{ translateY: partyAnim.interpolate({ inputRange: [0, 1], outputRange: [40, -220] }) }],
+              transform: [{ translateY: partyAnim.interpolate({ inputRange: [0, 1], outputRange: [32, -120] }) }],
             }}
-            className="mt-32 flex-row"
+            className="mt-32"
           >
-            <Text className="text-3xl mr-2">{'\u{1F389}'}</Text>
-            <Text className="text-3xl mr-2">{'\u2728'}</Text>
-            <Text className="text-3xl mr-2">{'\u{1F38A}'}</Text>
-            <Text className="text-3xl">{'\u{1F389}'}</Text>
+            <View className="px-4 py-2 rounded-full bg-white/90 border border-pet-blue-light">
+              <Text className="text-[12px] font-black text-pet-blue-dark">Streak saved</Text>
+            </View>
           </Animated.View>
         </View>
       )}
@@ -625,7 +630,7 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
         <View className="px-6 mt-6">
           <TouchableOpacity onPress={() => setReflectionModalVisible(true)} activeOpacity={0.9}>
             <LinearGradient
-              colors={['#4FB0C6', '#67BEE4', '#8AA8FF']}
+              colors={['#4FABC9', '#67B6D6', '#7CC0DE']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               className="rounded-[30px] p-5 border border-pet-blue-dark/20"
@@ -644,7 +649,7 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
                 <View className="flex-1">
                   <View className="flex-row items-center">
                     <Text className="text-[17px] font-black text-white">Reflection Prompt</Text>
-                    <View className="bg-pet-purple ml-2 px-2 py-0.5 rounded-full">
+                    <View className="bg-pet-blue-dark/85 ml-2 px-2 py-0.5 rounded-full border border-white/30">
                       <Text className="text-[9px] font-black text-white">+25 XP</Text>
                     </View>
                   </View>
@@ -680,3 +685,4 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
     </View>
   );
 }
+

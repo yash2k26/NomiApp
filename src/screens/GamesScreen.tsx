@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -39,7 +39,7 @@ function GameCard({ title, emoji, description, xpRange, staminaCost, locked, loc
       style={!locked ? { shadowColor: '#1A2A40', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 3 } : undefined}
     >
       <View className="flex-row items-center">
-        <View className={`w-14 h-14 rounded-2xl items-center justify-center mr-4 ${locked ? 'bg-gray-100' : 'bg-pet-purple-light/20'}`}>
+        <View className={`w-14 h-14 rounded-2xl items-center justify-center mr-4 ${locked ? 'bg-gray-100' : 'bg-pet-blue-light/30'}`}>
           <Text className="text-[28px]">{locked ? '\u{1F512}' : emoji}</Text>
         </View>
         <View className="flex-1">
@@ -52,22 +52,22 @@ function GameCard({ title, emoji, description, xpRange, staminaCost, locked, loc
 
       <View className="flex-row items-center justify-between mt-3">
         <View className="flex-row items-center space-x-3">
-          <View className="bg-pet-purple-light/20 px-2.5 py-1 rounded-full">
-            <Text className="text-[10px] font-bold text-pet-purple-dark">{xpRange} XP</Text>
+          <View className="bg-pet-blue-light/35 px-2.5 py-1 rounded-full border border-pet-blue-light/80">
+            <Text className="text-[10px] font-bold text-pet-blue-dark">{xpRange} XP</Text>
           </View>
           <View className="bg-gray-100 px-2.5 py-1 rounded-full">
             <Text className="text-[10px] font-bold text-gray-500">{'\u{1F50B}'} {staminaCost}</Text>
           </View>
           {highScore > 0 && (
-            <View className="bg-pet-gold-light/30 px-2.5 py-1 rounded-full">
-              <Text className="text-[10px] font-bold text-pet-gold-dark">{'\u{1F3C6}'} {highScore}</Text>
+            <View className="bg-pet-blue-light/35 px-2.5 py-1 rounded-full border border-pet-blue-light/80">
+              <Text className="text-[10px] font-bold text-pet-blue-dark">{'\u{1F3C6}'} {highScore}</Text>
             </View>
           )}
         </View>
 
         <TouchableOpacity onPress={onPlay} disabled={disabled} activeOpacity={0.85}>
           <LinearGradient
-            colors={disabled ? ['#D1D5DB', '#9CA3AF'] : ['#9381FF', '#766BD1']}
+            colors={disabled ? ['#D1D5DB', '#9CA3AF'] : ['#4FABC9', '#3E8AB3']}
             className="px-5 py-2 rounded-xl"
           >
             <Text className="text-white font-black text-[11px] uppercase">
@@ -137,6 +137,12 @@ export function GamesScreen() {
   // Game hub
   return (
     <View className="flex-1 bg-pet-background">
+      <LinearGradient
+        colors={['#EFF7FF', '#E8F3FD', '#F4FAFF']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        className="absolute inset-0"
+      />
       <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
         <View className="pt-5 px-6 mb-4">
           <ScreenHeader
@@ -220,15 +226,15 @@ export function GamesScreen() {
           <Text className="text-[14px] font-black text-gray-800 mb-3">Game Stats</Text>
           <View className="flex-row justify-between">
             <View className="items-center">
-              <Text className="text-[20px] font-black text-pet-purple">{useAdventureStore.getState().miniGamesWon}</Text>
+              <Text className="text-[20px] font-black text-pet-blue-dark">{useAdventureStore.getState().miniGamesWon}</Text>
               <Text className="text-[10px] font-bold text-gray-400 uppercase">Games Won</Text>
             </View>
             <View className="items-center">
-              <Text className="text-[20px] font-black text-pet-gold-dark">{useAdventureStore.getState().miniGameXpEarned}</Text>
+              <Text className="text-[20px] font-black text-pet-blue-dark">{useAdventureStore.getState().miniGameXpEarned}</Text>
               <Text className="text-[10px] font-bold text-gray-400 uppercase">XP Earned</Text>
             </View>
             <View className="items-center">
-              <Text className="text-[20px] font-black text-pet-orange-dark">
+              <Text className="text-[20px] font-black text-pet-blue-dark">
                 {Math.max(highScores.memory ?? 0, highScores.quicktap ?? 0, highScores.pattern ?? 0)}
               </Text>
               <Text className="text-[10px] font-bold text-gray-400 uppercase">Best Score</Text>
@@ -239,3 +245,5 @@ export function GamesScreen() {
     </View>
   );
 }
+
+

@@ -13,10 +13,10 @@ type ShopSection = 'All' | 'Accessories' | 'Animations' | 'Clothes' | 'Shoes' | 
 const SECTIONS: ShopSection[] = ['All', 'Accessories', 'Animations', 'Clothes', 'Shoes', 'Other'];
 const SECTION_META: Record<ShopSection, { icon: string; tone: string }> = {
   All: { icon: '\u{1F31F}', tone: 'bg-pet-blue' },
-  Accessories: { icon: '\u{1F451}', tone: 'bg-pet-purple' },
-  Animations: { icon: '\u{1F3AC}', tone: 'bg-pet-pink' },
-  Clothes: { icon: '\u{1F455}', tone: 'bg-pet-orange' },
-  Shoes: { icon: '\u{1F45F}', tone: 'bg-pet-green' },
+  Accessories: { icon: '\u{1F451}', tone: 'bg-pet-blue-dark' },
+  Animations: { icon: '\u{1F3AC}', tone: 'bg-pet-blue' },
+  Clothes: { icon: '\u{1F455}', tone: 'bg-pet-blue-dark' },
+  Shoes: { icon: '\u{1F45F}', tone: 'bg-pet-blue' },
   Other: { icon: '\u{1F381}', tone: 'bg-pet-blue-dark' },
 };
 
@@ -52,17 +52,17 @@ function CategoryPill({
 }
 
 const RARITY_COLORS: Record<ItemRarity, { bg: string; text: string; label: string }> = {
-  common: { bg: 'bg-gray-200', text: 'text-gray-600', label: 'Common' },
-  rare: { bg: 'bg-blue-100', text: 'text-blue-600', label: 'Rare' },
-  epic: { bg: 'bg-purple-100', text: 'text-purple-600', label: 'Epic' },
-  legendary: { bg: 'bg-amber-100', text: 'text-amber-600', label: 'Legendary' },
+  common: { bg: 'bg-pet-blue-light/35', text: 'text-pet-blue-dark', label: 'Common' },
+  rare: { bg: 'bg-pet-blue-light/45', text: 'text-pet-blue-dark', label: 'Rare' },
+  epic: { bg: 'bg-pet-blue-light/55', text: 'text-pet-blue-dark', label: 'Epic' },
+  legendary: { bg: 'bg-pet-blue-light/65', text: 'text-pet-blue-dark', label: 'Legendary' },
 };
 
 const RARITY_BORDER: Record<ItemRarity, string> = {
-  common: '#D1D5DB',
-  rare: '#93C5FD',
-  epic: '#C4B5FD',
-  legendary: '#FCD34D',
+  common: '#C9DEEE',
+  rare: '#B1D1E8',
+  epic: '#9BC5E1',
+  legendary: '#83B8DA',
 };
 
 function ShopCard({
@@ -121,8 +121,8 @@ function ShopCard({
           <Text className={`text-[9px] font-black ${rarityInfo.text}`}>{rarityInfo.label.toUpperCase()}</Text>
         </View>
         {item.tierTag && (
-          <View className="px-2 py-0.5 rounded-full bg-amber-100">
-            <Text className="text-[9px] font-black text-amber-600">
+          <View className="px-2 py-0.5 rounded-full bg-pet-blue-light/70 border border-pet-blue-light">
+            <Text className="text-[9px] font-black text-pet-blue-dark">
               {item.tierTag === 'diamond_exclusive' ? '\u{1F48E}' : '\u{1F451}'}
             </Text>
           </View>
@@ -147,7 +147,7 @@ function ShopCard({
 
       <View className="flex-row items-center justify-center mt-2 mb-3">
         {isPremium && !item.owned ? (
-          <Text className="text-[14px] font-black text-pet-green">FREE</Text>
+            <Text className="text-[14px] font-black text-pet-blue-dark">FREE</Text>
         ) : (
           <>
             <Text className="text-[14px] font-black text-pet-blue-dark">{item.price}</Text>
@@ -166,7 +166,7 @@ function ShopCard({
         <TouchableOpacity onPress={handlePress} activeOpacity={0.85}>
           {!item.owned ? (
             <LinearGradient
-              colors={isPremium ? ['#FFD700', '#CCA800'] : ['#48B4CD', '#66CBE1']}
+              colors={isPremium ? ['#4AA2CB', '#3B8BB4'] : ['#48B4CD', '#66CBE1']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               className="py-2.5 rounded-xl items-center"
@@ -279,8 +279,14 @@ export function ShopScreen() {
 
   return (
     <View className="flex-1 bg-pet-background">
+      <LinearGradient
+        colors={['#EFF7FF', '#E8F3FD', '#F4FAFF']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        className="absolute inset-0"
+      />
       <View className="absolute -top-8 -left-12 w-44 h-44 rounded-full bg-pet-blue-light/30" />
-      <View className="absolute top-44 -right-12 w-52 h-52 rounded-full bg-pet-purple-light/20" />
+      <View className="absolute top-44 -right-12 w-52 h-52 rounded-full bg-pet-blue-light/20" />
       <Text className="absolute top-12 left-8 text-[16px] opacity-45">{'\u2728'}</Text>
       <Text className="absolute top-20 right-8 text-[14px] opacity-35">{'\u{1F31F}'}</Text>
 
@@ -321,9 +327,9 @@ export function ShopScreen() {
       </View>
 
       <View className="px-6 mb-3">
-        <View className="rounded-2xl border border-pet-pink-light/70 bg-white px-4 py-2.5 flex-row items-center">
+        <View className="rounded-2xl border border-pet-blue-light/70 bg-white px-4 py-2.5 flex-row items-center">
           <Text className="text-base mr-2">{'\u{1F49D}'}</Text>
-          <Text className="text-[12px] font-semibold text-gray-600 flex-1">Cute combo tip: pair hats with shoes for extra charm.</Text>
+          <Text className="text-[12px] font-semibold text-pet-blue-dark flex-1">Try matching outfit pieces for a softer look.</Text>
         </View>
       </View>
 
@@ -420,4 +426,6 @@ export function ShopScreen() {
     </View>
   );
 }
+
+
 

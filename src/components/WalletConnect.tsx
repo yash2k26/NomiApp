@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
+﻿import { View, Text, TouchableOpacity, ActivityIndicator, Linking } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useWalletStore } from '../store/walletStore';
@@ -25,7 +25,7 @@ export function WalletConnect() {
           eyebrow="Welcome"
           title="Nomi"
           subtitle="Connect your wallet to start your companion journey."
-          badge="Solana Devnet � v2"
+          badge="Solana Devnet · v2"
           rightSlot={(
             <View className="w-12 h-12 rounded-2xl bg-white/20 border border-white/40 items-center justify-center">
               <Text className="text-2xl">{'\u{1F43E}'}</Text>
@@ -70,6 +70,16 @@ export function WalletConnect() {
           {!!error && (
             <View className="w-full bg-red-50 border border-red-200 rounded-2xl px-4 py-3 mt-4">
               <Text className="text-[12px] text-red-600 font-semibold text-center">{error}</Text>
+              {error.includes('No Solana wallet') && (
+                <TouchableOpacity
+                  onPress={() => Linking.openURL('https://phantom.app/download')}
+                  className="mt-2"
+                >
+                  <Text className="text-[11px] text-pet-blue-dark font-bold text-center underline">
+                    Get Phantom Wallet
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
         </View>
@@ -103,3 +113,5 @@ export function WalletConnect() {
     </View>
   );
 }
+
+

@@ -17,10 +17,12 @@ export const STAMINA_COSTS: Record<string, number> = {
 };
 
 // ── Cooldown durations (milliseconds) — base values, premium halves/removes ──
+// Each care variant has its own cooldown key (e.g. 'feed_kibble', 'play_fetch').
+// Per-variant keys fall back to action prefix ('feed', 'play', 'rest') for duration lookup.
 export const COOLDOWN_DURATIONS: Record<string, number> = {
-  feed: 20 * 60 * 1000,      // 20 minutes
-  play: 30 * 60 * 1000,      // 30 minutes
-  rest: 45 * 60 * 1000,      // 45 minutes
+  feed: 5 * 60 * 1000,       // 5 minutes per feed variant
+  play: 8 * 60 * 1000,       // 8 minutes per play variant
+  rest: 10 * 60 * 1000,      // 10 minutes per rest variant
   reflect: 4 * 60 * 60 * 1000, // 4 hours
   miniGame_memory: 15 * 60 * 1000,  // 15 minutes
   miniGame_quicktap: 15 * 60 * 1000,
@@ -40,7 +42,16 @@ export function getEffectiveStaminaMax(): number {
 
 /** Get effective cooldown duration (premium + level-perk aware) */
 export function getEffectiveCooldown(action: string): number {
-  const base = COOLDOWN_DURATIONS[action] ?? 0;
+  // Exact key first, then fall back to action prefix (e.g. 'feed_kibble' → 'feed')
+  let base = COOLDOWN_DURATIONS[action];
+  if (base === undefined) {
+    const underscoreIdx = action.indexOf('_');
+    if (underscoreIdx > 0) {
+      base = COOLDOWN_DURATIONS[action.substring(0, underscoreIdx)] ?? 0;
+    } else {
+      base = 0;
+    }
+  }
   let result = base;
   try {
     const { getPremiumCooldownMultiplier } = require('./premiumStore');
@@ -604,11 +615,11 @@ export const usePetStore = create<PetStore>((set, get) => ({
     if (elapsedHours < 0.1) return;
 
     // Stat decay: happiness drops FASTEST (loneliness), hunger next, energy slowest
-    // ~8 pts/hr happiness, ~5 pts/hr hunger, ~3 pts/hr energy
-    // Capped at 50 max decay so the pet is never completely zeroed after a long absence
-    const happinessDecay = Math.min(elapsedHours * 8, 50);
-    const hungerDecay = Math.min(elapsedHours * 5, 50);
-    const energyDecay = Math.min(elapsedHours * 3, 50);
+    // ~5 pts/hr happiness, ~3 pts/hr hunger, ~2 pts/hr energy
+    // Capped at 40 max decay so the pet is never completely zeroed after a long absence
+    const happinessDecay = Math.min(elapsedHours * 5, 40);
+    const hungerDecay = Math.min(elapsedHours * 3, 40);
+    const energyDecay = Math.min(elapsedHours * 2, 40);
 
     // Stamina regen
     const regen = computeRegenedStamina(stamina, lastStaminaRegenAt);

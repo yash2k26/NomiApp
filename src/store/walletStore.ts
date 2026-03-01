@@ -1,16 +1,19 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getBalance } from '../lib/solanaClient';
+import {
+  connectMobileWallet,
+  reauthorizeMobileWallet,
+  disconnectMobileWallet,
+} from '../lib/mobileWalletAdapter';
 
 const WALLET_STORAGE_KEY = 'oracle-pet-wallet';
-
-// Mock wallet address for demo (Expo Go doesn't support native modules)
-const MOCK_ADDRESS = '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU';
-const MOCK_BALANCE = 50;
 
 interface WalletState {
   connected: boolean;
   address: string;
   balance: number;
+  authToken: string;
   isConnecting: boolean;
   error: string | null;
 }
@@ -26,45 +29,71 @@ interface WalletActions {
 
 type WalletStore = WalletState & WalletActions;
 
+async function saveWalletState(address: string, authToken: string) {
+  try {
+    await AsyncStorage.setItem(WALLET_STORAGE_KEY, JSON.stringify({ address, authToken }));
+  } catch {}
+}
+
 export const useWalletStore = create<WalletStore>((set, get) => ({
   connected: false,
   address: '',
   balance: 0,
+  authToken: '',
   isConnecting: false,
   error: null,
 
   connectWallet: async () => {
     set({ isConnecting: true, error: null });
     try {
-      // Simulate wallet connection delay
-      await new Promise((r) => setTimeout(r, 800));
+      const result = await connectMobileWallet();
+
+      // Fetch real balance from devnet
+      const balance = await getBalance(result.address);
 
       set({
         connected: true,
-        address: MOCK_ADDRESS,
-        balance: MOCK_BALANCE,
+        address: result.address,
+        authToken: result.authToken,
+        balance,
         isConnecting: false,
       });
 
-      await AsyncStorage.setItem(
-        WALLET_STORAGE_KEY,
-        JSON.stringify({ address: MOCK_ADDRESS })
-      );
+      await saveWalletState(result.address, result.authToken);
     } catch (error: any) {
-      set({ isConnecting: false, error: error?.message || 'Failed to connect wallet' });
+      const code = error?.code;
+      let message = 'Failed to connect wallet';
+
+      if (code === 'ERROR_WALLET_NOT_FOUND') {
+        message = 'No Solana wallet found. Install Phantom or Solflare.';
+      } else if (code === 'ERROR_AUTHORIZATION_FAILED' || code === -1) {
+        message = 'Connection rejected by wallet.';
+      } else if (code === 'ERROR_SESSION_TIMEOUT') {
+        message = 'Wallet connection timed out. Try again.';
+      } else if (error?.message) {
+        message = error.message;
+      }
+
+      set({ isConnecting: false, error: message });
     }
   },
 
   disconnectWallet: () => {
-    set({ connected: false, address: '', balance: 0, error: null });
+    const { authToken } = get();
+    if (authToken) {
+      disconnectMobileWallet(authToken).catch(() => {});
+    }
+    set({ connected: false, address: '', balance: 0, authToken: '', error: null });
     AsyncStorage.removeItem(WALLET_STORAGE_KEY).catch(() => {});
   },
 
   refreshBalance: async () => {
-    // Mock — balance stays the same
-    const { connected } = get();
-    if (!connected) return;
-    set({ balance: MOCK_BALANCE });
+    const { connected, address } = get();
+    if (!connected || !address) return;
+    try {
+      const balance = await getBalance(address);
+      set({ balance });
+    } catch {}
   },
 
   deductBalance: (amount: number) => {
@@ -81,11 +110,24 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
     try {
       const stored = await AsyncStorage.getItem(WALLET_STORAGE_KEY);
       if (!stored) return;
-      const { address } = JSON.parse(stored);
-      if (!address) return;
-      set({ connected: true, address, balance: MOCK_BALANCE });
+      const { address, authToken } = JSON.parse(stored);
+      if (!address || !authToken) return;
+
+      // Try to reauthorize with stored auth token
+      const result = await reauthorizeMobileWallet(authToken);
+      const balance = await getBalance(result.address);
+
+      set({
+        connected: true,
+        address: result.address,
+        authToken: result.authToken,
+        balance,
+      });
+
+      await saveWalletState(result.address, result.authToken);
     } catch {
-      // Silently fail
+      // Reauth failed — user needs to connect again
+      await AsyncStorage.removeItem(WALLET_STORAGE_KEY).catch(() => {});
     }
   },
 }));

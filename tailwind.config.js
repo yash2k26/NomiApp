@@ -10,41 +10,41 @@ module.exports = {
     extend: {
       colors: {
         'pet-blue': {
-          DEFAULT: '#4FB0C6',
-          light: '#A5DEE4',
-          dark: '#3792A6',
+          DEFAULT: '#4DA9D8',
+          light: '#D8ECFA',
+          dark: '#2F7CA7',
         },
         'pet-green': {
-          DEFAULT: '#88C057',
-          light: '#C4E6A3',
-          dark: '#6A9E41',
+          DEFAULT: '#6DB9DF',
+          light: '#D5E9F6',
+          dark: '#3C84AE',
         },
         'pet-pink': {
-          DEFAULT: '#FF8FAB',
-          light: '#FFC8DD',
-          dark: '#E07A94',
+          DEFAULT: '#8FBFDE',
+          light: '#E4F1FA',
+          dark: '#5B8EAF',
         },
         'pet-yellow': {
-          DEFAULT: '#FFD93D',
-          light: '#FFF5B8',
-          dark: '#E6C12E',
+          DEFAULT: '#9EC7E3',
+          light: '#E7F3FB',
+          dark: '#6E9EBE',
         },
         'pet-purple': {
-          DEFAULT: '#9381FF',
-          light: '#B8AFF9',
-          dark: '#766BD1',
+          DEFAULT: '#79B5DE',
+          light: '#DDEFFD',
+          dark: '#4A89B5',
         },
         'pet-orange': {
-          DEFAULT: '#FF9F43',
-          light: '#FFD4A3',
-          dark: '#E88A2D',
+          DEFAULT: '#84BEE2',
+          light: '#E4F2FB',
+          dark: '#4E90B8',
         },
         'pet-gold': {
-          DEFAULT: '#FFD700',
-          light: '#FFF3B0',
-          dark: '#CCA800',
+          DEFAULT: '#A2CDE8',
+          light: '#EAF4FC',
+          dark: '#6B9FBE',
         },
-        'pet-background': '#F8F9FE',
+        'pet-background': '#F1F8FF',
       },
       borderRadius: {
         '4xl': '32px',
@@ -54,4 +54,3 @@ module.exports = {
   },
   plugins: [],
 };
-

@@ -156,6 +156,7 @@ export interface ActiveAdventure {
 export interface SpinResult {
   label: string;
   emoji: string;
+  rarity: 'common' | 'rare' | 'epic';
   xp: number;
   staminaRefill: boolean;
   doubleXpMinutes: number; // 0 = none, 60 = 1 hour
@@ -164,19 +165,22 @@ export interface SpinResult {
 }
 
 export const SPIN_SEGMENTS: SpinResult[] = [
-  { label: '10 XP', emoji: '\u{2B50}', xp: 10, staminaRefill: false, doubleXpMinutes: 0, freeItem: false, shard: false },
-  { label: '25 XP', emoji: '\u{2B50}', xp: 25, staminaRefill: false, doubleXpMinutes: 0, freeItem: false, shard: false },
-  { label: '50 XP', emoji: '\u{1F31F}', xp: 50, staminaRefill: false, doubleXpMinutes: 0, freeItem: false, shard: false },
-  { label: 'Full Stamina', emoji: '\u{26A1}', xp: 0, staminaRefill: true, doubleXpMinutes: 0, freeItem: false, shard: false },
-  { label: '2x XP 1hr', emoji: '\u{1F525}', xp: 0, staminaRefill: false, doubleXpMinutes: 60, freeItem: false, shard: false },
-  { label: '100 XP', emoji: '\u{1F4AB}', xp: 100, staminaRefill: false, doubleXpMinutes: 0, freeItem: false, shard: false },
-  { label: 'Free Item', emoji: '\u{1F381}', xp: 0, staminaRefill: false, doubleXpMinutes: 0, freeItem: true, shard: false },
-  { label: 'Evo Shard', emoji: '\u{1F48E}', xp: 50, staminaRefill: false, doubleXpMinutes: 0, freeItem: false, shard: true },
+  { label: '10 XP', emoji: '\u{2B50}', rarity: 'common', xp: 10, staminaRefill: false, doubleXpMinutes: 0, freeItem: false, shard: false },
+  { label: '25 XP', emoji: '\u{2B50}', rarity: 'common', xp: 25, staminaRefill: false, doubleXpMinutes: 0, freeItem: false, shard: false },
+  { label: '50 XP', emoji: '\u{1F31F}', rarity: 'common', xp: 50, staminaRefill: false, doubleXpMinutes: 0, freeItem: false, shard: false },
+  { label: 'Full Stamina', emoji: '\u{26A1}', rarity: 'common', xp: 0, staminaRefill: true, doubleXpMinutes: 0, freeItem: false, shard: false },
+  { label: '2x XP 1hr', emoji: '\u{1F525}', rarity: 'rare', xp: 0, staminaRefill: false, doubleXpMinutes: 60, freeItem: false, shard: false },
+  { label: '100 XP', emoji: '\u{1F4AB}', rarity: 'common', xp: 100, staminaRefill: false, doubleXpMinutes: 0, freeItem: false, shard: false },
+  { label: 'Free Item', emoji: '\u{1F381}', rarity: 'rare', xp: 0, staminaRefill: false, doubleXpMinutes: 0, freeItem: true, shard: false },
+  { label: 'Evo Shard', emoji: '\u{1F48E}', rarity: 'rare', xp: 50, staminaRefill: false, doubleXpMinutes: 0, freeItem: false, shard: true },
+  { label: 'Rare Crate', emoji: '\u{1F9F0}', rarity: 'rare', xp: 180, staminaRefill: false, doubleXpMinutes: 0, freeItem: true, shard: true },
+  { label: 'Epic Jackpot', emoji: '\u{1F451}', rarity: 'epic', xp: 400, staminaRefill: true, doubleXpMinutes: 120, freeItem: true, shard: true },
 ];
 
 // Weighted spin — lower indices more likely
 function spinWheel(): number {
-  const weights = [25, 22, 15, 12, 10, 8, 5, 3]; // sums to 100
+  // Rare and Epic outcomes intentionally have low odds.
+  const weights = [22, 20, 15, 12, 9, 8, 5, 4, 2, 1]; // sums to 98
   const total = weights.reduce((a, b) => a + b, 0);
   let rand = Math.random() * total;
   for (let i = 0; i < weights.length; i++) {

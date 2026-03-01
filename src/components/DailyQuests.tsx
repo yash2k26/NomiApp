@@ -28,7 +28,7 @@ function QuestRow({ quest }: { quest: DailyQuest }) {
   return (
     <View className={`flex-row items-center py-3 px-4 ${quest.completed ? 'opacity-60' : ''}`}>
       {/* Icon */}
-      <View className={`w-10 h-10 rounded-xl items-center justify-center mr-3 ${quest.completed ? 'bg-pet-green/20' : 'bg-pet-purple-light/20'}`}>
+      <View className={`w-10 h-10 rounded-xl items-center justify-center mr-3 ${quest.completed ? 'bg-pet-blue-light/35' : 'bg-pet-blue-light/20'}`}>
         <Text className="text-[20px]">
           {quest.completed ? '\u{2705}' : QUEST_ICONS[quest.type] ?? '\u{2B50}'}
         </Text>
@@ -49,7 +49,7 @@ function QuestRow({ quest }: { quest: DailyQuest }) {
               }),
               height: '100%',
               borderRadius: 999,
-              backgroundColor: quest.completed ? '#88C057' : '#9381FF',
+              backgroundColor: quest.completed ? '#4A9ECB' : '#6EB4DA',
             }}
           />
         </View>
@@ -59,8 +59,8 @@ function QuestRow({ quest }: { quest: DailyQuest }) {
       </View>
 
       {/* XP Badge */}
-      <View className={`px-2.5 py-1 rounded-full ${quest.completed ? 'bg-pet-green/20' : 'bg-pet-gold-light'}`}>
-        <Text className={`text-[10px] font-black ${quest.completed ? 'text-pet-green-dark' : 'text-pet-gold-dark'}`}>
+      <View className={`px-2.5 py-1 rounded-full ${quest.completed ? 'bg-pet-blue-light/35' : 'bg-pet-blue-light/55'}`}>
+        <Text className={`text-[10px] font-black text-pet-blue-dark`}>
           {quest.completed ? 'Done' : `+${quest.xpReward}`}
         </Text>
       </View>
@@ -104,7 +104,7 @@ function WeeklyQuestRow({ quest }: { quest: WeeklyQuest }) {
 
   return (
     <View className={`flex-row items-center py-3 px-4 ${quest.completed ? 'opacity-60' : ''}`}>
-      <View className={`w-10 h-10 rounded-xl items-center justify-center mr-3 ${quest.completed ? 'bg-pet-green/20' : 'bg-pet-orange-light/30'}`}>
+      <View className={`w-10 h-10 rounded-xl items-center justify-center mr-3 ${quest.completed ? 'bg-pet-blue-light/35' : 'bg-pet-blue-light/30'}`}>
         <Text className="text-[20px]">
           {quest.completed ? '\u{2705}' : '\u{1F3C6}'}
         </Text>
@@ -119,7 +119,7 @@ function WeeklyQuestRow({ quest }: { quest: WeeklyQuest }) {
               width: widthAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }),
               height: '100%',
               borderRadius: 999,
-              backgroundColor: quest.completed ? '#88C057' : '#FF9F43',
+              backgroundColor: quest.completed ? '#4A9ECB' : '#6EB4DA',
             }}
           />
         </View>
@@ -127,8 +127,8 @@ function WeeklyQuestRow({ quest }: { quest: WeeklyQuest }) {
           {quest.progress}/{quest.target}
         </Text>
       </View>
-      <View className={`px-2.5 py-1 rounded-full ${quest.completed ? 'bg-pet-green/20' : 'bg-pet-orange-light/40'}`}>
-        <Text className={`text-[10px] font-black ${quest.completed ? 'text-pet-green-dark' : 'text-pet-orange-dark'}`}>
+      <View className={`px-2.5 py-1 rounded-full ${quest.completed ? 'bg-pet-blue-light/35' : 'bg-pet-blue-light/50'}`}>
+        <Text className={`text-[10px] font-black text-pet-blue-dark`}>
           {quest.completed ? 'Done' : `+${quest.xpReward}`}
         </Text>
       </View>
@@ -167,7 +167,7 @@ export function DailyQuests() {
         }}
       >
         <LinearGradient
-          colors={['#9381FF', '#A797FF']}
+          colors={['#4A9ECB', '#6EB4DA']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
           className="px-5 py-3 flex-row items-center justify-between"
@@ -213,7 +213,7 @@ export function DailyQuests() {
           }}
         >
           <LinearGradient
-            colors={['#FF9F43', '#FFB76B']}
+            colors={['#4FABC9', '#75BDD9']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             className="px-5 py-3 flex-row items-center justify-between"

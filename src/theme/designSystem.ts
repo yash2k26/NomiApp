@@ -1,0 +1,51 @@
+export const ds = {
+  colors: {
+    background: '#0A1220',
+    surface: '#121D31',
+    elevated: '#1A2942',
+    accent: '#4FA6FF',
+    accentSoft: '#7BBEFF',
+    textPrimary: '#EAF1FF',
+    textSecondary: '#A8B8D4',
+    textSubtle: '#7F93B3',
+    success: '#53B985',
+    warning: '#D7A65A',
+    destructive: '#D06A6A',
+    divider: '#253754',
+    glow: 'rgba(79,166,255,0.18)',
+  },
+  spacing: {
+    xxs: 4,
+    xs: 8,
+    sm: 12,
+    md: 16,
+    lg: 24,
+    xl: 32,
+    xxl: 40,
+    xxxl: 48,
+    hero: 64,
+  },
+  radius: {
+    sm: 10,
+    md: 14,
+    lg: 18,
+    xl: 24,
+    sheet: 28,
+  },
+  type: {
+    display: { fontSize: 32, lineHeight: 38, fontWeight: '600' as const },
+    heading: { fontSize: 24, lineHeight: 30, fontWeight: '600' as const },
+    section: { fontSize: 18, lineHeight: 24, fontWeight: '500' as const },
+    body: { fontSize: 15, lineHeight: 22, fontWeight: '400' as const },
+    caption: { fontSize: 12, lineHeight: 16, fontWeight: '500' as const },
+    stat: { fontSize: 11, lineHeight: 14, fontWeight: '500' as const },
+  },
+  motion: {
+    pressScale: 0.97,
+    quick: 140,
+    normal: 280,
+    context: 380,
+  },
+} as const;
+
+export type DesignSystem = typeof ds;

@@ -30,7 +30,7 @@ export const FEED_VARIANTS: CareVariant[] = [
     statEffects: { hunger: 25, happiness: 3, energy: 0 },
     staminaCost: 15,
     xpReward: 8,
-    cooldownKey: 'feed',
+    cooldownKey: 'feed_kibble',
   },
   {
     id: 'feed_berries',
@@ -41,7 +41,7 @@ export const FEED_VARIANTS: CareVariant[] = [
     statEffects: { hunger: 15, happiness: 12, energy: 5 },
     staminaCost: 15,
     xpReward: 10,
-    cooldownKey: 'feed',
+    cooldownKey: 'feed_berries',
   },
   {
     id: 'feed_feast',
@@ -52,7 +52,7 @@ export const FEED_VARIANTS: CareVariant[] = [
     statEffects: { hunger: 35, happiness: 10, energy: -5 },
     staminaCost: 20,
     xpReward: 14,
-    cooldownKey: 'feed',
+    cooldownKey: 'feed_feast',
     unlockCondition: { type: 'level', value: 10 },
   },
   {
@@ -64,7 +64,7 @@ export const FEED_VARIANTS: CareVariant[] = [
     statEffects: { hunger: 30, happiness: 15, energy: 10 },
     staminaCost: 25,
     xpReward: 18,
-    cooldownKey: 'feed',
+    cooldownKey: 'feed_golden',
     unlockCondition: { type: 'premium', tierRequired: 'gold' },
   },
 ];
@@ -79,7 +79,7 @@ export const PLAY_VARIANTS: CareVariant[] = [
     statEffects: { hunger: -10, happiness: 20, energy: -15 },
     staminaCost: 25,
     xpReward: 12,
-    cooldownKey: 'play',
+    cooldownKey: 'play_fetch',
   },
   {
     id: 'play_puzzle',
@@ -90,7 +90,7 @@ export const PLAY_VARIANTS: CareVariant[] = [
     statEffects: { hunger: -5, happiness: 15, energy: -5 },
     staminaCost: 20,
     xpReward: 14,
-    cooldownKey: 'play',
+    cooldownKey: 'play_puzzle',
   },
   {
     id: 'play_dance',
@@ -101,7 +101,7 @@ export const PLAY_VARIANTS: CareVariant[] = [
     statEffects: { hunger: -15, happiness: 30, energy: -25 },
     staminaCost: 30,
     xpReward: 16,
-    cooldownKey: 'play',
+    cooldownKey: 'play_dance',
     unlockCondition: { type: 'level', value: 15 },
   },
   {
@@ -113,7 +113,7 @@ export const PLAY_VARIANTS: CareVariant[] = [
     statEffects: { hunger: -8, happiness: 35, energy: -10 },
     staminaCost: 25,
     xpReward: 22,
-    cooldownKey: 'play',
+    cooldownKey: 'play_vr',
     unlockCondition: { type: 'premium', tierRequired: 'diamond' },
   },
 ];
@@ -128,7 +128,7 @@ export const REST_VARIANTS: CareVariant[] = [
     statEffects: { hunger: 0, happiness: 5, energy: 25 },
     staminaCost: 10,
     xpReward: 5,
-    cooldownKey: 'rest',
+    cooldownKey: 'rest_nap',
   },
   {
     id: 'rest_hammock',
@@ -139,7 +139,7 @@ export const REST_VARIANTS: CareVariant[] = [
     statEffects: { hunger: 0, happiness: 12, energy: 20 },
     staminaCost: 10,
     xpReward: 8,
-    cooldownKey: 'rest',
+    cooldownKey: 'rest_hammock',
   },
   {
     id: 'rest_spa',
@@ -150,7 +150,7 @@ export const REST_VARIANTS: CareVariant[] = [
     statEffects: { hunger: 5, happiness: 15, energy: 35 },
     staminaCost: 15,
     xpReward: 12,
-    cooldownKey: 'rest',
+    cooldownKey: 'rest_spa',
     unlockCondition: { type: 'premium', tierRequired: 'silver' },
   },
   {
@@ -162,7 +162,7 @@ export const REST_VARIANTS: CareVariant[] = [
     statEffects: { hunger: 10, happiness: 20, energy: 40 },
     staminaCost: 15,
     xpReward: 15,
-    cooldownKey: 'rest',
+    cooldownKey: 'rest_cloud',
     unlockCondition: { type: 'premium', tierRequired: 'diamond' },
   },
 ];

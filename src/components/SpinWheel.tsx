@@ -9,8 +9,8 @@ const SEGMENT_COUNT = SPIN_SEGMENTS.length;
 const SEGMENT_ANGLE = 360 / SEGMENT_COUNT;
 
 const SEGMENT_COLORS = [
-  '#FF9F43', '#9381FF', '#FF8FAB', '#4FB0C6',
-  '#FFD700', '#88C057', '#E07A94', '#766BD1',
+  '#8DC4E2', '#76B7DB', '#65ACD3', '#4FA0CC', '#3F91BE',
+  '#8ABEDC', '#74AFD2', '#5F9FC6', '#4D92BC', '#3A84B1',
 ];
 
 function SpinResultModal({ result, visible, onClose }: { result: SpinResult | null; visible: boolean; onClose: () => void }) {
@@ -18,34 +18,44 @@ function SpinResultModal({ result, visible, onClose }: { result: SpinResult | nu
 
   if (!visible || !result) return null;
 
+  const rarityConfig =
+    result.rarity === 'epic'
+      ? { chipBg: 'bg-pet-blue-light/55', chipText: 'text-pet-blue-dark', label: 'EPIC', btn: ['#3E8AB3', '#2F7CA7'] as [string, string] }
+      : result.rarity === 'rare'
+        ? { chipBg: 'bg-pet-blue-light/45', chipText: 'text-pet-blue-dark', label: 'RARE', btn: ['#4A9ECB', '#3B8CB5'] as [string, string] }
+        : { chipBg: 'bg-pet-blue-light/35', chipText: 'text-pet-blue-dark', label: 'COMMON', btn: ['#67B6D6', '#4A9ECB'] as [string, string] };
+
   return (
     <Modal transparent animationType="fade" visible={visible}>
       <View className="flex-1 bg-black/50 items-center justify-center px-8">
         <View
           className="bg-white rounded-[36px] items-center px-8 py-10 w-full"
-          style={{ shadowColor: '#FFD700', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.3, shadowRadius: 24, elevation: 20 }}
+          style={{ shadowColor: '#2E6E93', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.22, shadowRadius: 16, elevation: 14 }}
         >
+          <View className={`px-3 py-1 rounded-full mb-2 ${rarityConfig.chipBg}`}>
+            <Text className={`text-[10px] font-black ${rarityConfig.chipText}`}>{rarityConfig.label}</Text>
+          </View>
           <Text className="text-[56px] mb-3">{result.emoji}</Text>
           <Text className="text-[24px] font-black text-gray-800 mb-2">{result.label}</Text>
 
           {result.xp > 0 && (
-            <Text className="text-[16px] font-bold text-pet-purple mb-1">+{result.xp} XP</Text>
+            <Text className="text-[16px] font-bold text-pet-blue-dark mb-1">+{result.xp} XP</Text>
           )}
           {result.staminaRefill && (
-            <Text className="text-[16px] font-bold text-pet-green-dark mb-1">{'\u{26A1}'} Stamina Refilled!</Text>
+            <Text className="text-[16px] font-bold text-pet-blue-dark mb-1">{'\u{26A1}'} Stamina Refilled!</Text>
           )}
           {result.doubleXpMinutes > 0 && (
-            <Text className="text-[16px] font-bold text-pet-orange-dark mb-1">{'\u{1F525}'} 2x XP for 1 hour!</Text>
+            <Text className="text-[16px] font-bold text-pet-blue-dark mb-1">{'\u{1F525}'} 2x XP for 1 hour!</Text>
           )}
           {result.freeItem && (
-            <Text className="text-[16px] font-bold text-pet-pink mb-1">{'\u{1F381}'} Free Shop Item!</Text>
+            <Text className="text-[16px] font-bold text-pet-blue-dark mb-1">{'\u{1F381}'} Free Shop Item!</Text>
           )}
           {result.shard && (
-            <Text className="text-[16px] font-bold text-pet-purple mb-1">{'\u{1F48E}'} Evolution Shard!</Text>
+            <Text className="text-[16px] font-bold text-pet-blue-dark mb-1">{'\u{1F48E}'} Evolution Shard!</Text>
           )}
 
           <TouchableOpacity onPress={onClose} activeOpacity={0.85} className="w-full mt-4">
-            <LinearGradient colors={['#FFD700', '#CCA800']} className="py-3.5 rounded-2xl items-center">
+            <LinearGradient colors={rarityConfig.btn} className="py-3.5 rounded-2xl items-center">
               <Text className="text-white text-[14px] font-black uppercase tracking-[1px]">Nice!</Text>
             </LinearGradient>
           </TouchableOpacity>
@@ -110,10 +120,10 @@ export function SpinWheel() {
     <View className="px-6 mt-4">
       <View
         className="bg-white rounded-[28px] overflow-hidden border border-gray-100"
-        style={{ shadowColor: '#FFD700', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.1, shadowRadius: 12, elevation: 4 }}
+        style={{ shadowColor: '#2E6E93', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 3 }}
       >
         <LinearGradient
-          colors={['#9381FF', '#A797FF']}
+          colors={['#4A9ECB', '#6EB4DA']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
           className="px-5 py-3 flex-row items-center justify-between"
@@ -123,7 +133,7 @@ export function SpinWheel() {
             <Text className="text-[12px] font-black text-white tracking-[0.8px] uppercase">Lucky Wheel</Text>
           </View>
           {isFreeSpin && (
-            <View className="bg-pet-gold px-2.5 py-1 rounded-full">
+            <View className="bg-white/25 px-2.5 py-1 rounded-full border border-white/40">
               <Text className="text-[10px] font-black text-white">FREE SPIN!</Text>
             </View>
           )}
@@ -139,8 +149,9 @@ export function SpinWheel() {
 
             <Animated.View
               style={{ transform: [{ rotate: spin }], width: 200, height: 200 }}
-              className="rounded-full border-4 border-pet-purple items-center justify-center"
+              className="rounded-full border-4 border-pet-blue items-center justify-center bg-white"
             >
+              <View className="absolute w-[184px] h-[184px] rounded-full border border-pet-blue-light/70" />
               {SPIN_SEGMENTS.map((seg, i) => {
                 const angle = i * SEGMENT_ANGLE;
                 const rad = (angle - 90) * (Math.PI / 180);
@@ -154,15 +165,23 @@ export function SpinWheel() {
                     className="absolute items-center"
                     style={{ transform: [{ translateX: x }, { translateY: y }] }}
                   >
-                    <Text className="text-[18px]">{seg.emoji}</Text>
+                    <View
+                      className="w-10 h-10 rounded-full items-center justify-center border border-white"
+                      style={{ backgroundColor: SEGMENT_COLORS[i % SEGMENT_COLORS.length] }}
+                    >
+                      <Text className="text-[16px]">{seg.emoji}</Text>
+                    </View>
                     <Text className="text-[7px] font-black text-gray-600 mt-0.5" numberOfLines={1}>{seg.label}</Text>
                   </View>
                 );
               })}
               {/* Center circle */}
-              <View className="w-14 h-14 rounded-full bg-pet-purple items-center justify-center">
+              <LinearGradient
+                colors={['#4A9ECB', '#3E8AB3']}
+                className="w-14 h-14 rounded-full items-center justify-center border border-white/60"
+              >
                 <Text className="text-white font-black text-[10px]">SPIN</Text>
-              </View>
+              </LinearGradient>
             </Animated.View>
           </View>
 
@@ -174,7 +193,7 @@ export function SpinWheel() {
             className="w-full"
           >
             <LinearGradient
-              colors={canSpin ? ['#9381FF', '#766BD1'] : ['#D1D5DB', '#9CA3AF']}
+              colors={canSpin ? ['#4A9ECB', '#3E8AB3'] : ['#D1D5DB', '#9CA3AF']}
               className="py-3.5 rounded-2xl items-center"
             >
               <Text className="text-white text-[14px] font-black uppercase tracking-[1px]">

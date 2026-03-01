@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
+﻿import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -65,16 +65,16 @@ function ProgressCard() {
 
   return (
     <View
-      className="bg-white rounded-[28px] overflow-hidden mb-5 border border-gray-100"
+      className="bg-white rounded-[28px] overflow-hidden mb-5 border border-pet-blue-light/70"
       style={{
-        shadowColor: '#9381FF',
+        shadowColor: '#2D6B90',
         shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.1,
-        shadowRadius: 14,
-        elevation: 4,
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
+        elevation: 3,
       }}
     >
-      <View className="bg-pet-purple px-5 py-3 flex-row items-center">
+      <View className="bg-pet-blue-dark px-5 py-3 flex-row items-center">
         <Text className="text-base mr-2">{'\u{2B50}'}</Text>
         <Text className="text-[11px] font-black text-white tracking-[0.9px] uppercase">Progress</Text>
         <View className="bg-white/20 px-2 py-0.5 rounded-full ml-auto">
@@ -88,15 +88,21 @@ function ProgressCard() {
 
       <View className="flex-row justify-between px-5 pb-3">
         <View className="items-center">
-          <Text className="text-[18px] font-black text-gray-800">{totalXp}</Text>
+          <View className="px-3 py-1 rounded-full bg-pet-blue-light/40 border border-pet-blue-light/90">
+            <Text className="text-[15px] font-black text-pet-blue-dark">{totalXp}</Text>
+          </View>
           <Text className="text-[9px] font-bold text-gray-400 uppercase">Total XP</Text>
         </View>
         <View className="items-center">
-          <Text className="text-[18px] font-black text-pet-purple">{title}</Text>
+          <View className="px-3 py-1 rounded-full bg-pet-blue-light/40 border border-pet-blue-light/90">
+            <Text className="text-[15px] font-black text-pet-blue-dark">{title}</Text>
+          </View>
           <Text className="text-[9px] font-bold text-gray-400 uppercase">Title</Text>
         </View>
         <View className="items-center">
-          <Text className="text-[18px] font-black text-gray-800">{unlockedCount}</Text>
+          <View className="px-3 py-1 rounded-full bg-pet-blue-light/40 border border-pet-blue-light/90">
+            <Text className="text-[15px] font-black text-pet-blue-dark">{unlockedCount}</Text>
+          </View>
           <Text className="text-[9px] font-bold text-gray-400 uppercase">Badges</Text>
         </View>
       </View>
@@ -132,10 +138,10 @@ function EvolutionCard() {
   return (
     <View
       className="bg-white rounded-[28px] overflow-hidden mb-5 border border-gray-100"
-      style={{ shadowColor: '#FFD700', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.12, shadowRadius: 14, elevation: 4 }}
+      style={{ shadowColor: '#2D6B90', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 3 }}
     >
       <LinearGradient
-        colors={['#FFD700', '#FFC107']}
+        colors={['#4FABC9', '#6CBAD8']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
         className="px-5 py-3 flex-row items-center justify-between"
@@ -159,15 +165,15 @@ function EvolutionCard() {
 
         {/* Evolution progress */}
         {nextStage && (
-          <View className="bg-pet-gold-light/20 rounded-2xl p-4 mb-3">
+          <View className="bg-pet-blue-light/30 rounded-2xl p-4 mb-3 border border-pet-blue-light/70">
             <Text className="text-[12px] font-black text-gray-700 mb-2">Next: {nextStage.name}</Text>
             <View className="flex-row justify-between mb-1">
               <Text className="text-[11px] text-gray-500 font-semibold">Level {level}/{nextStage.levelRequired}</Text>
               <Text className="text-[11px] text-gray-500 font-semibold">{'\u{1F48E}'} {evolutionShards}/{nextStage.shardsRequired} Shards</Text>
             </View>
-            <View className="h-2 rounded-full bg-gray-200 overflow-hidden">
+            <View className="h-2 rounded-full bg-pet-blue-light/50 overflow-hidden">
               <View
-                className="h-full rounded-full bg-pet-gold"
+                className="h-full rounded-full bg-pet-blue"
                 style={{ width: `${Math.min(100, (evolutionShards / nextStage.shardsRequired) * 100)}%` }}
               />
             </View>
@@ -177,7 +183,7 @@ function EvolutionCard() {
         {/* Evolve button */}
         {canDoEvolve && (
           <TouchableOpacity onPress={handleEvolve} activeOpacity={0.85}>
-            <LinearGradient colors={['#FFD700', '#CCA800']} className="py-3 rounded-2xl items-center">
+            <LinearGradient colors={['#4FABC9', '#3E8AB3']} className="py-3 rounded-2xl items-center">
               <Text className="text-white font-black text-[13px] uppercase tracking-[0.8px]">
                 {'\u2728'} Evolve Now!
               </Text>
@@ -214,18 +220,18 @@ function CollectiblesRow() {
           </View>
         )}
         {byRarity.rare > 0 && (
-          <View className="bg-blue-50 px-2.5 py-1 rounded-full">
-            <Text className="text-[10px] font-black text-blue-500">{byRarity.rare} Rare</Text>
+          <View className="bg-pet-blue-light/40 px-2.5 py-1 rounded-full border border-pet-blue-light/90">
+            <Text className="text-[10px] font-black text-pet-blue-dark">{byRarity.rare} Rare</Text>
           </View>
         )}
         {byRarity.epic > 0 && (
-          <View className="bg-purple-50 px-2.5 py-1 rounded-full">
-            <Text className="text-[10px] font-black text-purple-500">{byRarity.epic} Epic</Text>
+          <View className="bg-pet-blue-light/40 px-2.5 py-1 rounded-full border border-pet-blue-light/90">
+            <Text className="text-[10px] font-black text-pet-blue-dark">{byRarity.epic} Epic</Text>
           </View>
         )}
         {byRarity.legendary > 0 && (
-          <View className="bg-amber-50 px-2.5 py-1 rounded-full">
-            <Text className="text-[10px] font-black text-amber-500">{byRarity.legendary} Legendary</Text>
+          <View className="bg-pet-blue-light/40 px-2.5 py-1 rounded-full border border-pet-blue-light/90">
+            <Text className="text-[10px] font-black text-pet-blue-dark">{byRarity.legendary} Legendary</Text>
           </View>
         )}
         {owned.length === 0 && (
@@ -254,9 +260,15 @@ export function ProfileScreen() {
 
   return (
     <View className="flex-1 bg-pet-background">
+      <LinearGradient
+        colors={['#EFF7FF', '#E8F3FD', '#F5FAFF']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        className="absolute inset-0"
+      />
       <View className="absolute -top-6 -right-8 w-36 h-36 rounded-full bg-pet-blue-light/30" />
-      <View className="absolute top-52 -left-10 w-44 h-44 rounded-full bg-pet-purple-light/20" />
-      <View className="absolute top-[520px] -right-12 w-48 h-48 rounded-full bg-pet-pink-light/25" />
+      <View className="absolute top-52 -left-10 w-44 h-44 rounded-full bg-pet-blue-light/20" />
+      <View className="absolute top-[520px] -right-12 w-48 h-48 rounded-full bg-pet-blue-light/25" />
 
       <ScrollView className="flex-1 px-6 pt-6" contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
         <ScreenHeader
@@ -300,13 +312,13 @@ export function ProfileScreen() {
             <InfoRow
               label="Tier"
               value={`${TIER_CONFIGS[tier].emoji} ${TIER_CONFIGS[tier].label}`}
-              valueColor="text-pet-gold-dark"
+              valueColor="text-pet-blue-dark"
             />
           )}
           <InfoRow label="Outfit" value={skinDisplayName} valueColor="text-pet-blue" />
           <InfoRow label="Streak" value={`${streakDays} day${streakDays === 1 ? '' : 's'}`} valueColor="text-pet-blue-dark" />
-          <InfoRow label="Adventures" value={`${useAdventureStore.getState().completedAdventures} completed`} valueColor="text-pet-orange-dark" />
-          <InfoRow label="Mini-Games" value={`${useAdventureStore.getState().miniGamesWon} won`} valueColor="text-pet-purple" />
+          <InfoRow label="Adventures" value={`${useAdventureStore.getState().completedAdventures} completed`} valueColor="text-pet-blue-dark" />
+          <InfoRow label="Mini-Games" value={`${useAdventureStore.getState().miniGamesWon} won`} valueColor="text-pet-blue-dark" />
           <CollectiblesRow />
         </InfoCard>
 
@@ -350,3 +362,5 @@ export function ProfileScreen() {
     </View>
   );
 }
+
+
