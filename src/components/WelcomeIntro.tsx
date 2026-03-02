@@ -1,51 +1,11 @@
-import React, { Suspense, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Image, Dimensions, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, Image, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Canvas, useFrame } from '@react-three/fiber/native';
-import { useGLTF } from '@react-three/drei/native';
-import * as THREE from 'three';
 import { petTypography } from '../theme/typography';
 
 const HANGING_IMG = require('../../assets/Photos/hanging.png');
 const HEADPHONE_GUY_IMG = require('../../assets/Photos/headphoneguy.png');
-const WALKING_MODEL = require('../../assets/pets/walking.glb');
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
-
-function WalkingPet() {
-  const gltf = useGLTF(WALKING_MODEL) as any;
-  const scene = gltf.scene as THREE.Group;
-  const animations = gltf.animations as THREE.AnimationClip[];
-  const mixerRef = useRef<THREE.AnimationMixer | null>(null);
-
-  useEffect(() => {
-    if (animations.length === 0) return;
-
-    const mixer = new THREE.AnimationMixer(scene);
-    mixerRef.current = mixer;
-
-    const clip = animations[0];
-    const action = mixer.clipAction(clip);
-    action.setLoop(THREE.LoopRepeat, 2);
-    action.clampWhenFinished = true;
-    action.play();
-
-    return () => {
-      mixer.stopAllAction();
-      mixerRef.current = null;
-    };
-  }, [scene, animations]);
-
-  useFrame((_state, delta) => {
-    mixerRef.current?.update(delta);
-  });
-
-  return (
-    <group position={[0, -1.2, 0]}>
-      <primitive object={scene} />
-    </group>
-  );
-}
 
 interface WelcomeIntroProps {
   onContinue: () => void;
@@ -126,33 +86,6 @@ export function WelcomeIntro({ onContinue }: WelcomeIntroProps) {
           Care, play, and grow together.
         </Text>
       </View>
-
-      {/* ─── 3D Walking Pet — between text and CTA ─── */}
-      {Platform.OS !== 'web' && (
-        <View
-          style={{
-            position: 'absolute',
-            bottom: 100,
-            left: 0,
-            right: 0,
-            height: SCREEN_H * 0.22,
-          }}
-        >
-          <Canvas
-            camera={{ position: [0, 1, 5], fov: 40 }}
-            gl={{ antialias: false, powerPreference: 'low-power', alpha: true }}
-            style={{ backgroundColor: 'transparent' }}
-          >
-            <ambientLight intensity={2.2} />
-            <directionalLight position={[5, 10, 5]} intensity={1.5} />
-            <directionalLight position={[-3, 5, -3]} intensity={0.8} />
-
-            <Suspense fallback={null}>
-              <WalkingPet />
-            </Suspense>
-          </Canvas>
-        </View>
-      )}
 
       {/* ─── Bottom CTA ─── */}
       <View className="absolute left-0 right-0 px-7" style={{ bottom: 30 }}>
