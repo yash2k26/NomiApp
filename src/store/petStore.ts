@@ -112,6 +112,7 @@ export function getPetNeeds(hunger: number, happiness: number, energy: number): 
 interface PetState {
   id: string | null;
   name: string;
+  ownerName: string;
   mintAddress: string;
   hunger: number;
   happiness: number;
@@ -133,6 +134,7 @@ interface PetState {
 }
 
 interface PetActions {
+  setOwnerName: (name: string) => void;
   mintPet: () => void;
   feedPet: () => void;
   playWithPet: () => void;
@@ -203,7 +205,7 @@ function getMoodTextFromMood(name: string, mood: PetMood): string {
 const STORAGE_KEY = 'oracle-pet-state';
 
 const PERSISTED_KEYS: (keyof PetState)[] = [
-  'id', 'name', 'mintAddress', 'hunger', 'happiness', 'energy',
+  'id', 'name', 'ownerName', 'mintAddress', 'hunger', 'happiness', 'energy',
   'skin', 'hasPet', 'lastTickAt', 'lastActiveDate', 'streakDays',
   'stamina', 'lastStaminaRegenAt', 'cooldowns', 'lastBlessingAt',
 ];
@@ -281,6 +283,7 @@ function getCareStatBonus(): number {
 export const usePetStore = create<PetStore>((set, get) => ({
   id: null,
   name: 'Nomi',
+  ownerName: '',
   mintAddress: '',
   hunger: 70,
   happiness: 70,
@@ -296,6 +299,11 @@ export const usePetStore = create<PetStore>((set, get) => ({
   lastStaminaRegenAt: Date.now(),
   cooldowns: {},
   lastBlessingAt: 0,
+
+  setOwnerName: (ownerName: string) => {
+    set({ ownerName });
+    savePetState(get());
+  },
 
   triggerExcitedBurst: () => {
     set({ isExcitedBurst: true, excitedPlayedAt: Date.now() });
@@ -586,6 +594,7 @@ export const usePetStore = create<PetStore>((set, get) => ({
   clearPet: () => {
     set({
       id: null,
+      ownerName: '',
       mintAddress: '',
       hasPet: false,
       hunger: 70,
@@ -650,6 +659,7 @@ export const usePetStore = create<PetStore>((set, get) => ({
           equippedSkin: state.skin,
           hoursAway: elapsedHours,
           activeAdventureZone: activeZone,
+          ownerName: state.ownerName,
         });
         if (elapsedHours >= 6) {
           ps.recordMemory('long_absence');

@@ -244,7 +244,7 @@ function CollectiblesRow() {
 
 export function ProfileScreen() {
   const { address, balance, disconnectWallet, refreshBalance } = useWalletStore();
-  const { name, mintAddress, skin, clearPet, streakDays } = usePetStore();
+  const { name, ownerName, mintAddress, skin, clearPet, streakDays } = usePetStore();
   const premium = usePremiumStore((s) => s.isPremium);
   const tier = usePremiumStore((s) => s.tier);
 
@@ -307,6 +307,7 @@ export function ProfileScreen() {
 
         <InfoCard title="Companion" icon={'\u{1F43E}'} accent="bg-pet-blue">
           <InfoRow label="Name" value={name} />
+          {ownerName ? <InfoRow label="Owner" value={ownerName} valueColor="text-pet-blue-dark" /> : null}
           <InfoRow label="NFT Mint" value={shortMintAddress} />
           {premium && (
             <InfoRow

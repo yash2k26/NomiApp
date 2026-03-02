@@ -1,7 +1,7 @@
 // Polyfills MUST be imported before anything else
 import './src/polyfills';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { View, Text, TouchableOpacity, LogBox, AppState, BackHandler, Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -16,7 +16,7 @@ import { usePersonalityStore } from './src/store/personalityStore';
 import { useEventStore } from './src/store/eventStore';
 import { useNotificationStore } from './src/store/notificationStore';
 import { WalletConnect, WelcomeIntro } from './src/components';
-import { HomeScreen, ProfileScreen, MintScreen, ShopScreen } from './src/screens';
+import { HomeScreen, ProfileScreen, MintScreen, ShopScreen, NameInputScreen } from './src/screens';
 import { GamesScreen } from './src/screens/GamesScreen';
 import { petTypography } from './src/theme/typography';
 
@@ -99,6 +99,7 @@ export default function App() {
   const [hydrated, setHydrated] = useState(false);
   const connected = useWalletStore((s) => s.connected);
   const hasPet = usePetStore((s) => s.hasPet);
+  const ownerName = usePetStore((s) => s.ownerName);
 
   const hydrateWallet = useWalletStore((s) => s.hydrateWallet);
   const hydrateShop = useShopStore((s) => s.hydrateShop);
@@ -200,6 +201,15 @@ export default function App() {
     return (
       <GestureHandlerRootView className="flex-1">
         <WalletConnect />
+        <StatusBar style="light" />
+      </GestureHandlerRootView>
+    );
+  }
+
+  if (!ownerName) {
+    return (
+      <GestureHandlerRootView className="flex-1">
+        <NameInputScreen onComplete={() => {}} />
         <StatusBar style="light" />
       </GestureHandlerRootView>
     );

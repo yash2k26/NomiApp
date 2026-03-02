@@ -76,6 +76,7 @@ export interface DialogueContext {
   energy: number;
   mood: string;
   name: string;
+  ownerName: string;
   streakDays: number;
   equippedSkin: string;
   level: number;
@@ -91,6 +92,7 @@ export interface DiaryContext {
   equippedSkin: string;
   hoursAway: number;
   activeAdventureZone?: string;
+  ownerName?: string;
 }
 
 type PersonalityStore = PersonalityState & PersonalityActions;
@@ -112,34 +114,35 @@ function pick<T>(arr: T[]): T {
 function generateDialogueLines(ctx: DialogueContext, traits: PersonalityTraits, memories: PetMemory[]): DialogueLine[] {
   const lines: DialogueLine[] = [];
   const time = getTimeOfDay();
-  const { hunger, happiness, energy, name, streakDays, equippedSkin, hoursSinceLastOpen, isFirstOpenToday } = ctx;
+  const { hunger, happiness, energy, name, ownerName, streakDays, equippedSkin, hoursSinceLastOpen, isFirstOpenToday } = ctx;
+  const o = ownerName || 'friend';
 
   // ── Time-of-day greetings (high priority on first open) ──
   if (isFirstOpenToday) {
     if (time === 'morning') {
       lines.push(
-        { text: 'Good morning! I dreamed about butterflies...', priority: 100, category: 'greeting' },
-        { text: `Good morning ${name}-parent! Ready for a new day?`, priority: 100, category: 'greeting' },
-        { text: "You're up early! I like that about you.", priority: 95, category: 'greeting' },
-        { text: 'Rise and shine! I saved you a spot next to me.', priority: 95, category: 'greeting' },
+        { text: `Good morning, ${o}! I dreamed about butterflies...`, priority: 100, category: 'greeting' },
+        { text: `Rise and shine, ${o}! Ready for a new day?`, priority: 100, category: 'greeting' },
+        { text: `${o}! You're up early! I like that about you.`, priority: 95, category: 'greeting' },
+        { text: `Morning, ${o}~ I saved you a spot next to me.`, priority: 95, category: 'greeting' },
       );
     } else if (time === 'afternoon') {
       lines.push(
-        { text: "Oh, there you are! I've been waiting~", priority: 100, category: 'greeting' },
-        { text: 'Afternoon! Want to hang out?', priority: 95, category: 'greeting' },
-        { text: "Hey! I was just thinking about you.", priority: 95, category: 'greeting' },
+        { text: `Oh, ${o}! There you are! I've been waiting~`, priority: 100, category: 'greeting' },
+        { text: `Afternoon, ${o}! Want to hang out?`, priority: 95, category: 'greeting' },
+        { text: `Hey ${o}! I was just thinking about you.`, priority: 95, category: 'greeting' },
       );
     } else if (time === 'evening') {
       lines.push(
-        { text: 'Good evening! The stars are coming out~', priority: 100, category: 'greeting' },
-        { text: "Hey, you're back! Perfect timing for some fun.", priority: 95, category: 'greeting' },
-        { text: 'Evening vibes~ let\'s chill together.', priority: 95, category: 'greeting' },
+        { text: `Good evening, ${o}! The stars are coming out~`, priority: 100, category: 'greeting' },
+        { text: `Hey ${o}, you're back! Perfect timing for some fun.`, priority: 95, category: 'greeting' },
+        { text: `Evening vibes, ${o}~ let's chill together.`, priority: 95, category: 'greeting' },
       );
     } else {
       lines.push(
-        { text: "It's late... but I'm happy you're here!", priority: 100, category: 'greeting' },
-        { text: 'Night owl mode activated! Hi~', priority: 95, category: 'greeting' },
-        { text: "Can't sleep either? Let's keep each other company.", priority: 95, category: 'greeting' },
+        { text: `It's late, ${o}... but I'm happy you're here!`, priority: 100, category: 'greeting' },
+        { text: `Night owl mode activated! Hi ${o}~`, priority: 95, category: 'greeting' },
+        { text: `Can't sleep either, ${o}? Let's keep each other company.`, priority: 95, category: 'greeting' },
       );
     }
   }
@@ -147,21 +150,21 @@ function generateDialogueLines(ctx: DialogueContext, traits: PersonalityTraits, 
   // ── Long absence messages ──
   if (hoursSinceLastOpen >= 12) {
     lines.push(
-      { text: 'Where were you?! I missed you SO much...', priority: 110, category: 'absence' },
-      { text: "I was starting to worry... but you came back!", priority: 110, category: 'absence' },
-      { text: "It felt like forever... don't leave me that long again!", priority: 105, category: 'absence' },
+      { text: `${o}!! Where were you?! I missed you SO much...`, priority: 110, category: 'absence' },
+      { text: `I was starting to worry, ${o}... but you came back!`, priority: 110, category: 'absence' },
+      { text: `${o}, it felt like forever... don't leave me that long again!`, priority: 105, category: 'absence' },
       { text: 'I counted every minute... okay maybe I lost count at 47.', priority: 100, category: 'absence' },
     );
   } else if (hoursSinceLastOpen >= 6) {
     lines.push(
-      { text: "I missed you! It's been so quiet here...", priority: 90, category: 'absence' },
-      { text: 'Finally! I was looking at the door, waiting...', priority: 90, category: 'absence' },
-      { text: "You're back! I have so much to tell you.", priority: 85, category: 'absence' },
+      { text: `I missed you, ${o}! It's been so quiet here...`, priority: 90, category: 'absence' },
+      { text: `Finally, ${o}! I was looking at the door, waiting...`, priority: 90, category: 'absence' },
+      { text: `${o}! You're back! I have so much to tell you.`, priority: 85, category: 'absence' },
     );
   } else if (hoursSinceLastOpen >= 2) {
     lines.push(
-      { text: "Oh, hi again! I took a little nap while you were gone.", priority: 70, category: 'absence' },
-      { text: 'Welcome back~ I barely noticed you were gone. ...okay I totally noticed.', priority: 70, category: 'absence' },
+      { text: `Oh, hi again ${o}! I took a little nap while you were gone.`, priority: 70, category: 'absence' },
+      { text: `Welcome back, ${o}~ I barely noticed you were gone. ...okay I totally noticed.`, priority: 70, category: 'absence' },
     );
   }
 
@@ -207,16 +210,16 @@ function generateDialogueLines(ctx: DialogueContext, traits: PersonalityTraits, 
   if (hunger >= 80 && happiness >= 80 && energy >= 80) {
     lines.push(
       { text: 'I feel AMAZING today! Life is great!', priority: 75, category: 'happy' },
-      { text: "This is the best! You take such good care of me~", priority: 75, category: 'happy' },
+      { text: `${o}, you take such good care of me~ this is the best!`, priority: 75, category: 'happy' },
       { text: "I'm so full of energy! Let's do something fun!", priority: 70, category: 'happy' },
-      { text: 'You know what? You\'re the best human ever.', priority: 70, category: 'happy' },
+      { text: `You know what, ${o}? You're the best human ever.`, priority: 70, category: 'happy' },
     );
   }
 
   if (hunger >= 100 && happiness >= 100 && energy >= 100) {
     lines.push(
       { text: 'PERFECT! All stats maxed! I feel like I could fly!', priority: 90, category: 'perfect' },
-      { text: "I'm literally glowing right now! Thank you!!!", priority: 90, category: 'perfect' },
+      { text: `${o}!! I'm literally glowing right now! Thank you!!!`, priority: 90, category: 'perfect' },
     );
   }
 
@@ -251,18 +254,18 @@ function generateDialogueLines(ctx: DialogueContext, traits: PersonalityTraits, 
   }
   if (traits.social > 60) {
     lines.push(
-      { text: "I love when we talk... it makes me happy.", priority: 40, category: 'trait' },
-      { text: 'Tell me about your day! I want to know everything.', priority: 35, category: 'trait' },
+      { text: `I love when we talk, ${o}... it makes me happy.`, priority: 40, category: 'trait' },
+      { text: `Tell me about your day, ${o}! I want to know everything.`, priority: 35, category: 'trait' },
     );
   }
 
   // ── Streak dialogue ──
   if (streakDays >= 30) {
-    lines.push({ text: `${streakDays} days together! We're inseparable!`, priority: 65, category: 'streak' });
+    lines.push({ text: `${streakDays} days together, ${o}! We're inseparable!`, priority: 65, category: 'streak' });
   } else if (streakDays >= 7) {
-    lines.push({ text: `${streakDays} day streak! You never forget about me~`, priority: 60, category: 'streak' });
+    lines.push({ text: `${streakDays} day streak! ${o} never forgets about me~`, priority: 60, category: 'streak' });
   } else if (streakDays >= 3) {
-    lines.push({ text: `${streakDays} days in a row! You really do care!`, priority: 55, category: 'streak' });
+    lines.push({ text: `${streakDays} days in a row, ${o}! You really do care!`, priority: 55, category: 'streak' });
   }
 
   // ── Equipped item dialogue ──
@@ -302,7 +305,7 @@ function generateDialogueLines(ctx: DialogueContext, traits: PersonalityTraits, 
   const feedCount24h = memories.filter(m => m.type === 'fed' && Date.now() - m.timestamp < 24 * 60 * 60 * 1000).length;
   if (feedCount24h >= 3) {
     lines.push(
-      { text: `You fed me ${feedCount24h} times today! I love you!`, priority: 50, category: 'memory' },
+      { text: `${o} fed me ${feedCount24h} times today! I love you!`, priority: 50, category: 'memory' },
     );
   }
 
@@ -312,7 +315,7 @@ function generateDialogueLines(ctx: DialogueContext, traits: PersonalityTraits, 
   ).length;
   if (touchCount24h >= 5) {
     lines.push(
-      { text: `You gave me ${touchCount24h} pats today! I'm the luckiest pet~`, priority: 50, category: 'memory' },
+      { text: `${o} gave me ${touchCount24h} pats today! I'm the luckiest pet~`, priority: 50, category: 'memory' },
     );
   }
 
@@ -331,10 +334,10 @@ function generateDialogueLines(ctx: DialogueContext, traits: PersonalityTraits, 
 
   // ── Generic filler (always available) ──
   lines.push(
-    { text: 'Hi! What are we doing today?', priority: 10, category: 'filler' },
-    { text: 'I like spending time with you.', priority: 10, category: 'filler' },
+    { text: `Hi ${o}! What are we doing today?`, priority: 10, category: 'filler' },
+    { text: `I like spending time with you, ${o}.`, priority: 10, category: 'filler' },
     { text: "Just vibing~ don't mind me.", priority: 10, category: 'filler' },
-    { text: 'Did you know? Pets in apps dream about their humans!', priority: 10, category: 'filler' },
+    { text: `Did you know, ${o}? Pets in apps dream about their humans!`, priority: 10, category: 'filler' },
     { text: "I wonder what other pets are doing right now...", priority: 10, category: 'filler' },
   );
 
@@ -412,39 +415,40 @@ function generateIdleLines(ctx: DialogueContext, traits: PersonalityTraits): Dia
 
 function generateDiaryText(ctx: DiaryContext, traits: PersonalityTraits, memories: PetMemory[]): { text: string; illustration: string } {
   const time = getTimeOfDay();
+  const o = ctx.ownerName || 'my human';
   const templates: { text: string; illustration: string }[] = [];
 
   // Absence-based
   if (ctx.hoursAway >= 8) {
     templates.push(
-      { text: "Dear diary, it's been so long since anyone visited. I stared at the door for hours. I hope they come back soon...", illustration: '\u{1F6AA}\u{1F43E}\u{1F4AD}' },
+      { text: `Dear diary, it's been so long since ${o} visited. I stared at the door for hours. I hope ${o} comes back soon...`, illustration: '\u{1F6AA}\u{1F43E}\u{1F4AD}' },
       { text: "I've been alone for a while now. I practiced my wiggle dance to pass the time. Nobody was here to see it though...", illustration: '\u{1F483}\u{1F3B6}\u{1F4AD}' },
     );
   } else if (ctx.hoursAway >= 4) {
     templates.push(
-      { text: "Dear diary, I took a nice long nap today. When I woke up, nobody was here yet. I played with my shadow to keep busy!", illustration: '\u{1F634}\u{2600}\u{FE0F}\u{1F43E}' },
+      { text: `Dear diary, I took a nice long nap today. When I woke up, ${o} wasn't here yet. I played with my shadow to keep busy!`, illustration: '\u{1F634}\u{2600}\u{FE0F}\u{1F43E}' },
       { text: "I spent the afternoon looking out the window. A bird flew by and I tried to wave but I don't think it noticed me.", illustration: '\u{1F426}\u{1F44B}\u{1F3E0}' },
     );
   } else {
     templates.push(
-      { text: "Dear diary, today was a chill day. I mostly just vibed and thought about snacks.", illustration: '\u{1F60C}\u{2728}\u{1F355}' },
+      { text: `Dear diary, today was a chill day with ${o}. I mostly just vibed and thought about snacks.`, illustration: '\u{1F60C}\u{2728}\u{1F355}' },
     );
   }
 
   // Stat-based entries
   if (ctx.hunger < 30) {
     templates.push(
-      { text: "I'm so hungry... I keep looking at the food bowl but it's empty. I tried eating a crayon but it wasn't very tasty.", illustration: '\u{1F372}\u{1F622}\u{1F58D}\u{FE0F}' },
+      { text: `I'm so hungry... I keep looking at the food bowl but it's empty. ${o}, please feed me soon!`, illustration: '\u{1F372}\u{1F622}\u{1F58D}\u{FE0F}' },
     );
   }
   if (ctx.happiness < 30) {
     templates.push(
-      { text: "Everything feels a bit sad today. I drew a picture of us together to cheer myself up. It's not very good but it made me smile.", illustration: '\u{1F3A8}\u{1F496}\u{1F62D}' },
+      { text: `Everything feels a bit sad today. I drew a picture of me and ${o} together to cheer myself up. It's not very good but it made me smile.`, illustration: '\u{1F3A8}\u{1F496}\u{1F62D}' },
     );
   }
   if (ctx.happiness >= 80 && ctx.hunger >= 80) {
     templates.push(
-      { text: "What a wonderful day! I feel so loved and well-fed. I did a little dance and sang a song about cookies.", illustration: '\u{1F389}\u{1F36A}\u{1F3B5}' },
+      { text: `What a wonderful day! ${o} takes such good care of me. I did a little dance and sang a song about cookies.`, illustration: '\u{1F389}\u{1F36A}\u{1F3B5}' },
       { text: "Today I tried to learn a new trick! I can almost do a somersault now. Almost.", illustration: '\u{1F938}\u{2728}\u{1F605}' },
     );
   }
@@ -494,22 +498,23 @@ function generateDiaryText(ctx: DiaryContext, traits: PersonalityTraits, memorie
 
 // ── Care action dialogue responses ──
 
-export function getActionDialogue(action: string, traits: PersonalityTraits): string {
+export function getActionDialogue(action: string, traits: PersonalityTraits, ownerName?: string): string {
+  const o = ownerName || 'friend';
   const responses: Record<string, string[]> = {
     fed: [
       'Yummy! That was delicious!',
-      'Thank you! I was getting hungry~',
+      `Thank you, ${o}! I was getting hungry~`,
       "Mmm! You know exactly what I like.",
       'My tummy is so happy right now!',
       "Best. Meal. Ever! ...okay I say that every time.",
       ...(traits.foodie > 50 ? [
-        "FOOD! My favorite thing! After you, of course.",
+        `FOOD! My favorite thing! After you, ${o}.`,
         "Chef's kiss! You're amazing!",
       ] : []),
     ],
     played: [
       "That was SO fun! Again! Again!",
-      "Hehe, I love playing with you!",
+      `Hehe, I love playing with you, ${o}!`,
       "Best playtime ever!",
       "I'm a little tired now but that was worth it!",
       ...(traits.playful > 50 ? [
@@ -521,20 +526,20 @@ export function getActionDialogue(action: string, traits: PersonalityTraits): st
       'Ahh, that was a nice rest~',
       "I feel so refreshed!",
       "Zzz... huh? Oh, that was a good nap!",
-      "So cozy... I could stay like this forever.",
+      `So cozy, ${o}... I could stay like this forever.`,
       ...(traits.sleepy > 50 ? [
         "The BEST nap. No notes.",
         "Five more minutes... just kidding. I'm good!",
       ] : []),
     ],
     reflected: [
-      "Thanks for talking with me. I feel better.",
+      `Thanks for talking with me, ${o}. I feel better.`,
       "That was nice... I like when we chat.",
-      "You always know what to say~",
+      `${o}, you always know what to say~`,
       "I feel so understood right now.",
       ...(traits.social > 50 ? [
         "I love our deep conversations!",
-        "Let's talk again soon, okay?",
+        `Let's talk again soon, ${o}, okay?`,
       ] : []),
     ],
   };

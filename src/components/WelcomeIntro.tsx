@@ -31,6 +31,10 @@ export function WelcomeIntro({ onContinue }: WelcomeIntroProps) {
         className="absolute rounded-full bg-white/8"
         style={{ width: 160, height: 160, top: SCREEN_H * 0.45, left: -60 }}
       />
+      <View
+        className="absolute rounded-full bg-white/12"
+        style={{ width: 110, height: 110, top: SCREEN_H * 0.3, right: SCREEN_W * 0.22 }}
+      />
 
       {/* Hanging character — top left */}
       <Image
@@ -68,45 +72,60 @@ export function WelcomeIntro({ onContinue }: WelcomeIntroProps) {
             className="text-white text-[10px] uppercase tracking-[1px]"
             style={{ fontFamily: petTypography.strong }}
           >
-            Meet Your Companion
+            Meet Nomi
           </Text>
         </View>
         <Text
           className="text-white text-[42px] leading-[44px]"
           style={{ fontFamily: petTypography.display }}
         >
-          Welcome to{'\n'}Nomi
+          Welcome to Nomi
         </Text>
         <Text
           className="text-white/90 text-[15px] leading-[22px] mt-2"
           style={{ fontFamily: petTypography.body }}
         >
-          A gentle digital friend for your daily rhythm.
+          A calm companion for your daily rhythm.
           {'\n'}
-          Care, play, and grow together.
+          Care, play, and grow one step at a time.
         </Text>
       </View>
 
       {/* ─── Bottom CTA ─── */}
       <View className="absolute left-0 right-0 px-7" style={{ bottom: 30 }}>
-        <TouchableOpacity onPress={onContinue} activeOpacity={0.85}>
-          <View
-            className="rounded-[28px] py-[18px] items-center bg-white"
-            style={{
-              shadowColor: '#1A4E6E',
-              shadowOffset: { width: 0, height: 12 },
-              shadowOpacity: 0.2,
-              shadowRadius: 20,
-              elevation: 8,
-            }}
+        <Text
+          className="text-white/70 text-[11px] text-center mb-3 tracking-[0.2px]"
+          style={{ fontFamily: petTypography.body }}
+        >
+          Start your first moment with Nomi
+        </Text>
+        <TouchableOpacity
+          onPress={onContinue}
+          activeOpacity={0.88}
+          className="rounded-full overflow-hidden"
+          style={{
+            shadowColor: '#1A4E6E',
+            shadowOffset: { width: 0, height: 10 },
+            shadowOpacity: 0.18,
+            shadowRadius: 16,
+            elevation: 7,
+            borderRadius: 999,
+          }}
+        >
+          <LinearGradient
+            colors={['#F8FDFF', '#E8F4FB']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            className="py-[18px] items-center border border-[#CFE8F6]"
+            style={{ borderRadius: 999 }}
           >
             <Text
-              className="text-[#3A8BB5] text-[16px] uppercase tracking-[1px]"
+              className="text-[#2E7DA8] text-[16px] tracking-[0.3px]"
               style={{ fontFamily: petTypography.strong }}
             >
               Continue
             </Text>
-          </View>
+          </LinearGradient>
         </TouchableOpacity>
       </View>
     </View>

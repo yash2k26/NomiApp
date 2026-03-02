@@ -1,13 +1,18 @@
-import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Modal, Dimensions } from 'react-native';
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { View, Text, TouchableOpacity, Modal, Animated, Easing, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { useAdventureStore, SPIN_SEGMENTS, type SpinResult } from '../store/adventureStore';
 import { petTypography } from '../theme/typography';
 
-const WheelOfFortune = require('react-native-wheel-of-fortune');
-const KNOB_IMG = require('../../assets/Photos/knob.png');
-const SPIN_DURATION_MS = 4200;
+const SPIN_DURATION_MS = 4000;
+const SEGMENT_COUNT = SPIN_SEGMENTS.length;
+const SEGMENT_ANGLE = 360 / SEGMENT_COUNT; // 36° each
+
+const WHEEL_COLORS = [
+  '#5FAED4', '#77BEE0', '#4A9ECB', '#8CC9E6', '#3C8AB4',
+  '#6EB7DB', '#4F9DC6', '#7FC3E3', '#5AA9D1', '#91CCE8',
+];
 
 function SpinResultModal({ result, visible, onClose }: { result: SpinResult | null; visible: boolean; onClose: () => void }) {
   if (!visible || !result) return null;
@@ -57,43 +62,121 @@ function SpinResultModal({ result, visible, onClose }: { result: SpinResult | nu
   );
 }
 
+// Pure RN wheel — no SVG required
+function WheelView({ size }: { size: number }) {
+  const radius = size / 2;
+
+  return (
+    <View style={{ width: size, height: size, borderRadius: radius, overflow: 'hidden', backgroundColor: '#3C8AB4' }}>
+      {SPIN_SEGMENTS.map((seg, i) => {
+        const rotation = i * SEGMENT_ANGLE;
+        return (
+          <View
+            key={i}
+            style={{
+              position: 'absolute',
+              width: size,
+              height: size,
+              transform: [{ rotate: `${rotation}deg` }],
+            }}
+          >
+            {/* Colored segment slice — a tall thin wedge from center to edge */}
+            <View
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: radius - 1,
+                width: 2,
+                height: radius,
+                backgroundColor: WHEEL_COLORS[i % WHEEL_COLORS.length],
+                transformOrigin: 'bottom center',
+                transform: [{ rotate: `${SEGMENT_ANGLE / 2}deg` }],
+              }}
+            />
+            {/* Segment background — fill using a wide view */}
+            <View
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: size,
+                height: radius,
+                backgroundColor: WHEEL_COLORS[i % WHEEL_COLORS.length],
+                opacity: 0.92,
+                clipPath: 'none',
+                // We approximate the pie slice with a positioned label area
+              }}
+              pointerEvents="none"
+            />
+            {/* Label */}
+            <View
+              style={{
+                position: 'absolute',
+                top: radius * 0.18,
+                left: 0,
+                width: size,
+                alignItems: 'center',
+              }}
+              pointerEvents="none"
+            >
+              <Text
+                style={{
+                  color: '#fff',
+                  fontSize: 11,
+                  fontFamily: petTypography.strong,
+                  textAlign: 'center',
+                  textShadowColor: 'rgba(0,0,0,0.3)',
+                  textShadowOffset: { width: 0, height: 1 },
+                  textShadowRadius: 2,
+                }}
+                numberOfLines={1}
+              >
+                {seg.emoji} {seg.label}
+              </Text>
+            </View>
+          </View>
+        );
+      })}
+      {/* Center circle */}
+      <View
+        style={{
+          position: 'absolute',
+          top: radius - 28,
+          left: radius - 28,
+          width: 56,
+          height: 56,
+          borderRadius: 28,
+          backgroundColor: '#fff',
+          borderWidth: 3,
+          borderColor: '#E6F4FD',
+          alignItems: 'center',
+          justifyContent: 'center',
+          elevation: 4,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.15,
+          shadowRadius: 4,
+        }}
+      >
+        <Text style={{ fontSize: 20 }}>{'\u{1F3B0}'}</Text>
+      </View>
+    </View>
+  );
+}
+
 export function SpinWheel() {
   const { canSpinToday, doSpin, lastSpinDate, extraSpinsToday } = useAdventureStore();
-  const wheelRef = useRef<any>(null);
-  const spinTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const spinAnim = useRef(new Animated.Value(0)).current;
+  const currentRotation = useRef(0);
   const [spinning, setSpinning] = useState(false);
   const [showResult, setShowResult] = useState(false);
   const [result, setResult] = useState<SpinResult | null>(null);
-  const [winnerIndex, setWinnerIndex] = useState(0);
-  const [wheelKey, setWheelKey] = useState(0);
 
   const today = new Date().toISOString().slice(0, 10);
   const isFreeSpin = lastSpinDate !== today;
   const canSpin = canSpinToday() && !spinning;
 
-  useEffect(() => {
-    return () => {
-      if (spinTimerRef.current) clearTimeout(spinTimerRef.current);
-    };
-  }, []);
-
-  const wheelOptions = useMemo(() => ({
-    rewards: SPIN_SEGMENTS.map((s) => `${s.emoji} ${s.label}`),
-    colors: ['#5FAED4', '#77BEE0', '#4A9ECB', '#8CC9E6', '#3C8AB4', '#6EB7DB', '#4F9DC6', '#7FC3E3', '#5AA9D1', '#91CCE8'],
-    winner: winnerIndex,
-    duration: SPIN_DURATION_MS,
-    backgroundColor: 'transparent',
-    borderWidth: 4,
-    borderColor: '#E6F4FD',
-    textColor: '#FFFFFF',
-    innerRadius: 72,
-    textAngle: 'horizontal',
-    knobSize: 34,
-    knobSource: KNOB_IMG,
-    onRef: (ref: any) => {
-      wheelRef.current = ref;
-    },
-  }), [winnerIndex]);
+  const wheelSize = Math.min(280, Math.max(240, Dimensions.get('window').width * 0.65));
 
   const handleSpin = useCallback(() => {
     if (!canSpin) return;
@@ -101,24 +184,37 @@ export function SpinWheel() {
     const spinResult = doSpin();
     if (!spinResult) return;
 
-    const idx = Math.max(0, SPIN_SEGMENTS.findIndex((s) => s.label === spinResult.label));
     setResult(spinResult);
-    setWinnerIndex(idx);
-    setWheelKey((k) => k + 1);
     setSpinning(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
 
-    setTimeout(() => {
-      wheelRef.current?._onPress?.();
-    }, 60);
+    // Calculate target rotation: land on the winning segment
+    const idx = Math.max(0, SPIN_SEGMENTS.findIndex((s) => s.label === spinResult.label));
+    // Target angle: we want the winning segment at the top (0°/360°)
+    // Each segment center is at idx * SEGMENT_ANGLE
+    // We spin multiple full rotations + offset to land on that segment
+    const fullSpins = 5 + Math.floor(Math.random() * 3); // 5-7 full rotations
+    const segmentOffset = idx * SEGMENT_ANGLE + SEGMENT_ANGLE / 2;
+    const targetDeg = currentRotation.current + fullSpins * 360 + (360 - segmentOffset);
 
-    if (spinTimerRef.current) clearTimeout(spinTimerRef.current);
-    spinTimerRef.current = setTimeout(() => {
+    spinAnim.setValue(currentRotation.current);
+    Animated.timing(spinAnim, {
+      toValue: targetDeg,
+      duration: SPIN_DURATION_MS,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start(() => {
+      currentRotation.current = targetDeg % 360;
       setSpinning(false);
       setShowResult(true);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }, SPIN_DURATION_MS + 120);
-  }, [canSpin, doSpin]);
+    });
+  }, [canSpin, doSpin, spinAnim]);
+
+  const rotateInterpolate = spinAnim.interpolate({
+    inputRange: [0, 360],
+    outputRange: ['0deg', '360deg'],
+  });
 
   return (
     <View className="px-6 mt-4">
@@ -146,22 +242,18 @@ export function SpinWheel() {
           )}
         </LinearGradient>
 
-        <View className="items-center py-4">
-          <View
-            className="w-full items-center"
-            style={{
-              height: Math.min(320, Math.max(260, Dimensions.get('window').width * 0.72)),
-              overflow: 'hidden',
-            }}
-          >
-            <WheelOfFortune
-              key={`wheel-${wheelKey}-${winnerIndex}`}
-              options={wheelOptions}
-              getWinner={() => {}}
-            />
+        <View className="items-center py-5">
+          {/* Pointer/knob at top */}
+          <View style={{ zIndex: 10, marginBottom: -12 }}>
+            <Text style={{ fontSize: 28 }}>{'\u{1F53D}'}</Text>
           </View>
 
-          <TouchableOpacity onPress={handleSpin} disabled={!canSpin} activeOpacity={0.85} className="w-full px-5 mt-3">
+          {/* Spinning wheel */}
+          <Animated.View style={{ transform: [{ rotate: rotateInterpolate }] }}>
+            <WheelView size={wheelSize} />
+          </Animated.View>
+
+          <TouchableOpacity onPress={handleSpin} disabled={!canSpin} activeOpacity={0.85} className="w-full px-5 mt-5">
             <LinearGradient
               colors={canSpin ? ['#4A9ECB', '#3A88B2'] : ['#D1D5DB', '#9CA3AF']}
               start={{ x: 0, y: 0 }}

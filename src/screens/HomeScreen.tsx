@@ -330,6 +330,7 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
 
   const {
     name,
+    ownerName,
     hunger,
     happiness,
     energy,
@@ -378,13 +379,14 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
       hunger, happiness, energy,
       mood: moodText,
       name,
+      ownerName,
       streakDays,
       equippedSkin: equippedSkinKey,
       level,
       hoursSinceLastOpen: hoursSince,
       isFirstOpenToday: false, // store handles this internally
     };
-  }, [hunger, happiness, energy, moodText, name, streakDays, equippedSkinKey, level]);
+  }, [hunger, happiness, energy, moodText, name, ownerName, streakDays, equippedSkinKey, level]);
 
   // Login calendar auto-popup on daily first open
   const lastLoginClaimDate = useAdventureStore((s) => s.lastLoginClaimDate);
@@ -573,6 +575,9 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
             </LinearGradient>
             <View className="bg-white px-6 py-6 items-center">
               <Text className="text-[40px] leading-[42px] font-black text-gray-800" style={{ fontFamily: petTypography.display }}>{name}</Text>
+              {ownerName ? (
+                <Text className="text-[12px] text-gray-400 mt-1" style={{ fontFamily: petTypography.body }}>{ownerName}'s companion</Text>
+              ) : null}
               <View className="flex-row items-center gap-2 mt-2.5">
                 <MoodBadge moodText={moodText} isExcited={isExcitedBurst} isUrgent={!!needMessage} />
                 {streakDays > 0 && (

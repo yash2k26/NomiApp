@@ -1,4 +1,4 @@
-import React, { useRef, memo, useState, Suspense, useEffect, useCallback, useMemo } from 'react';
+import React, { useRef, memo, useState, Suspense, useEffect, useCallback } from 'react';
 import { View, Text, Platform, LogBox, ActivityIndicator } from 'react-native';
 import { Canvas, useFrame } from '@react-three/fiber/native';
 import { useGLTF, OrbitControls } from '@react-three/drei/native';
@@ -7,11 +7,8 @@ import type { GLTF } from 'three-stdlib';
 
 LogBox.ignoreLogs(['EXGL: gl.pixelStorei()', 'THREE.THREE.Clock']);
 
-// Single combined GLB with pet + all accessories baked in
+// Single combined GLB with pet + all accessories + all animations baked in
 const MODEL = require('../../assets/pets/nomi-combined.glb');
-
-// External animation GLB for Gangnam on double-tap
-const GANGNAM_ANIM = require('../../assets/animation/Gangam.glb');
 
 type GLTFResult = GLTF & {
   nodes: Record<string, THREE.Object3D>;
@@ -20,7 +17,8 @@ type GLTFResult = GLTF & {
 
 export type ActiveModel = 'breathing' | 'excited' | 'sad' | 'falling' | 'dancing';
 
-// Clips baked into nomi-combined.glb
+// All clips baked into nomi-combined.glb
+// Animations: Breathing, Excited, Sad, Dance, Gangnam, FallOver, Punch, Backflip
 const CLIP_NAME_MAP: Partial<Record<ActiveModel, string>> = {
   breathing: 'Breathing',
   excited: 'Excited',
@@ -37,8 +35,8 @@ const ACCESSORY_NODES = {
   hoodie: 'Accessory_Hoodie',
 } as const;
 
-// Preload the punch animation GLB
-useGLTF.preload(GANGNAM_ANIM);
+// Preload the combined model
+useGLTF.preload(MODEL);
 
 // ── Crown spin component (needs useFrame) ──
 function CrownSpinner({ crownNode }: { crownNode: THREE.Object3D }) {
@@ -63,33 +61,6 @@ function PetModel({ activeModel, onAnimationDone, equippedSkin }: PetModelProps)
 
   const gltf = useGLTF(MODEL) as GLTFResult;
   const { scene, animations } = gltf;
-
-  // Load external Gangnam animation GLB
-  const gangnamGltf = useGLTF(GANGNAM_ANIM) as GLTFResult;
-
-  // Merge all animation clips into one array
-  const allAnimations = useMemo(() => {
-    const clips = [...animations];
-
-    // Gangam.glb — add all clips, use the last one as 'Gangnam'
-    const gangnamClips = gangnamGltf.animations;
-    for (let i = 0; i < gangnamClips.length; i++) {
-      const renamed = gangnamClips[i].clone();
-
-      // Retarget: strip path prefix so tracks bind to bones by name
-      for (const track of renamed.tracks) {
-        const lastSlash = track.name.lastIndexOf('/');
-        if (lastSlash !== -1) {
-          track.name = track.name.substring(lastSlash + 1);
-        }
-      }
-
-      renamed.name = i === gangnamClips.length - 1 ? 'Gangnam' : `Gangnam_${i}`;
-      clips.push(renamed);
-    }
-
-    return clips;
-  }, [animations, gangnamGltf.animations]);
 
   // Setup: find bones, find accessory groups, hide all accessories initially
   useEffect(() => {
@@ -156,7 +127,7 @@ function PetModel({ activeModel, onAnimationDone, equippedSkin }: PetModelProps)
   // Animation switching — uses both baked clips and external animation clips
   useEffect(() => {
     const mixer = mixerRef.current;
-    if (!mixer || allAnimations.length === 0) {
+    if (!mixer || animations.length === 0) {
       if (activeModel === 'excited' || activeModel === 'falling') {
         const t = setTimeout(() => onAnimationDone?.(), 1500);
         return () => clearTimeout(t);
@@ -164,15 +135,15 @@ function PetModel({ activeModel, onAnimationDone, equippedSkin }: PetModelProps)
       return;
     }
 
-    // Resolve clip name: baked clips use CLIP_NAME_MAP, falling uses 'Gangnam' from external
+    // Resolve clip name — all clips are now baked into nomi-combined.glb
     const clipName = activeModel === 'falling'
       ? (equippedSkin === 'headphones' ? 'Dance' : 'Gangnam')
       : CLIP_NAME_MAP[activeModel];
     if (!clipName) return;
 
-    const clip = allAnimations.find(c => c.name === clipName);
+    const clip = animations.find(c => c.name === clipName);
     if (!clip) {
-      console.warn(`[PetModel] clip "${clipName}" not found in:`, allAnimations.map(c => c.name));
+      console.warn(`[PetModel] clip "${clipName}" not found in:`, animations.map(c => c.name));
       return;
     }
 
@@ -204,7 +175,7 @@ function PetModel({ activeModel, onAnimationDone, equippedSkin }: PetModelProps)
         mixer.removeEventListener('finished', onFinished);
       }
     };
-  }, [activeModel, allAnimations, onAnimationDone]);
+  }, [activeModel, animations, onAnimationDone]);
 
   useFrame((_state, delta) => {
     mixerRef.current?.update(delta);
