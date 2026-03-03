@@ -1,5 +1,5 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -9,6 +9,9 @@ import { usePremiumStore, getCurrentTier } from '../store/premiumStore';
 import { isAtLeastTier, type PremiumTier } from '../data/premiumTiers';
 import { ScreenHeader } from '../components/ui/ScreenHeader';
 import { petTypography } from '../theme/typography';
+
+const BUTTON_RADIUS = 10;
+const PILL_RADIUS = 12;
 
 type ShopSection = 'All' | 'Accessories' | 'Animations' | 'Clothes' | 'Shoes' | 'Other';
 const SECTIONS: ShopSection[] = ['All', 'Accessories', 'Animations', 'Clothes', 'Shoes', 'Other'];
@@ -35,9 +38,10 @@ function CategoryPill({
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.85}>
       <View
-        className={`px-5 py-3 rounded-full mr-2.5 flex-row items-center ${
+        className={`px-5 py-3 mr-2.5 flex-row items-center ${
           active ? 'bg-pet-blue' : 'bg-white border border-gray-200'
         }`}
+        style={{ borderRadius: PILL_RADIUS }}
       >
         <Text className={`text-[13px] mr-1.5 ${active ? '' : 'opacity-60'}`}>{icon}</Text>
         <Text
@@ -71,6 +75,7 @@ function ShopCard({
   item,
   equipped,
   isPremium,
+  purchasing,
   onBuy,
   onEquip,
   onUnequip,
@@ -78,6 +83,7 @@ function ShopCard({
   item: ShopItem;
   equipped: boolean;
   isPremium: boolean;
+  purchasing: boolean;
   onBuy: () => void;
   onEquip: () => void;
   onUnequip: () => void;
@@ -99,10 +105,11 @@ function ShopCard({
 
   return (
     <View
-      className={`flex-1 bg-white rounded-[32px] p-5 border-2 ${
+      className={`flex-1 bg-white p-5 border-2 ${
         equipped ? 'border-pet-blue' : ''
       }`}
       style={{
+        borderRadius: 32,
         borderColor: equipped ? undefined : RARITY_BORDER[item.rarity],
         shadowColor: equipped ? '#4FB0C6' : '#22314A',
         shadowOffset: { width: 0, height: 4 },
@@ -116,7 +123,8 @@ function ShopCard({
         colors={equipped ? ['#DAF1F9', '#EFF9FF'] : ['#F8FBFF', '#FFFFFF']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        className="absolute inset-0 rounded-[32px]"
+        className="absolute inset-0"
+        style={{ borderRadius: 32 }}
       />
       <View className="absolute top-1.5 left-2.5 flex-row" style={{ gap: 4 }}>
         <View className={`px-2 py-0.5 rounded-full ${rarityInfo.bg}`}>
@@ -159,30 +167,36 @@ function ShopCard({
       </View>
 
       {isLocked ? (
-        <View className="py-2.5 rounded-xl items-center bg-gray-200 border border-gray-300">
+        <View className="py-2.5 items-center bg-gray-200 border border-gray-300" style={{ borderRadius: BUTTON_RADIUS }}>
           <Text className="text-[9px] font-black text-gray-500 uppercase tracking-wider">
             {'\u{1F512}'} {lockState.reason}
           </Text>
         </View>
+      ) : purchasing ? (
+        <View className="py-3 items-center bg-pet-blue-light/30 border border-pet-blue-light/70 flex-row justify-center" style={{ borderRadius: BUTTON_RADIUS }}>
+          <ActivityIndicator size="small" color="#3792A6" />
+          <Text className="text-pet-blue-dark text-[10px] font-black tracking-wider uppercase ml-2">Confirm in Phantom...</Text>
+        </View>
       ) : (
-        <TouchableOpacity onPress={handlePress} activeOpacity={0.85}>
+        <TouchableOpacity onPress={handlePress} activeOpacity={0.85} style={{ borderRadius: BUTTON_RADIUS }} className="overflow-hidden">
           {!item.owned ? (
             <LinearGradient
               colors={isPremium ? ['#4AA2CB', '#3B8BB4'] : ['#48B4CD', '#66CBE1']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
-              className="py-3 rounded-2xl items-center"
+              className="py-3 items-center"
+              style={{ borderRadius: BUTTON_RADIUS }}
             >
               <Text className="text-white text-[12px] font-black tracking-wider uppercase">
                 {isPremium ? '\u{1F48E} Claim Free' : 'Adopt'}
               </Text>
             </LinearGradient>
           ) : equipped ? (
-            <View className="py-3 rounded-2xl items-center bg-pet-blue/15 border border-pet-blue/40">
+            <View className="py-3 items-center bg-pet-blue/15 border border-pet-blue/40" style={{ borderRadius: BUTTON_RADIUS }}>
               <Text className="text-pet-blue-dark text-[12px] font-black tracking-wider uppercase">Equipped</Text>
             </View>
           ) : (
-            <View className="py-3 rounded-2xl items-center bg-gray-100 border border-gray-200">
+            <View className="py-3 items-center bg-gray-100 border border-gray-200" style={{ borderRadius: BUTTON_RADIUS }}>
               <Text className="text-gray-600 text-[12px] font-black tracking-wider uppercase">Equip</Text>
             </View>
           )}
@@ -193,8 +207,9 @@ function ShopCard({
 }
 
 export function ShopScreen() {
-  const { items, buyItem, equipItem, unequipItem, equippedItemId, hydrateShop } = useShopStore();
+  const { items, buyItem, equipItem, unequipItem, equippedItemId, equippedAnimationId, hydrateShop } = useShopStore();
   const [selectedSection, setSelectedSection] = useState<ShopSection>('All');
+  const [purchasingId, setPurchasingId] = useState<string | null>(null);
   const balance = useWalletStore((s) => s.balance);
   const premium = usePremiumStore((s) => s.isPremium);
   const tier = usePremiumStore((s) => s.tier);
@@ -220,10 +235,10 @@ export function ShopScreen() {
   const sectioned = useMemo(() => {
     const bySection: Record<Exclude<ShopSection, 'All'>, ShopItem[]> = {
       Accessories: visibleItems.filter((i) => i.category === 'Accessories'),
-      Animations: [],
+      Animations: visibleItems.filter((i) => i.category === 'Animations'),
       Clothes: visibleItems.filter((i) => i.category === 'Hats' || i.category === 'Shirts'),
       Shoes: visibleItems.filter((i) => i.category === 'Shoes'),
-      Other: visibleItems.filter((i) => !['Accessories', 'Hats', 'Shirts', 'Shoes'].includes(i.category)),
+      Other: visibleItems.filter((i) => !['Accessories', 'Animations', 'Hats', 'Shirts', 'Shoes'].includes(i.category)),
     };
     return bySection;
   }, [visibleItems]);
@@ -242,6 +257,7 @@ export function ShopScreen() {
   ];
 
   const handleBuy = (item: ShopItem) => {
+    if (purchasingId) return; // already purchasing
     if (balance < item.price) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('Not Enough SOL', `You need ${item.price} SOL but only have ${balance.toFixed(2)} SOL.`);
@@ -250,14 +266,27 @@ export function ShopScreen() {
 
     Alert.alert(
       'Confirm Purchase',
-      `Buy ${item.name} for ${item.price} SOL?`,
+      `Buy ${item.name} for ${item.price} SOL?\nThis will open Phantom for approval.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Buy',
-          onPress: () => {
-            buyItem(item.id);
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          onPress: async () => {
+            setPurchasingId(item.id);
+            try {
+              await buyItem(item.id);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            } catch (err: any) {
+              const msg = err?.message || 'Purchase failed';
+              if (msg.includes('User rejected') || msg.includes('declined')) {
+                Alert.alert('Cancelled', 'Transaction cancelled in wallet.');
+              } else {
+                Alert.alert('Purchase Failed', msg);
+              }
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+            } finally {
+              setPurchasingId(null);
+            }
           },
         },
       ]
@@ -269,8 +298,8 @@ export function ShopScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
 
-  const handleUnequip = () => {
-    unequipItem();
+  const handleUnequip = (item: ShopItem) => {
+    unequipItem(item.id);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
@@ -367,11 +396,12 @@ export function ShopScreen() {
                         <ShopCard
                           key={item.id}
                           item={item}
-                          equipped={equippedItemId === item.id}
+                          equipped={item.category === 'Animations' ? equippedAnimationId === item.id : equippedItemId === item.id}
                           isPremium={premium}
+                          purchasing={purchasingId === item.id}
                           onBuy={() => handleBuy(item)}
                           onEquip={() => handleEquip(item)}
-                          onUnequip={handleUnequip}
+                          onUnequip={() => handleUnequip(item)}
                         />
                       ))}
                       {row.length === 1 && <View className="flex-1" />}
@@ -405,11 +435,12 @@ export function ShopScreen() {
                     <ShopCard
                       key={item.id}
                       item={item}
-                      equipped={equippedItemId === item.id}
+                      equipped={item.category === 'Animations' ? equippedAnimationId === item.id : equippedItemId === item.id}
                       isPremium={premium}
+                      purchasing={purchasingId === item.id}
                       onBuy={() => handleBuy(item)}
                       onEquip={() => handleEquip(item)}
-                      onUnequip={handleUnequip}
+                      onUnequip={() => handleUnequip(item)}
                     />
                   ))}
                   {row.length === 1 && <View className="flex-1" />}

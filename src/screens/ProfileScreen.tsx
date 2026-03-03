@@ -1,4 +1,5 @@
-﻿import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
+﻿import { useState, useEffect, useCallback } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Linking } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -6,6 +7,7 @@ import { useWalletStore } from '../store/walletStore';
 import { usePetStore } from '../store/petStore';
 import { useXpStore, getTitleForLevel } from '../store/xpStore';
 import { useAdventureStore, EVOLUTION_STAGES } from '../store/adventureStore';
+import { useTxHistoryStore, type LabeledTransaction } from '../store/txHistoryStore';
 import { XpBar } from '../components/XpBar';
 import { AchievementBadge } from '../components/AchievementBadge';
 import { PremiumCard } from '../components/PremiumCard';
@@ -14,6 +16,9 @@ import { TIER_CONFIGS } from '../data/premiumTiers';
 import { useShopStore } from '../store/shopStore';
 import { useNotificationStore } from '../store/notificationStore';
 import { ScreenHeader } from '../components/ui/ScreenHeader';
+import { requestAirdrop } from '../lib/solanaTransactions';
+import { getSolscanTxUrl, getSolscanNftUrl, getSolscanAddressUrl } from '../lib/solanaClient';
+import { writeMemo } from '../lib/solanaTransactions';
 
 interface InfoCardProps {
   title: string;
@@ -200,6 +205,79 @@ function EvolutionCard() {
   );
 }
 
+function TransactionHistoryCard({ address }: { address: string }) {
+  const { transactions, isLoading, fetchHistory } = useTxHistoryStore();
+
+  useEffect(() => {
+    if (address) {
+      fetchHistory(address);
+    }
+  }, [address, fetchHistory]);
+
+  const formatTime = (ts: number | null) => {
+    if (!ts) return '';
+    const diff = Math.floor((Date.now() / 1000) - ts);
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    return `${Math.floor(diff / 86400)}d ago`;
+  };
+
+  return (
+    <View
+      className="bg-white rounded-[28px] overflow-hidden mb-5 border border-gray-100"
+      style={{ shadowColor: '#1F2E45', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.07, shadowRadius: 14, elevation: 4 }}
+    >
+      <View className="bg-pet-blue px-5 py-3 flex-row items-center justify-between">
+        <View className="flex-row items-center">
+          <Text className="text-base mr-2">{'\u{1F4DC}'}</Text>
+          <Text className="text-[11px] font-black text-white tracking-[0.9px] uppercase">Recent Transactions</Text>
+        </View>
+        <TouchableOpacity onPress={() => fetchHistory(address)} activeOpacity={0.7}>
+          <MaterialCommunityIcons name="refresh" size={16} color="#fff" />
+        </TouchableOpacity>
+      </View>
+      <View className="px-5 py-2">
+        {isLoading ? (
+          <View className="py-6 items-center">
+            <ActivityIndicator size="small" color="#3792A6" />
+            <Text className="text-[11px] text-gray-400 mt-2">Loading from chain...</Text>
+          </View>
+        ) : transactions.length === 0 ? (
+          <View className="py-6 items-center">
+            <Text className="text-[12px] text-gray-400 font-semibold">No transactions yet</Text>
+          </View>
+        ) : (
+          transactions.slice(0, 10).map((tx) => (
+            <TouchableOpacity
+              key={tx.signature}
+              onPress={() => Linking.openURL(getSolscanTxUrl(tx.signature))}
+              activeOpacity={0.7}
+              className="flex-row items-center py-3 border-b border-gray-100"
+            >
+              <View className={`w-7 h-7 rounded-full items-center justify-center ${tx.err ? 'bg-red-100' : 'bg-pet-blue-light/40'}`}>
+                <MaterialCommunityIcons
+                  name={tx.err ? 'close-circle-outline' : 'check-circle-outline'}
+                  size={16}
+                  color={tx.err ? '#dc2626' : '#3792A6'}
+                />
+              </View>
+              <View className="flex-1 ml-3">
+                <Text className="text-[12px] font-bold text-gray-700" numberOfLines={1}>{tx.label}</Text>
+                <Text className="text-[10px] text-gray-400 font-medium">{tx.signature.slice(0, 8)}...{tx.signature.slice(-6)}</Text>
+              </View>
+              <View className="items-end">
+                <Text className="text-[10px] text-gray-400 font-semibold">{formatTime(tx.timestamp)}</Text>
+                <MaterialCommunityIcons name="open-in-new" size={12} color="#9ca3af" />
+              </View>
+            </TouchableOpacity>
+          ))
+        )}
+      </View>
+    </View>
+  );
+}
+
 function CollectiblesRow() {
   const items = useShopStore((s) => s.items);
   const owned = items.filter((i) => i.owned);
@@ -243,10 +321,13 @@ function CollectiblesRow() {
 }
 
 export function ProfileScreen() {
-  const { address, balance, disconnectWallet, refreshBalance } = useWalletStore();
-  const { name, ownerName, mintAddress, skin, clearPet, streakDays } = usePetStore();
+  const { address, balance, disconnectWallet, refreshBalance, authToken } = useWalletStore();
+  const { name, ownerName, mintAddress, mintTxSignature, skin, clearPet, streakDays, hunger, happiness, energy } = usePetStore();
   const premium = usePremiumStore((s) => s.isPremium);
   const tier = usePremiumStore((s) => s.tier);
+  const [airdropLoading, setAirdropLoading] = useState(false);
+  const [memoLoading, setMemoLoading] = useState(false);
+  const [lastMemoTime, setLastMemoTime] = useState<string | null>(null);
 
   const shortAddress = address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Not connected';
   const shortMintAddress = mintAddress ? `${mintAddress.slice(0, 6)}...${mintAddress.slice(-4)}` : 'N/A';
@@ -255,6 +336,48 @@ export function ProfileScreen() {
     clearPet();
     disconnectWallet();
   };
+
+  const handleAirdrop = useCallback(async () => {
+    if (!address || airdropLoading) return;
+    setAirdropLoading(true);
+    try {
+      await requestAirdrop(address, 1);
+      await refreshBalance();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Airdrop Received', '1 SOL has been airdropped to your wallet!');
+    } catch (err: any) {
+      Alert.alert('Airdrop Failed', err?.message || 'Devnet airdrop failed. Try again later.');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setAirdropLoading(false);
+    }
+  }, [address, airdropLoading, refreshBalance]);
+
+  const handleSyncPetState = useCallback(async () => {
+    if (!authToken || memoLoading) return;
+    setMemoLoading(true);
+    try {
+      const petState = JSON.stringify({
+        pet: name,
+        hunger: Math.round(hunger),
+        happiness: Math.round(happiness),
+        energy: Math.round(energy),
+        ts: Date.now(),
+      });
+      const txSig = await writeMemo(authToken, petState);
+      try {
+        const { labelTransaction } = require('../store/txHistoryStore');
+        labelTransaction(txSig, 'Pet State Sync');
+      } catch {}
+      setLastMemoTime(new Date().toLocaleTimeString());
+      await refreshBalance();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (err: any) {
+      Alert.alert('Sync Failed', err?.message || 'Failed to write pet state on-chain.');
+    } finally {
+      setMemoLoading(false);
+    }
+  }, [authToken, memoLoading, name, hunger, happiness, energy, refreshBalance]);
 
   const skinDisplayName = skin === 'default' ? 'Default' : skin.charAt(0).toUpperCase() + skin.slice(1);
 
@@ -292,7 +415,15 @@ export function ProfileScreen() {
         <View className="mt-1" />
 
         <InfoCard title="Wallet" icon={'\u{1F4B0}'} accent="bg-pet-blue-dark">
-          <InfoRow label="Address" value={shortAddress} />
+          <TouchableOpacity onPress={() => address && Linking.openURL(getSolscanAddressUrl(address))} activeOpacity={0.7}>
+            <View className="flex-row justify-between py-3.5 border-b border-gray-100 items-center">
+              <Text className="text-[12px] font-semibold text-gray-500">Address</Text>
+              <View className="flex-row items-center">
+                <Text className="text-[12px] font-black text-gray-800 mr-1">{shortAddress}</Text>
+                <MaterialCommunityIcons name="open-in-new" size={11} color="#9ca3af" />
+              </View>
+            </View>
+          </TouchableOpacity>
           <View className="flex-row justify-between py-3.5 border-b border-gray-100 items-center">
             <Text className="text-[12px] font-semibold text-gray-500">Balance</Text>
             <View className="flex-row items-center">
@@ -303,12 +434,46 @@ export function ProfileScreen() {
             </View>
           </View>
           <InfoRow label="Network" value="Solana Devnet" valueColor="text-pet-blue-dark" />
+          <View className="py-3">
+            <TouchableOpacity onPress={handleAirdrop} disabled={airdropLoading} activeOpacity={0.85}>
+              <LinearGradient
+                colors={['#4FABC9', '#3E8AB3']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                className="py-2.5 rounded-xl items-center flex-row justify-center"
+              >
+                {airdropLoading ? (
+                  <>
+                    <ActivityIndicator size="small" color="#fff" />
+                    <Text className="text-white text-[11px] font-black ml-2">Requesting...</Text>
+                  </>
+                ) : (
+                  <>
+                    <MaterialCommunityIcons name="water" size={14} color="#fff" />
+                    <Text className="text-white text-[11px] font-black ml-1.5 uppercase tracking-[0.5px]">Request 1 SOL Airdrop</Text>
+                  </>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
         </InfoCard>
 
         <InfoCard title="Companion" icon={'\u{1F43E}'} accent="bg-pet-blue">
           <InfoRow label="Name" value={name} />
           {ownerName ? <InfoRow label="Owner" value={ownerName} valueColor="text-pet-blue-dark" /> : null}
-          <InfoRow label="NFT Mint" value={shortMintAddress} />
+          <TouchableOpacity
+            onPress={() => mintAddress && Linking.openURL(getSolscanNftUrl(mintAddress))}
+            activeOpacity={0.7}
+            disabled={!mintAddress}
+          >
+            <View className="flex-row justify-between py-3.5 border-b border-gray-100 items-center">
+              <Text className="text-[12px] font-semibold text-gray-500">NFT Mint</Text>
+              <View className="flex-row items-center">
+                <Text className="text-[12px] font-black text-gray-800 mr-1">{shortMintAddress}</Text>
+                {mintAddress && <MaterialCommunityIcons name="open-in-new" size={11} color="#9ca3af" />}
+              </View>
+            </View>
+          </TouchableOpacity>
           {premium && (
             <InfoRow
               label="Tier"
@@ -321,7 +486,29 @@ export function ProfileScreen() {
           <InfoRow label="Adventures" value={`${useAdventureStore.getState().completedAdventures} completed`} valueColor="text-pet-blue-dark" />
           <InfoRow label="Mini-Games" value={`${useAdventureStore.getState().miniGamesWon} won`} valueColor="text-pet-blue-dark" />
           <CollectiblesRow />
+          <View className="py-3">
+            <TouchableOpacity onPress={handleSyncPetState} disabled={memoLoading} activeOpacity={0.85}>
+              <View className="py-2.5 rounded-xl items-center flex-row justify-center bg-pet-blue-light/40 border border-pet-blue-light/80">
+                {memoLoading ? (
+                  <>
+                    <ActivityIndicator size="small" color="#3792A6" />
+                    <Text className="text-pet-blue-dark text-[11px] font-black ml-2">Syncing on-chain...</Text>
+                  </>
+                ) : (
+                  <>
+                    <MaterialCommunityIcons name="cloud-upload-outline" size={14} color="#3792A6" />
+                    <Text className="text-pet-blue-dark text-[11px] font-black ml-1.5 uppercase tracking-[0.5px]">Sync Pet State On-Chain</Text>
+                  </>
+                )}
+              </View>
+            </TouchableOpacity>
+            {lastMemoTime && (
+              <Text className="text-[10px] text-gray-400 font-semibold text-center mt-1.5">Last sync: {lastMemoTime}</Text>
+            )}
+          </View>
         </InfoCard>
+
+        {address && <TransactionHistoryCard address={address} />}
 
         <InfoCard title="App" icon={'\u2699'} accent="bg-pet-blue-dark">
           <InfoRow label="Version" value="2.1.0" />

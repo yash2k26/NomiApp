@@ -55,12 +55,13 @@ export function XpBar() {
     >
       <View className="flex-row items-center px-4 py-2.5">
         <Animated.View
-          style={{ transform: [{ scale: pulseAnim }] }}
-          className="w-12 h-12 rounded-full items-center justify-center mr-3 border-2 border-pet-blue-light"
+          style={{ transform: [{ scale: pulseAnim }], width: 48, height: 48, borderRadius: 999 }}
+          className="items-center justify-center mr-3 border-2 border-pet-blue-light"
         >
           <LinearGradient
             colors={tierConfig ? tierConfig.gradientColors : ['#4A9ECB', '#3A84AF']}
-            className="w-full h-full rounded-full items-center justify-center"
+            className="w-full h-full items-center justify-center"
+            style={{ borderRadius: 999 }}
           >
             <Text className="text-white text-[16px] font-black">{level}</Text>
           </LinearGradient>

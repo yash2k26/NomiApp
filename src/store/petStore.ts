@@ -114,6 +114,7 @@ interface PetState {
   name: string;
   ownerName: string;
   mintAddress: string;
+  mintTxSignature: string;
   hunger: number;
   happiness: number;
   energy: number;
@@ -135,7 +136,7 @@ interface PetState {
 
 interface PetActions {
   setOwnerName: (name: string) => void;
-  mintPet: () => void;
+  mintPet: (mintAddress?: string, txSignature?: string) => void;
   feedPet: () => void;
   playWithPet: () => void;
   restPet: () => void;
@@ -205,7 +206,7 @@ function getMoodTextFromMood(name: string, mood: PetMood): string {
 const STORAGE_KEY = 'oracle-pet-state';
 
 const PERSISTED_KEYS: (keyof PetState)[] = [
-  'id', 'name', 'ownerName', 'mintAddress', 'hunger', 'happiness', 'energy',
+  'id', 'name', 'ownerName', 'mintAddress', 'mintTxSignature', 'hunger', 'happiness', 'energy',
   'skin', 'hasPet', 'lastTickAt', 'lastActiveDate', 'streakDays',
   'stamina', 'lastStaminaRegenAt', 'cooldowns', 'lastBlessingAt',
 ];
@@ -285,6 +286,7 @@ export const usePetStore = create<PetStore>((set, get) => ({
   name: 'Nomi',
   ownerName: '',
   mintAddress: '',
+  mintTxSignature: '',
   hunger: 70,
   happiness: 70,
   energy: 70,
@@ -357,10 +359,11 @@ export const usePetStore = create<PetStore>((set, get) => ({
     savePetState(get());
   },
 
-  mintPet: () => {
+  mintPet: (realMintAddress?: string, txSignature?: string) => {
     set({
       id: `pet_${Date.now()}`,
-      mintAddress: generateMintAddress(),
+      mintAddress: realMintAddress || generateMintAddress(),
+      mintTxSignature: txSignature || '',
       hasPet: true,
       hunger: 80,
       happiness: 80,
@@ -596,6 +599,7 @@ export const usePetStore = create<PetStore>((set, get) => ({
       id: null,
       ownerName: '',
       mintAddress: '',
+      mintTxSignature: '',
       hasPet: false,
       hunger: 70,
       happiness: 70,

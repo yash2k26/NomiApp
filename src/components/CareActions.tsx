@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { View, Text, TouchableOpacity, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, Animated, Image, type ImageSourcePropType } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { usePetStore, STAMINA_COSTS, getEffectiveStaminaMax } from '../store/petStore';
@@ -131,7 +131,7 @@ function formatCooldown(ms: number): string {
 }
 
 interface ActionButtonProps {
-  icon: string;
+  iconSource: ImageSourcePropType;
   label: string;
   bgColor: string;
   onPress: () => void;
@@ -140,7 +140,7 @@ interface ActionButtonProps {
   cooldownRemaining: number;
 }
 
-function ActionButton({ icon, label, bgColor, onPress, disabled, staminaCost, cooldownRemaining }: ActionButtonProps) {
+function ActionButton({ iconSource, label, bgColor, onPress, disabled, staminaCost, cooldownRemaining }: ActionButtonProps) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const onCooldown = cooldownRemaining > 0;
   const isDisabled = disabled || onCooldown;
@@ -173,7 +173,7 @@ function ActionButton({ icon, label, bgColor, onPress, disabled, staminaCost, co
         activeOpacity={0.9}
       >
         <View className={`items-center py-4 rounded-[24px] ${bgColor} border border-black/10`}>
-          <Text className="text-2xl mb-1">{icon}</Text>
+          <Image source={iconSource} style={{ width: 64, height: 64, marginBottom: 4 }} resizeMode="contain" />
           {onCooldown ? (
             <Text className="text-[10px] font-black tracking-[0.5px] text-white/80">
               {formatCooldown(cooldownRemaining)}
@@ -314,7 +314,7 @@ export function CareActions() {
         )}
         <View className="flex-row gap-3">
           <ActionButton
-            icon={'\u{1F355}'}
+            iconSource={require('../../assets/Icons/Feed.png')}
             label="Feed"
             bgColor="bg-[#4FABC9]"
             onPress={handleFeed}
@@ -323,7 +323,7 @@ export function CareActions() {
             cooldownRemaining={feedMinRemaining}
           />
           <ActionButton
-            icon={'\u{1F3AE}'}
+            iconSource={require('../../assets/Icons/Play.png')}
             label="Play"
             bgColor="bg-[#479FC7]"
             onPress={handlePlay}
@@ -332,7 +332,7 @@ export function CareActions() {
             cooldownRemaining={playMinRemaining}
           />
           <ActionButton
-            icon={'\u{1F634}'}
+            iconSource={require('../../assets/Icons/Rest.png')}
             label="Rest"
             bgColor="bg-[#3B8AB3]"
             onPress={handleRest}

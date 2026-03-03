@@ -3,7 +3,7 @@ import './src/polyfills';
 
 import React, { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { View, Text, TouchableOpacity, LogBox, AppState, BackHandler, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, LogBox, AppState, BackHandler, Platform, Image, type ImageSourcePropType } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useWalletStore } from './src/store/walletStore';
@@ -15,6 +15,7 @@ import { usePremiumStore } from './src/store/premiumStore';
 import { usePersonalityStore } from './src/store/personalityStore';
 import { useEventStore } from './src/store/eventStore';
 import { useNotificationStore } from './src/store/notificationStore';
+import { useTxHistoryStore } from './src/store/txHistoryStore';
 import { WalletConnect, WelcomeIntro } from './src/components';
 import { HomeScreen, ProfileScreen, MintScreen, ShopScreen, NameInputScreen } from './src/screens';
 import { GamesScreen } from './src/screens/GamesScreen';
@@ -44,18 +45,27 @@ console.log = (...args) => {
 
 type Tab = 'home' | 'games' | 'shop' | 'profile';
 
-const TABS: { key: Tab; icon: string; label: string }[] = [
-  { key: 'home', icon: '\u{1F3E0}', label: 'HOME' },
-  { key: 'games', icon: '\u{1F3AE}', label: 'GAMES' },
-  { key: 'shop', icon: '\u{1F6CD}\uFE0F', label: 'SHOP' },
-  { key: 'profile', icon: '\u{1F464}', label: 'ME' },
+const TAB_ICONS: Record<Tab, ImageSourcePropType> = {
+  home: require('./assets/Icons/Home.png'),
+  games: require('./assets/Icons/Play.png'),
+  shop: require('./assets/Icons/Shop.png'),
+  profile: require('./assets/Icons/Home.png'), // fallback, no profile icon
+};
+
+const TABS: { key: Tab; label: string }[] = [
+  { key: 'home', label: 'HOME' },
+  { key: 'games', label: 'GAMES' },
+  { key: 'shop', label: 'SHOP' },
+  { key: 'profile', label: 'ME' },
 ];
 
 function TabBar({ activeTab, onTabPress }: { activeTab: Tab; onTabPress: (tab: Tab) => void }) {
   return (
     <View
-      className="flex-row bg-white rounded-t-[38px] pb-7 pt-4 border-t border-pet-blue-light/70"
+      className="flex-row bg-white pb-7 pt-4 border-t border-pet-blue-light/70"
       style={{
+        borderTopLeftRadius: 38,
+        borderTopRightRadius: 38,
         shadowColor: '#2D6B90',
         shadowOffset: { width: 0, height: -10 },
         shadowOpacity: 0.08,
@@ -72,10 +82,20 @@ function TabBar({ activeTab, onTabPress }: { activeTab: Tab; onTabPress: (tab: T
             activeOpacity={0.8}
             className="flex-1 items-center"
           >
-            <View className={`px-6 py-2 rounded-[20px] mb-1.5 ${isActive ? 'bg-pet-blue/15 border border-pet-blue-light/80' : ''}`}>
-              <Text className={`text-[22px] ${!isActive ? 'opacity-45' : ''}`}>
-                {tab.icon}
-              </Text>
+            <View style={{
+              paddingHorizontal: 12,
+              paddingVertical: 4,
+              marginBottom: 6,
+              borderRadius: 18,
+              backgroundColor: isActive ? 'rgba(79, 176, 198, 0.15)' : 'transparent',
+              borderWidth: isActive ? 1 : 0,
+              borderColor: isActive ? 'rgba(167, 215, 230, 0.8)' : 'transparent',
+            }}>
+              <Image
+                source={TAB_ICONS[tab.key]}
+                style={{ width: 60, height: 60, opacity: isActive ? 1 : 0.35 }}
+                resizeMode="contain"
+              />
             </View>
             <View className="items-center">
               <Text
@@ -84,7 +104,13 @@ function TabBar({ activeTab, onTabPress }: { activeTab: Tab; onTabPress: (tab: T
               >
                 {tab.label}
               </Text>
-              <View className={`mt-1 h-1.5 rounded-full ${isActive ? 'w-7 bg-pet-blue' : 'w-1 bg-transparent'}`} />
+              <View style={{
+                marginTop: 4,
+                height: 6,
+                borderRadius: 3,
+                width: isActive ? 28 : 4,
+                backgroundColor: isActive ? '#4FB0C6' : 'transparent',
+              }} />
             </View>
           </TouchableOpacity>
         );
@@ -109,12 +135,13 @@ export default function App() {
   const hydratePersonality = usePersonalityStore((s) => s.hydratePersonality);
   const hydrateEvents = useEventStore((s) => s.hydrateEvents);
   const hydrateNotifications = useNotificationStore((s) => s.hydrateNotifications);
+  const hydrateTxLabels = useTxHistoryStore((s) => s.hydrateTxLabels);
   const requestNotificationPermission = useNotificationStore((s) => s.requestPermission);
   const scheduleReturnNotifications = useNotificationStore((s) => s.scheduleReturnNotifications);
 
   useEffect(() => {
-    Promise.all([hydratePetStore(), hydrateWallet(), hydrateShop(), hydrateXp(), hydrateAdventure(), hydratePremium(), hydratePersonality(), hydrateEvents(), hydrateNotifications()]).finally(() => setHydrated(true));
-  }, [hydrateWallet, hydrateShop, hydrateXp, hydrateAdventure, hydratePremium, hydratePersonality, hydrateEvents, hydrateNotifications]);
+    Promise.all([hydratePetStore(), hydrateWallet(), hydrateShop(), hydrateXp(), hydrateAdventure(), hydratePremium(), hydratePersonality(), hydrateEvents(), hydrateNotifications(), hydrateTxLabels()]).finally(() => setHydrated(true));
+  }, [hydrateWallet, hydrateShop, hydrateXp, hydrateAdventure, hydratePremium, hydratePersonality, hydrateEvents, hydrateNotifications, hydrateTxLabels]);
 
   // Android system back gesture/button behavior for custom, non-stack navigation flow.
   useEffect(() => {

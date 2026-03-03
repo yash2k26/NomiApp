@@ -7,23 +7,36 @@ import type { GLTF } from 'three-stdlib';
 
 LogBox.ignoreLogs(['EXGL: gl.pixelStorei()', 'THREE.THREE.Clock']);
 
-// Single combined GLB with pet + all accessories + all animations baked in
+// Combined GLB with pet + accessories + core animations
 const MODEL = require('../../assets/pets/nomi-combined.glb');
+
+// External animation GLBs (not baked into combined model)
+const ANIM_GANGNAM = require('../../assets/animation/GangamStyle.glb');
+const ANIM_BACKFLIP = require('../../assets/animation/backflip.glb');
+const ANIM_PUNCH = require('../../assets/animation/Punch.glb');
+const ANIM_FALLOVER = require('../../assets/animation/FallOver.glb');
 
 type GLTFResult = GLTF & {
   nodes: Record<string, THREE.Object3D>;
   materials: Record<string, THREE.Material>;
 };
 
-export type ActiveModel = 'breathing' | 'excited' | 'sad' | 'falling' | 'dancing';
+export type ActiveModel = 'breathing' | 'excited' | 'sad' | 'falling' | 'dancing' | 'gangnam' | 'backflip' | 'punch' | 'fallover';
 
-// All clips baked into nomi-combined.glb
-// Animations: Breathing, Excited, Sad, Dance, Gangnam, FallOver, Punch, Backflip
+// Clips baked into nomi-combined.glb
 const CLIP_NAME_MAP: Partial<Record<ActiveModel, string>> = {
   breathing: 'Breathing',
   excited: 'Excited',
   sad: 'Sad',
   dancing: 'Dance',
+};
+
+// External animation models — loaded separately
+const EXTERNAL_ANIM_MAP: Partial<Record<ActiveModel, { asset: any; clipName: string }>> = {
+  gangnam: { asset: ANIM_GANGNAM, clipName: 'Gangnam' },
+  backflip: { asset: ANIM_BACKFLIP, clipName: 'Backflip' },
+  punch: { asset: ANIM_PUNCH, clipName: 'Punch' },
+  fallover: { asset: ANIM_FALLOVER, clipName: 'FallOver' },
 };
 
 const HEAD_BONE_NAME = 'mixamorig:Head';
@@ -35,8 +48,12 @@ const ACCESSORY_NODES = {
   hoodie: 'Accessory_Hoodie',
 } as const;
 
-// Preload the combined model
+// Preload all models
 useGLTF.preload(MODEL);
+useGLTF.preload(ANIM_GANGNAM);
+useGLTF.preload(ANIM_BACKFLIP);
+useGLTF.preload(ANIM_PUNCH);
+useGLTF.preload(ANIM_FALLOVER);
 
 // ── Crown spin component (needs useFrame) ──
 function CrownSpinner({ crownNode }: { crownNode: THREE.Object3D }) {
@@ -61,6 +78,18 @@ function PetModel({ activeModel, onAnimationDone, equippedSkin }: PetModelProps)
 
   const gltf = useGLTF(MODEL) as GLTFResult;
   const { scene, animations } = gltf;
+
+  // Load external animation GLBs
+  const gangnamGltf = useGLTF(ANIM_GANGNAM) as GLTFResult;
+  const backflipGltf = useGLTF(ANIM_BACKFLIP) as GLTFResult;
+  const punchGltf = useGLTF(ANIM_PUNCH) as GLTFResult;
+  const falloverGltf = useGLTF(ANIM_FALLOVER) as GLTFResult;
+
+  const externalClips = useRef<Record<string, THREE.AnimationClip[]>>({}).current;
+  externalClips.gangnam = gangnamGltf.animations;
+  externalClips.backflip = backflipGltf.animations;
+  externalClips.punch = punchGltf.animations;
+  externalClips.fallover = falloverGltf.animations;
 
   // Setup: find bones, find accessory groups, hide all accessories initially
   useEffect(() => {
@@ -124,7 +153,7 @@ function PetModel({ activeModel, onAnimationDone, equippedSkin }: PetModelProps)
     }
   }, [equippedSkin, headBone]);
 
-  // Animation switching — uses both baked clips and external animation clips
+  // Animation switching — uses baked clips or external animation clips
   useEffect(() => {
     const mixer = mixerRef.current;
     if (!mixer || animations.length === 0) {
@@ -135,15 +164,30 @@ function PetModel({ activeModel, onAnimationDone, equippedSkin }: PetModelProps)
       return;
     }
 
-    // Resolve clip name — all clips are now baked into nomi-combined.glb
-    const clipName = activeModel === 'falling'
-      ? (equippedSkin === 'headphones' ? 'Dance' : 'Gangnam')
-      : CLIP_NAME_MAP[activeModel];
-    if (!clipName) return;
+    // Check if this is an external animation
+    const extAnim = EXTERNAL_ANIM_MAP[activeModel];
+    let clip: THREE.AnimationClip | undefined;
 
-    const clip = animations.find(c => c.name === clipName);
+    if (activeModel === 'falling') {
+      // Falling uses Dance (baked) or Gangnam (external)
+      if (equippedSkin === 'headphones') {
+        clip = animations.find(c => c.name === 'Dance');
+      } else {
+        const gangnamClips = externalClips.gangnam;
+        clip = gangnamClips?.find(c => c.name === 'Gangnam');
+      }
+    } else if (extAnim) {
+      // External animation — find clip from loaded GLB
+      const clips = externalClips[activeModel];
+      clip = clips?.find(c => c.name === extAnim.clipName);
+    } else {
+      // Baked animation
+      const clipName = CLIP_NAME_MAP[activeModel];
+      if (clipName) clip = animations.find(c => c.name === clipName);
+    }
+
     if (!clip) {
-      console.warn(`[PetModel] clip "${clipName}" not found in:`, animations.map(c => c.name));
+      console.warn(`[PetModel] clip for "${activeModel}" not found`);
       return;
     }
 
@@ -175,7 +219,7 @@ function PetModel({ activeModel, onAnimationDone, equippedSkin }: PetModelProps)
         mixer.removeEventListener('finished', onFinished);
       }
     };
-  }, [activeModel, animations, onAnimationDone]);
+  }, [activeModel, animations, externalClips, onAnimationDone]);
 
   useFrame((_state, delta) => {
     mixerRef.current?.update(delta);
@@ -215,10 +259,13 @@ interface PetRendererProps {
   activeModel?: ActiveModel;
   onExcitedFinished?: () => void;
   equippedSkin?: string;
+  onReady?: () => void;
 }
 
-export const PetRenderer = memo(function PetRenderer({ activeModel = 'breathing', onExcitedFinished, equippedSkin = 'default' }: PetRendererProps) {
+export const PetRenderer = memo(function PetRenderer({ activeModel = 'breathing', onExcitedFinished, equippedSkin = 'default', onReady }: PetRendererProps) {
   const [canvasReady, setCanvasReady] = useState(false);
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
 
   const excitedCallbackRef = useRef(onExcitedFinished);
   excitedCallbackRef.current = onExcitedFinished;
@@ -235,7 +282,7 @@ export const PetRenderer = memo(function PetRenderer({ activeModel = 'breathing'
       <Canvas
         camera={{ position: [0, 1, 5], fov: 50 }}
         gl={{ antialias: false, powerPreference: 'low-power' }}
-        onCreated={() => setCanvasReady(true)}
+        onCreated={() => { setCanvasReady(true); onReadyRef.current?.(); }}
       >
         <color attach="background" args={['#bae6fd']} />
         <ambientLight intensity={2} />

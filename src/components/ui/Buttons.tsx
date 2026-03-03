@@ -39,7 +39,7 @@ function ButtonShell({
   };
 
   const content = (
-    <View className="h-[54px] rounded-[18px] items-center justify-center flex-row px-6">
+    <View className="h-[54px] rounded-[14px] items-center justify-center flex-row px-6">
       {!!icon && <Text className="text-[14px] mr-2">{icon}</Text>}
       <Text
         className={`text-[15px] font-semibold ${
@@ -66,16 +66,16 @@ function ButtonShell({
             colors={['#4FA6FF', '#3C8EF0']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
-            className="rounded-[18px]"
+            className="rounded-[14px]"
           >
             {content}
           </LinearGradient>
         ) : variant === 'secondary' ? (
-          <View className="rounded-[18px] border border-pet-blue-light/40 bg-pet-blue-dark/25">
+          <View className="rounded-[14px] border border-pet-blue-light/40 bg-pet-blue-dark/25">
             {content}
           </View>
         ) : (
-          <View className="rounded-[18px] border border-transparent bg-transparent">
+          <View className="rounded-[14px] border border-transparent bg-transparent">
             {content}
           </View>
         )}

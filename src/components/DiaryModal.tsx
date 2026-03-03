@@ -1,7 +1,12 @@
-import { View, Text, ScrollView, Modal, Pressable, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, Modal, Pressable, TouchableOpacity, Dimensions } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { usePersonalityStore, type DiaryEntry } from '../store/personalityStore';
+import { GestureDetector, Gesture } from 'react-native-gesture-handler';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from 'react-native-reanimated';
+
+const SCREEN_HEIGHT = Dimensions.get('window').height;
+const DISMISS_THRESHOLD = 120;
 
 function getMoodIcon(mood: string): string {
   if (mood.includes('excited') || mood.includes('happy')) return 'emoticon-happy-outline';
@@ -90,61 +95,93 @@ interface DiaryModalProps {
 
 export function DiaryModal({ visible, onClose }: DiaryModalProps) {
   const { diaryEntries, markDiaryRead } = usePersonalityStore();
+  const translateY = useSharedValue(0);
 
   const handleClose = () => {
     markDiaryRead();
     onClose();
   };
 
+  const panGesture = Gesture.Pan()
+    .onUpdate((e) => {
+      if (e.translationY > 0) {
+        translateY.value = e.translationY;
+      }
+    })
+    .onEnd((e) => {
+      if (e.translationY > DISMISS_THRESHOLD) {
+        translateY.value = withSpring(SCREEN_HEIGHT, { damping: 20, stiffness: 200 });
+        runOnJS(handleClose)();
+      } else {
+        translateY.value = withSpring(0, { damping: 20, stiffness: 300 });
+      }
+    });
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+  }));
+
+  // Reset position when modal opens
+  if (visible) {
+    translateY.value = 0;
+  }
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
       <Pressable className="flex-1 bg-[#0B2238]/35 justify-end" onPress={handleClose}>
-        <Pressable className="bg-pet-background rounded-t-[34px] max-h-[88%] overflow-hidden" onPress={() => {}}>
-          <LinearGradient
-            colors={['#4D9BC7', '#6EB4DA']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            className="px-5 py-4 rounded-t-[34px] flex-row items-center justify-between"
+        <GestureDetector gesture={panGesture}>
+          <Animated.View
+            style={[{ backgroundColor: '#E8F4FA', borderTopLeftRadius: 34, borderTopRightRadius: 34, maxHeight: '88%', overflow: 'hidden' }, animatedStyle]}
           >
-            <View className="flex-row items-center">
-              <View className="w-11 h-11 rounded-2xl bg-white/20 border border-white/35 items-center justify-center mr-3">
-                <MaterialCommunityIcons name="notebook-outline" size={22} color="#ffffff" />
-              </View>
-              <View>
-                <Text className="text-white text-sm font-black tracking-[0.7px] uppercase">Nomi Diary</Text>
-                <Text className="text-white/80 text-[10px] font-semibold">{diaryEntries.length} entries saved</Text>
-              </View>
-            </View>
-            <TouchableOpacity onPress={handleClose} activeOpacity={0.8}>
-              <MaterialCommunityIcons name="close" size={22} color="#ffffff" />
-            </TouchableOpacity>
-          </LinearGradient>
+            {/* Drag handle */}
+            <View className="w-12 h-1.5 bg-gray-300 rounded-full self-center mt-3 mb-1" />
 
-          <View className="px-5 pt-4 pb-2">
-            <View className="bg-white rounded-2xl border border-pet-blue-light/70 px-4 py-2.5 flex-row items-center">
-              <MaterialCommunityIcons name="book-open-page-variant-outline" size={16} color="#2F7CA7" />
-              <Text className="text-[11px] font-semibold text-pet-blue-dark ml-2">
-                Nomi writes here while you are away.
-              </Text>
-            </View>
-          </View>
+            <LinearGradient
+              colors={['#4D9BC7', '#6EB4DA']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              className="px-5 py-4 flex-row items-center justify-between"
+            >
+              <View className="flex-row items-center">
+                <View className="w-11 h-11 rounded-2xl bg-white/20 border border-white/35 items-center justify-center mr-3">
+                  <MaterialCommunityIcons name="notebook-outline" size={22} color="#ffffff" />
+                </View>
+                <View>
+                  <Text className="text-white text-sm font-black tracking-[0.7px] uppercase">Nomi Diary</Text>
+                  <Text className="text-white/80 text-[10px] font-semibold">{diaryEntries.length} entries saved</Text>
+                </View>
+              </View>
+              <TouchableOpacity onPress={handleClose} activeOpacity={0.8}>
+                <MaterialCommunityIcons name="close" size={22} color="#ffffff" />
+              </TouchableOpacity>
+            </LinearGradient>
 
-          <ScrollView className="px-5 pt-3" contentContainerStyle={{ paddingBottom: 38 }} showsVerticalScrollIndicator={false}>
-            {diaryEntries.length > 0 ? (
-              diaryEntries.map((entry) => (
-                <DiaryPage key={entry.id} entry={entry} />
-              ))
-            ) : (
-              <View className="items-center py-12 bg-white rounded-[24px] border border-pet-blue-light/70">
-                <MaterialCommunityIcons name="notebook-outline" size={38} color="#6EA5C8" />
-                <Text className="text-[15px] font-black text-pet-blue-dark mt-3">No entries yet</Text>
-                <Text className="text-[12px] text-pet-blue-dark/75 font-medium mt-1 text-center px-6">
-                  Stay away for a while and Nomi will write the first page.
+            <View className="px-5 pt-4 pb-2">
+              <View className="bg-white rounded-2xl border border-pet-blue-light/70 px-4 py-2.5 flex-row items-center">
+                <MaterialCommunityIcons name="book-open-page-variant-outline" size={16} color="#2F7CA7" />
+                <Text className="text-[11px] font-semibold text-pet-blue-dark ml-2">
+                  Nomi writes here while you are away.
                 </Text>
               </View>
-            )}
-          </ScrollView>
-        </Pressable>
+            </View>
+
+            <ScrollView className="px-5 pt-3" contentContainerStyle={{ paddingBottom: 38 }} showsVerticalScrollIndicator={false}>
+              {diaryEntries.length > 0 ? (
+                diaryEntries.map((entry) => (
+                  <DiaryPage key={entry.id} entry={entry} />
+                ))
+              ) : (
+                <View className="items-center py-12 bg-white rounded-[24px] border border-pet-blue-light/70">
+                  <MaterialCommunityIcons name="notebook-outline" size={38} color="#6EA5C8" />
+                  <Text className="text-[15px] font-black text-pet-blue-dark mt-3">No entries yet</Text>
+                  <Text className="text-[12px] text-pet-blue-dark/75 font-medium mt-1 text-center px-6">
+                    Stay away for a while and Nomi will write the first page.
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
+          </Animated.View>
+        </GestureDetector>
       </Pressable>
     </Modal>
   );

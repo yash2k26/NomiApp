@@ -106,7 +106,7 @@ export function NameInputScreen({ onComplete }: NameInputScreenProps) {
             onPress={handleContinue}
             disabled={!isValid}
             activeOpacity={0.88}
-            className="rounded-full overflow-hidden"
+            className="rounded-[22px] overflow-hidden"
             style={{
               opacity: isValid ? 1 : 0.5,
               shadowColor: '#1A4E6E',
@@ -114,6 +114,7 @@ export function NameInputScreen({ onComplete }: NameInputScreenProps) {
               shadowOpacity: 0.18,
               shadowRadius: 16,
               elevation: 7,
+              borderRadius: 22,
             }}
           >
             <LinearGradient
@@ -121,7 +122,7 @@ export function NameInputScreen({ onComplete }: NameInputScreenProps) {
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               className="py-[18px] items-center border border-[#CFE8F6]"
-              style={{ borderRadius: 999 }}
+              style={{ borderRadius: 22 }}
             >
               <Text
                 className="text-[#2E7DA8] text-[16px] tracking-[0.3px]"

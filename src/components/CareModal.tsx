@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity, Modal, Pressable, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, Modal, Pressable, ScrollView, Image, type ImageSourcePropType } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { usePetStore } from '../store/petStore';
@@ -14,10 +14,10 @@ interface CareModalProps {
   onActionComplete: (xpAmount: number) => void;
 }
 
-const MODAL_HEADERS: Record<CareAction, { title: string; subtitle: string; emoji: string; gradient: [string, string] }> = {
-  feed: { title: 'What should Nomi eat?', subtitle: 'Pick a meal for your companion', emoji: '\u{1F355}', gradient: ['#F97316', '#EA580C'] },
-  play: { title: 'How should Nomi play?', subtitle: 'Choose an activity together', emoji: '\u{1F3AE}', gradient: ['#EC4899', '#DB2777'] },
-  rest: { title: 'Where should Nomi sleep?', subtitle: 'Find the perfect spot', emoji: '\u{1F634}', gradient: ['#22C55E', '#16A34A'] },
+const MODAL_HEADERS: Record<CareAction, { title: string; subtitle: string; icon: ImageSourcePropType; gradient: [string, string] }> = {
+  feed: { title: 'What should Nomi eat?', subtitle: 'Pick a meal for your companion', icon: require('../../assets/Icons/Feed.png'), gradient: ['#F97316', '#EA580C'] },
+  play: { title: 'How should Nomi play?', subtitle: 'Choose an activity together', icon: require('../../assets/Icons/Play.png'), gradient: ['#EC4899', '#DB2777'] },
+  rest: { title: 'Where should Nomi sleep?', subtitle: 'Find the perfect spot', icon: require('../../assets/Icons/Rest.png'), gradient: ['#22C55E', '#16A34A'] },
 };
 
 const STAT_CONFIG = {
@@ -188,12 +188,9 @@ export function CareModal({ visible, action, onClose, onActionComplete }: CareMo
 
           {/* Header */}
           <View className="items-center mb-6">
-            <LinearGradient
-              colors={header.gradient}
-              className="w-16 h-16 rounded-2xl items-center justify-center mb-3"
-            >
-              <Text className="text-3xl">{header.emoji}</Text>
-            </LinearGradient>
+            <View className="w-20 h-20 items-center justify-center mb-3">
+              <Image source={header.icon} style={{ width: 72, height: 72 }} resizeMode="contain" />
+            </View>
             <Text className="text-xl font-black text-gray-800">{header.title}</Text>
             <Text className="text-[12px] font-semibold text-gray-400 mt-1">{header.subtitle}</Text>
           </View>

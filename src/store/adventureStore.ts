@@ -247,6 +247,7 @@ interface AdventureState {
   lastSpinDate: string; // ISO date
   extraSpinsToday: number;
   doubleXpUntil: number; // timestamp, 0 = inactive
+  freeItemTokens: number; // earned from spin wheel
   // Login calendar
   loginCalendar: LoginDay[];
   loginCalendarStartDate: string; // ISO date of day 1
@@ -266,6 +267,7 @@ interface AdventureActions {
   // Spin
   canSpinToday: () => boolean;
   doSpin: () => SpinResult | null;
+  claimSpinReward: (result: SpinResult) => void;
   // Login
   claimLoginReward: () => LoginDay | null;
   checkLoginCalendarReset: () => void;
@@ -286,7 +288,7 @@ function saveAdventureState(state: AdventureState) {
   const keys: (keyof AdventureState)[] = [
     'activeAdventure', 'completedAdventures', 'pendingLoot',
     'evolutionShards', 'evolutionStage',
-    'lastSpinDate', 'extraSpinsToday', 'doubleXpUntil',
+    'lastSpinDate', 'extraSpinsToday', 'doubleXpUntil', 'freeItemTokens',
     'loginCalendar', 'loginCalendarStartDate', 'currentLoginDay', 'lastLoginClaimDate', 'totalLoginDays',
     'highScores', 'miniGamesWon', 'miniGameXpEarned',
   ];
@@ -305,6 +307,7 @@ export const useAdventureStore = create<AdventureStore>((set, get) => ({
   lastSpinDate: '',
   extraSpinsToday: 0,
   doubleXpUntil: 0,
+  freeItemTokens: 0,
   loginCalendar: createFreshCalendar(),
   loginCalendarStartDate: '',
   currentLoginDay: 0,
@@ -459,12 +462,15 @@ export const useAdventureStore = create<AdventureStore>((set, get) => ({
     if (!isNewDay && (extraSpinsToday + 1) >= maxTotal) return null;
 
     // If not free spin, deduct SOL (premium = 0 cost)
+    // Note: on-chain transfer for paid spins is handled by the UI layer
+    // calling transferSOL before doSpin. Here we just check balance.
     if (!isFreeSpin && !isNewDay) {
       const cost = spinConfig.paidSpinCost;
       if (cost > 0) {
         try {
           const walletStore = require('./walletStore').useWalletStore.getState();
           if (walletStore.balance < cost) return null;
+          // Deduct locally as fallback (real deduction via transferSOL in UI)
           walletStore.deductBalance(cost);
         } catch { return null; }
       }
@@ -473,7 +479,16 @@ export const useAdventureStore = create<AdventureStore>((set, get) => ({
     const segmentIndex = spinWheel();
     const result = SPIN_SEGMENTS[segmentIndex];
 
-    // Apply rewards
+    // Only track spin usage — rewards applied on claim
+    set({
+      lastSpinDate: today,
+      extraSpinsToday: isFreeSpin ? 0 : extraSpinsToday + 1,
+    });
+    saveAdventureState(get());
+    return result;
+  },
+
+  claimSpinReward: (result: SpinResult) => {
     if (result.xp > 0) {
       try {
         const xpStore = require('./xpStore').useXpStore.getState();
@@ -496,12 +511,11 @@ export const useAdventureStore = create<AdventureStore>((set, get) => ({
       set({ evolutionShards: get().evolutionShards + 1 });
     }
 
-    set({
-      lastSpinDate: today,
-      extraSpinsToday: isFreeSpin ? 0 : extraSpinsToday + 1,
-    });
+    if (result.freeItem) {
+      set({ freeItemTokens: get().freeItemTokens + 1 });
+    }
+
     saveAdventureState(get());
-    return result;
   },
 
   // ── Login Calendar ──
@@ -682,6 +696,7 @@ export const useAdventureStore = create<AdventureStore>((set, get) => ({
         lastSpinDate: data.lastSpinDate ?? '',
         extraSpinsToday: data.extraSpinsToday ?? 0,
         doubleXpUntil: data.doubleXpUntil ?? 0,
+        freeItemTokens: data.freeItemTokens ?? 0,
         loginCalendar: data.loginCalendar ?? createFreshCalendar(),
         loginCalendarStartDate: data.loginCalendarStartDate ?? '',
         currentLoginDay: data.currentLoginDay ?? 0,

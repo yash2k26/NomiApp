@@ -8,8 +8,7 @@
     "prebuild": "expo prebuild",
     "lint": "eslint \"**/*.{js,jsx,ts,tsx}\" && prettier -c \"**/*.{js,jsx,ts,tsx,json}\"",
     "format": "eslint \"**/*.{js,jsx,ts,tsx}\" --fix && prettier \"**/*.{js,jsx,ts,tsx,json}\" --write",
-    "web": "expo start --web",
-    "postinstall": "node -e \"const fs=require('fs'),p='node_modules/react-native-wheel-of-fortune/assets/images';fs.mkdirSync(p,{recursive:true});if(!fs.existsSync(p+'/knob.png'))fs.copyFileSync('assets/Photos/knob.png',p+'/knob.png')\""
+    "web": "expo start --web"
   },
   "dependencies": {
     "@craftzdog/react-native-buffer": "^6.1.1",

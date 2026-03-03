@@ -26,5 +26,21 @@ export async function getBalance(address: string): Promise<number> {
   }
 }
 
+// Shop treasury address (devnet keypair — receives SOL for purchases)
+export const SHOP_TREASURY = 'FHE2gMqe3kk7JDqBQffFqJoBEQGp3DdeQ42K2pHswfJU';
+
+// Solscan deep links (devnet)
+export function getSolscanTxUrl(signature: string): string {
+  return `https://solscan.io/tx/${signature}?cluster=devnet`;
+}
+
+export function getSolscanNftUrl(mintAddress: string): string {
+  return `https://solscan.io/token/${mintAddress}?cluster=devnet`;
+}
+
+export function getSolscanAddressUrl(address: string): string {
+  return `https://solscan.io/account/${address}?cluster=devnet`;
+}
+
 export { PublicKey, LAMPORTS_PER_SOL };
 export type { Connection };

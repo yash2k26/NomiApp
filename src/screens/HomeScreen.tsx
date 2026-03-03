@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, AppState, Animated, GestureResponderEvent, Modal, Pressable } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, AppState, Animated, GestureResponderEvent, Modal, Pressable, ActivityIndicator } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -20,7 +20,7 @@ import { usePersonalityStore, getActionDialogue, type DialogueContext } from '..
 import { ADVENTURE_ZONES } from '../store/adventureStore';
 import { petTypography } from '../theme/typography';
 
-const FALLING_DURATION = 3500;
+const FALLING_DURATION = 13000; // Gangnam clip is ~12.4s
 
 function NeedBubble({ message }: { message: string }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -317,6 +317,7 @@ function ActivityGlance({ onNavigateGames }: { onNavigateGames?: () => void }) {
 }
 
 export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void } = {}) {
+  const [petReady, setPetReady] = useState(false);
   const [reflectionModalVisible, setReflectionModalVisible] = useState(false);
   const [helpVisible, setHelpVisible] = useState(false);
   const [streakVisible, setStreakVisible] = useState(false);
@@ -342,9 +343,19 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
     streakDays,
   } = usePetStore();
 
-  const { equippedItemId, items: shopItems, unequipItem } = useShopStore();
+  const { equippedItemId, equippedAnimationId, items: shopItems, unequipItem } = useShopStore();
   const equippedItem = equippedItemId ? shopItems.find((i) => i.id === equippedItemId) : null;
   const equippedSkinKey = equippedItem?.skinKey ?? 'default';
+
+  // Map equipped animation skinKey → ActiveModel
+  const ANIM_SKIN_TO_MODEL: Record<string, ActiveModel> = {
+    'anim-gangnam': 'gangnam',
+    'anim-backflip': 'backflip',
+    'anim-punch': 'punch',
+    'anim-fallover': 'fallover',
+  };
+  const equippedAnimItem = equippedAnimationId ? shopItems.find((i) => i.id === equippedAnimationId) : null;
+  const equippedAnimModel = equippedAnimItem ? ANIM_SKIN_TO_MODEL[equippedAnimItem.skinKey] : null;
 
   const moodText = getMoodText();
   const needMessage = getPetNeeds(hunger, happiness, energy);
@@ -368,9 +379,11 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
       ? 'excited'
       : anySadStat
         ? 'sad'
-        : equippedSkinKey === 'headphones'
-          ? 'dancing'
-          : 'breathing';
+        : equippedAnimModel
+          ? equippedAnimModel
+          : equippedSkinKey === 'headphones'
+            ? 'dancing'
+            : 'breathing';
 
   // Build dialogue context
   const dialogueCtx = useCallback((): DialogueContext => {
@@ -547,7 +560,7 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
             <SkyCloud className="top-52 left-12 scale-75" />
             <View className="absolute inset-0 bg-white/35 rounded-b-[52px]" />
             {!isExcitedBurst && <DialogueBubble message={currentDialogue ?? needMessage} />}
-            <PetRenderer activeModel={activeModel} onExcitedFinished={clearExcitedBurst} equippedSkin={equippedSkinKey} />
+            <PetRenderer activeModel={activeModel} onExcitedFinished={clearExcitedBurst} equippedSkin={equippedSkinKey} onReady={() => setPetReady(true)} />
           </TouchInteractionLayer>
         </View>
 
@@ -584,7 +597,7 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
                   <TouchableOpacity
                     onPress={() => setStreakVisible(true)}
                     activeOpacity={0.9}
-                    className="flex-row items-center bg-pet-blue px-3.5 py-2 rounded-full border border-pet-blue-dark/40"
+                    className="flex-row items-center bg-pet-blue px-3.5 py-2 rounded-[14px] border border-pet-blue-dark/40"
                   >
                     <Text className="text-[11px] font-semibold text-white">
                       {'\u{1F525}'} {streakDays > 1 ? `${streakDays} day streak` : 'Day 1'}
@@ -688,7 +701,42 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* Full-screen loading splash until 3D pet is rendered */}
+      {!petReady && (
+        <View
+          className="absolute inset-0 z-50 items-center justify-center"
+          style={{ backgroundColor: '#E8F4FA' }}
+        >
+          <View className="items-center">
+            <View
+              className="w-24 h-24 rounded-3xl bg-white items-center justify-center mb-6"
+              style={{
+                shadowColor: '#2B6B8F',
+                shadowOffset: { width: 0, height: 8 },
+                shadowOpacity: 0.15,
+                shadowRadius: 16,
+                elevation: 8,
+              }}
+            >
+              <Text className="text-5xl">{'\u{1F43E}'}</Text>
+            </View>
+            <ActivityIndicator size="large" color="#4FB0C6" />
+            <Text
+              className="text-pet-blue-dark text-sm mt-4"
+              style={{ fontFamily: petTypography.strong }}
+            >
+              Building your Nomi's environment
+            </Text>
+            <Text
+              className="text-pet-blue/60 text-xs mt-1"
+              style={{ fontFamily: petTypography.body }}
+            >
+              This may take a moment...
+            </Text>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
-
