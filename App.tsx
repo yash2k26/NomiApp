@@ -16,6 +16,7 @@ import { usePersonalityStore } from './src/store/personalityStore';
 import { useEventStore } from './src/store/eventStore';
 import { useNotificationStore } from './src/store/notificationStore';
 import { useTxHistoryStore } from './src/store/txHistoryStore';
+import { initSounds } from './src/lib/soundManager';
 import { WalletConnect, WelcomeIntro } from './src/components';
 import { HomeScreen, ProfileScreen, MintScreen, ShopScreen, NameInputScreen } from './src/screens';
 import { GamesScreen } from './src/screens/GamesScreen';
@@ -140,7 +141,7 @@ export default function App() {
   const scheduleReturnNotifications = useNotificationStore((s) => s.scheduleReturnNotifications);
 
   useEffect(() => {
-    Promise.all([hydratePetStore(), hydrateWallet(), hydrateShop(), hydrateXp(), hydrateAdventure(), hydratePremium(), hydratePersonality(), hydrateEvents(), hydrateNotifications(), hydrateTxLabels()]).finally(() => setHydrated(true));
+    Promise.all([hydratePetStore(), hydrateWallet(), hydrateShop(), hydrateXp(), hydrateAdventure(), hydratePremium(), hydratePersonality(), hydrateEvents(), hydrateNotifications(), hydrateTxLabels(), initSounds()]).finally(() => setHydrated(true));
   }, [hydrateWallet, hydrateShop, hydrateXp, hydrateAdventure, hydratePremium, hydratePersonality, hydrateEvents, hydrateNotifications, hydrateTxLabels]);
 
   // Android system back gesture/button behavior for custom, non-stack navigation flow.

@@ -19,6 +19,7 @@ import { useEventStore } from '../store/eventStore';
 import { usePersonalityStore, getActionDialogue, type DialogueContext } from '../store/personalityStore';
 import { ADVENTURE_ZONES } from '../store/adventureStore';
 import { petTypography } from '../theme/typography';
+import { playMusic, stopMusic } from '../lib/soundManager';
 
 const FALLING_DURATION = 13000; // Gangnam clip is ~12.4s
 
@@ -466,6 +467,19 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
     }
   }, [equippedSkinKey, anySadStat, unequipItem]);
 
+  // Play/stop headphones music when dance starts/stops
+  useEffect(() => {
+    console.log('[HomeScreen] activeModel changed to:', activeModel);
+    if (activeModel === 'dancing') {
+      console.log('[HomeScreen] 🎵 Starting headphones music...');
+      playMusic('headphones');
+    } else {
+      console.log('[HomeScreen] 🔇 Stopping music (activeModel is not dancing)');
+      stopMusic();
+    }
+    return () => { stopMusic(); };
+  }, [activeModel]);
+
   useEffect(() => {
     if (streakDays > prevStreakRef.current) {
       setShowParty(true);
@@ -638,13 +652,13 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
           </TouchableOpacity>
         </View>
 
-        {/* Activity Glance */}
-        <ActivityGlance onNavigateGames={onNavigateGames} />
-
         <View className="px-6 mt-4 mb-2">
           <Text className="text-[17px] font-black text-gray-800">Care Panel</Text>
         </View>
         <CareActions />
+
+        {/* Activity Glance */}
+        <ActivityGlance onNavigateGames={onNavigateGames} />
 
         <View className="px-6 mt-6">
           <TouchableOpacity onPress={() => setReflectionModalVisible(true)} activeOpacity={0.9}>

@@ -25,6 +25,7 @@
     "buffer": "^6.0.3",
     "d3-shape": "^3.2.0",
     "expo": "^54.0.0",
+    "expo-av": "~16.0.8",
     "expo-dev-client": "~6.0.20",
     "expo-gl": "~16.0.10",
     "expo-haptics": "~15.0.8",
