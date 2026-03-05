@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getBalance } from '../lib/solanaClient';
+import { getSkrBalance } from '../lib/skrToken';
 import {
   connectMobileWallet,
   reauthorizeMobileWallet,
@@ -13,6 +14,7 @@ interface WalletState {
   connected: boolean;
   address: string;
   balance: number;
+  skrBalance: number;
   authToken: string;
   isConnecting: boolean;
   error: string | null;
@@ -22,9 +24,12 @@ interface WalletActions {
   connectWallet: () => Promise<void>;
   disconnectWallet: () => void;
   refreshBalance: () => Promise<void>;
+  refreshSkrBalance: () => Promise<void>;
   hydrateWallet: () => Promise<void>;
   deductBalance: (amount: number) => void;
   addBalance: (amount: number) => void;
+  deductSkr: (amount: number) => void;
+  addSkr: (amount: number) => void;
 }
 
 type WalletStore = WalletState & WalletActions;
@@ -39,6 +44,7 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
   connected: false,
   address: '',
   balance: 0,
+  skrBalance: 0,
   authToken: '',
   isConnecting: false,
   error: null,
@@ -50,12 +56,14 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
 
       // Fetch real balance from devnet
       const balance = await getBalance(result.address);
+      const skrBalance = await getSkrBalance(result.address).catch(() => 0);
 
       set({
         connected: true,
         address: result.address,
         authToken: result.authToken,
         balance,
+        skrBalance,
         isConnecting: false,
       });
 
@@ -83,7 +91,7 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
     if (authToken) {
       disconnectMobileWallet(authToken).catch(() => {});
     }
-    set({ connected: false, address: '', balance: 0, authToken: '', error: null });
+    set({ connected: false, address: '', balance: 0, skrBalance: 0, authToken: '', error: null });
     AsyncStorage.removeItem(WALLET_STORAGE_KEY).catch(() => {});
   },
 
@@ -93,6 +101,15 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
     try {
       const balance = await getBalance(address);
       set({ balance });
+    } catch {}
+  },
+
+  refreshSkrBalance: async () => {
+    const { connected, address } = get();
+    if (!connected || !address) return;
+    try {
+      const skrBalance = await getSkrBalance(address);
+      set({ skrBalance });
     } catch {}
   },
 
@@ -106,6 +123,16 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
     set({ balance: Math.round((balance + amount) * 10000) / 10000 });
   },
 
+  deductSkr: (amount: number) => {
+    const { skrBalance } = get();
+    set({ skrBalance: Math.max(0, Math.round((skrBalance - amount) * 1000000) / 1000000) });
+  },
+
+  addSkr: (amount: number) => {
+    const { skrBalance } = get();
+    set({ skrBalance: Math.round((skrBalance + amount) * 1000000) / 1000000 });
+  },
+
   hydrateWallet: async () => {
     try {
       const stored = await AsyncStorage.getItem(WALLET_STORAGE_KEY);
@@ -116,12 +143,14 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
       // Try to reauthorize with stored auth token
       const result = await reauthorizeMobileWallet(authToken);
       const balance = await getBalance(result.address);
+      const skrBal = await getSkrBalance(result.address).catch(() => 0);
 
       set({
         connected: true,
         address: result.address,
         authToken: result.authToken,
         balance,
+        skrBalance: skrBal,
       });
 
       await saveWalletState(result.address, result.authToken);

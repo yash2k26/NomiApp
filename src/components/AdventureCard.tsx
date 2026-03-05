@@ -71,6 +71,12 @@ function LootRevealModal({ loot, visible, onClose }: { loot: LootReward | null; 
                 <Text className="font-black text-pet-gold-dark">+{loot.coins.toFixed(2)} SOL</Text>
               </View>
             )}
+            {loot.skr > 0 && (
+              <View className="flex-row justify-between py-2 border-b border-gray-100">
+                <Text className="text-gray-500 font-semibold">SKR Tokens</Text>
+                <Text className="font-black text-purple-600">{'\u{1F48E}'} +{loot.skr.toFixed(2)} SKR</Text>
+              </View>
+            )}
             {loot.shard && (
               <View className="flex-row justify-between py-2 border-b border-gray-100">
                 <Text className="text-gray-500 font-semibold">Evolution Shard</Text>

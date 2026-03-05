@@ -363,9 +363,18 @@ export const useXpStore = create<XpStore>((set, get) => ({
     const state = get();
     if (state.level >= MAX_LEVEL) return;
 
+    // Apply 2x XP buff from spin wheel (if active)
+    let buffedAmount = amount;
+    try {
+      const { doubleXpUntil } = require('./adventureStore').useAdventureStore.getState();
+      if (doubleXpUntil && Date.now() < doubleXpUntil) {
+        buffedAmount = amount * 2;
+      }
+    } catch {}
+
     // Apply XP multiplier (needs pet stats — import dynamically to avoid circular)
     const multiplier = get().getCurrentMultiplier();
-    const scaledAmount = Math.round(amount * multiplier);
+    const scaledAmount = Math.round(buffedAmount * multiplier);
 
     let xp = state.xpInCurrentLevel + scaledAmount;
     let level = state.level;

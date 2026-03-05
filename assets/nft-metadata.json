@@ -1,0 +1,23 @@
+{
+  "name": "Nomi Companion",
+  "symbol": "OPET",
+  "description": "A Nomi companion pet — minted on Solana as a unique 1/1 NFT. Cared for, evolved, and loved by its owner.",
+  "seller_fee_basis_points": 0,
+  "image": "https://raw.githubusercontent.com/yash-dev/oracle-pet/main/assets/icon.png",
+  "external_url": "https://oraclepet.app",
+  "attributes": [
+    { "trait_type": "Type", "value": "Companion Pet" },
+    { "trait_type": "Rarity", "value": "1/1 Unique" },
+    { "trait_type": "Platform", "value": "Solana Mobile" }
+  ],
+  "properties": {
+    "category": "image",
+    "creators": [],
+    "files": [
+      {
+        "uri": "https://raw.githubusercontent.com/yash-dev/oracle-pet/main/assets/icon.png",
+        "type": "image/png"
+      }
+    ]
+  }
+}

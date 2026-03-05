@@ -155,13 +155,21 @@ function ShopCard({
         {item.category}
       </Text>
 
-      <View className="flex-row items-center justify-center mt-3 mb-4">
+      <View className="items-center mt-3 mb-4">
         {isPremium && !item.owned ? (
             <Text className="text-[14px] font-black text-pet-blue-dark">FREE</Text>
         ) : (
           <>
-            <Text className="text-[14px] font-black text-pet-blue-dark">{item.price}</Text>
-            <Text className="text-[11px] font-bold text-gray-400 ml-1">SOL</Text>
+            <View className="flex-row items-center justify-center">
+              <Text className="text-[14px] font-black text-pet-blue-dark">{item.price}</Text>
+              <Text className="text-[11px] font-bold text-gray-400 ml-1">SOL</Text>
+            </View>
+            {item.skrPrice && !item.owned && (
+              <View className="flex-row items-center justify-center mt-1">
+                <Text className="text-[11px] font-black text-purple-600">{item.skrPrice}</Text>
+                <Text className="text-[9px] font-bold text-purple-400 ml-1">SKR</Text>
+              </View>
+            )}
           </>
         )}
       </View>
@@ -211,6 +219,7 @@ export function ShopScreen() {
   const [selectedSection, setSelectedSection] = useState<ShopSection>('All');
   const [purchasingId, setPurchasingId] = useState<string | null>(null);
   const balance = useWalletStore((s) => s.balance);
+  const skrBalance = useWalletStore((s) => s.skrBalance);
   const premium = usePremiumStore((s) => s.isPremium);
   const tier = usePremiumStore((s) => s.tier);
 
@@ -256,8 +265,57 @@ export function ShopScreen() {
     'Other',
   ];
 
+  const doPurchase = async (item: ShopItem, withSkr: boolean) => {
+    setPurchasingId(item.id);
+    try {
+      await buyItem(item.id, withSkr);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert(
+        'Purchase Complete!',
+        `${item.name} is now yours! Check Profile for transaction details.`,
+      );
+    } catch (err: any) {
+      const msg = err?.message || 'Purchase failed';
+      if (msg.includes('User rejected') || msg.includes('declined')) {
+        Alert.alert('Cancelled', 'Transaction cancelled in wallet.');
+      } else {
+        Alert.alert('Purchase Failed', msg);
+      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setPurchasingId(null);
+    }
+  };
+
   const handleBuy = (item: ShopItem) => {
-    if (purchasingId) return; // already purchasing
+    if (purchasingId) return;
+
+    // If item has SKR price, offer both payment options
+    if (item.skrPrice && skrBalance >= item.skrPrice) {
+      const canAffordSol = balance >= item.price;
+      const buttons: any[] = [{ text: 'Cancel', style: 'cancel' }];
+
+      buttons.push({
+        text: `Pay ${item.skrPrice} SKR`,
+        onPress: () => doPurchase(item, true),
+      });
+
+      if (canAffordSol) {
+        buttons.push({
+          text: `Pay ${item.price} SOL`,
+          onPress: () => doPurchase(item, false),
+        });
+      }
+
+      Alert.alert(
+        'Choose Payment',
+        `Buy ${item.name}\n\nYou can pay with SKR or SOL.`,
+        buttons,
+      );
+      return;
+    }
+
+    // SOL-only payment
     if (balance < item.price) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('Not Enough SOL', `You need ${item.price} SOL but only have ${balance.toFixed(2)} SOL.`);
@@ -269,26 +327,7 @@ export function ShopScreen() {
       `Buy ${item.name} for ${item.price} SOL?\nThis will open Phantom for approval.`,
       [
         { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Buy',
-          onPress: async () => {
-            setPurchasingId(item.id);
-            try {
-              await buyItem(item.id);
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            } catch (err: any) {
-              const msg = err?.message || 'Purchase failed';
-              if (msg.includes('User rejected') || msg.includes('declined')) {
-                Alert.alert('Cancelled', 'Transaction cancelled in wallet.');
-              } else {
-                Alert.alert('Purchase Failed', msg);
-              }
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-            } finally {
-              setPurchasingId(null);
-            }
-          },
-        },
+        { text: 'Buy', onPress: () => doPurchase(item, false) },
       ]
     );
   };
@@ -334,6 +373,12 @@ export function ShopScreen() {
                 <Text className="text-[12px] font-black text-white ml-1.5">{balance.toFixed(2)}</Text>
                 <Text className="text-[10px] font-bold text-white/85 ml-1">SOL</Text>
               </View>
+              {skrBalance > 0 && (
+                <View className="flex-row items-center mt-0.5">
+                  <Text className="text-[10px] font-black text-white/90 ml-5">{skrBalance.toFixed(0)}</Text>
+                  <Text className="text-[9px] font-bold text-white/70 ml-1">SKR</Text>
+                </View>
+              )}
             </View>
           )}
         />

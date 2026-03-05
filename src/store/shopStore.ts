@@ -18,6 +18,8 @@ export interface ShopItem {
   name: string;
   category: Exclude<ShopCategory, 'All'>;
   price: number;
+  /** If set, item can be bought with SKR tokens instead of SOL */
+  skrPrice?: number;
   image: string;
   owned: boolean;
   /** Skin key used by petStore when equipped */
@@ -38,7 +40,7 @@ interface ShopState {
 
 interface ShopActions {
   setCategory: (category: ShopCategory) => void;
-  buyItem: (id: string) => Promise<void>;
+  buyItem: (id: string, payWithSkr?: boolean) => Promise<void>;
   equipItem: (id: string) => void;
   unequipItem: (id?: string) => void;
   hydrateShop: () => Promise<void>;
@@ -61,11 +63,11 @@ const SHOP_ITEMS: ShopItem[] = [
   // Epic items — require mid-game progression
   { id: 'tuxedo', name: 'Tuxedo', category: 'Shirts', price: 1.5, image: '\u{1F3BD}', owned: false, skinKey: 'tuxedo', rarity: 'epic', unlockCondition: { type: 'level', value: 15, label: 'Reach Level 15' } },
   { id: 'crown', name: 'Crown', category: 'Hats', price: 0, image: '\u{1F451}', owned: true, skinKey: 'crown', rarity: 'epic' },
-  { id: 'gold-chain', name: 'Gold Chain', category: 'Accessories', price: 3.0, image: '\u{1F4FF}', owned: false, skinKey: 'gold-chain', rarity: 'epic', unlockCondition: { type: 'miniGames', value: 5, label: 'Win 5 Mini-Games' } },
+  { id: 'gold-chain', name: 'Gold Chain', category: 'Accessories', price: 3.0, skrPrice: 25, image: '\u{1F4FF}', owned: false, skinKey: 'gold-chain', rarity: 'epic', unlockCondition: { type: 'miniGames', value: 5, label: 'Win 5 Mini-Games' } },
   // Tier-exclusive items
-  { id: 'neon-jacket', name: 'Neon Jacket', category: 'Shirts', price: 3.5, image: '\u{1F31F}', owned: false, skinKey: 'neon-jacket', rarity: 'epic', tierTag: 'gold_exclusive' },
-  { id: 'gold-wings', name: 'Gold Wings', category: 'Accessories', price: 5.0, image: '\u2728', owned: false, skinKey: 'gold-wings', rarity: 'legendary', tierTag: 'gold_exclusive', unlockCondition: { type: 'level', value: 20, label: 'Reach Level 20' } },
-  { id: 'diamond-halo', name: 'Diamond Halo', category: 'Accessories', price: 8.0, image: '\u{1F48E}', owned: false, skinKey: 'diamond-halo', rarity: 'legendary', tierTag: 'diamond_exclusive', unlockCondition: { type: 'level', value: 25, label: 'Reach Level 25' } },
+  { id: 'neon-jacket', name: 'Neon Jacket', category: 'Shirts', price: 3.5, skrPrice: 30, image: '\u{1F31F}', owned: false, skinKey: 'neon-jacket', rarity: 'epic', tierTag: 'gold_exclusive' },
+  { id: 'gold-wings', name: 'Gold Wings', category: 'Accessories', price: 5.0, skrPrice: 50, image: '\u2728', owned: false, skinKey: 'gold-wings', rarity: 'legendary', tierTag: 'gold_exclusive', unlockCondition: { type: 'level', value: 20, label: 'Reach Level 20' } },
+  { id: 'diamond-halo', name: 'Diamond Halo', category: 'Accessories', price: 8.0, skrPrice: 80, image: '\u{1F48E}', owned: false, skinKey: 'diamond-halo', rarity: 'legendary', tierTag: 'diamond_exclusive', unlockCondition: { type: 'level', value: 25, label: 'Reach Level 25' } },
   // Animations
   { id: 'anim-gangnam', name: 'Gangnam Style', category: 'Animations', price: 0, image: '\u{1F57A}', owned: true, skinKey: 'anim-gangnam', rarity: 'common' },
   { id: 'anim-backflip', name: 'Backflip', category: 'Animations', price: 0, image: '\u{1F938}', owned: true, skinKey: 'anim-backflip', rarity: 'common' },
@@ -129,7 +131,7 @@ export const useShopStore = create<ShopStore>((set, get) => ({
 
   setCategory: (category) => set({ selectedCategory: category }),
 
-  buyItem: async (id) => {
+  buyItem: async (id, payWithSkr = false) => {
     const { items } = get();
     const item = items.find((i) => i.id === id);
     if (!item || item.owned) return;
@@ -146,35 +148,57 @@ export const useShopStore = create<ShopStore>((set, get) => ({
     } catch {}
 
     if (!premium) {
-      // Apply level perk shop discount
-      let discount = 0;
-      try {
-        const { getPerksForLevel } = require('./xpStore');
-        const level = require('./xpStore').useXpStore.getState().level;
-        discount = getPerksForLevel(level).shopDiscount;
-      } catch {}
-      const finalPrice = Math.round(item.price * (1 - discount) * 100) / 100;
-
       const walletStore = require('./walletStore').useWalletStore.getState();
-      if (walletStore.balance < finalPrice) return;
 
-      // On-chain SOL transfer to shop treasury
-      const authToken = walletStore.authToken;
-      if (authToken && finalPrice > 0) {
-        const { transferSOL } = require('../lib/solanaTransactions');
-        const { SHOP_TREASURY } = require('../lib/solanaClient');
-        const txSig = await transferSOL(authToken, SHOP_TREASURY, finalPrice);
+      // SKR payment path
+      if (payWithSkr && item.skrPrice) {
+        if (walletStore.skrBalance < item.skrPrice) return;
 
-        // Label the transaction for history
-        try {
-          const { labelTransaction } = require('./txHistoryStore');
-          labelTransaction(txSig, `Bought ${item.name}`);
-        } catch {}
+        const authToken = walletStore.authToken;
+        if (authToken) {
+          const { transferSkr } = require('../lib/skrToken');
+          const { SHOP_TREASURY } = require('../lib/solanaClient');
+          const txSig = await transferSkr(authToken, SHOP_TREASURY, item.skrPrice);
 
-        // Refresh real balance after on-chain transfer
-        await walletStore.refreshBalance();
+          try {
+            const { labelTransaction } = require('./txHistoryStore');
+            labelTransaction(txSig, `Bought ${item.name} (SKR)`);
+          } catch {}
+
+          await walletStore.refreshSkrBalance();
+          await walletStore.refreshBalance();
+        } else {
+          walletStore.deductSkr(item.skrPrice);
+        }
       } else {
-        walletStore.deductBalance(finalPrice);
+        // SOL payment path
+        // Apply level perk shop discount
+        let discount = 0;
+        try {
+          const { getPerksForLevel } = require('./xpStore');
+          const level = require('./xpStore').useXpStore.getState().level;
+          discount = getPerksForLevel(level).shopDiscount;
+        } catch {}
+        const finalPrice = Math.round(item.price * (1 - discount) * 100) / 100;
+
+        if (walletStore.balance < finalPrice) return;
+
+        // On-chain SOL transfer to shop treasury
+        const authToken = walletStore.authToken;
+        if (authToken && finalPrice > 0) {
+          const { transferSOL } = require('../lib/solanaTransactions');
+          const { SHOP_TREASURY } = require('../lib/solanaClient');
+          const txSig = await transferSOL(authToken, SHOP_TREASURY, finalPrice);
+
+          try {
+            const { labelTransaction } = require('./txHistoryStore');
+            labelTransaction(txSig, `Bought ${item.name}`);
+          } catch {}
+
+          await walletStore.refreshBalance();
+        } else {
+          walletStore.deductBalance(finalPrice);
+        }
       }
     }
 

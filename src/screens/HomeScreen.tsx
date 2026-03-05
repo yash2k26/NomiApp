@@ -20,6 +20,7 @@ import { usePersonalityStore, getActionDialogue, type DialogueContext } from '..
 import { ADVENTURE_ZONES } from '../store/adventureStore';
 import { petTypography } from '../theme/typography';
 import { playMusic, stopMusic } from '../lib/soundManager';
+import { OnboardingOverlay, shouldShowOnboarding } from '../components/OnboardingOverlay';
 
 const FALLING_DURATION = 13000; // Gangnam clip is ~12.4s
 
@@ -232,6 +233,62 @@ function StreakCalendarModal({
   );
 }
 
+function LoadingSplash() {
+  const pulseAnim = useRef(new Animated.Value(0.85)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.1, duration: 900, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 0.85, duration: 900, useNativeDriver: true }),
+      ])
+    ).start();
+  }, [pulseAnim]);
+
+  return (
+    <View className="absolute inset-0 z-50 items-center justify-center" style={{ backgroundColor: '#E8F4FA' }}>
+      <LinearGradient
+        colors={['#E8F4FA', '#D6EDF7', '#E8F4FA']}
+        className="absolute inset-0"
+      />
+      <View className="items-center">
+        <Animated.View
+          style={{
+            transform: [{ scale: pulseAnim }],
+            shadowColor: '#4FB0C6',
+            shadowOffset: { width: 0, height: 12 },
+            shadowOpacity: 0.3,
+            shadowRadius: 20,
+            elevation: 12,
+          }}
+          className="w-28 h-28 rounded-[28px] bg-white items-center justify-center mb-8"
+        >
+          <Text className="text-6xl">{'\u{1F43E}'}</Text>
+        </Animated.View>
+        <Text
+          className="text-[28px] font-black text-pet-blue-dark mb-2"
+          style={{ fontFamily: petTypography.display }}
+        >
+          Nomi
+        </Text>
+        <Text
+          className="text-pet-blue text-[13px] font-semibold mb-6"
+          style={{ fontFamily: petTypography.body }}
+        >
+          Powered by Solana
+        </Text>
+        <ActivityIndicator size="large" color="#4FB0C6" />
+        <Text
+          className="text-gray-400 text-xs mt-4"
+          style={{ fontFamily: petTypography.body }}
+        >
+          Preparing Nomi's world...
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 function ActivityGlance({ onNavigateGames }: { onNavigateGames?: () => void }) {
   const dailyQuests = useXpStore((s) => s.dailyQuests);
   const weeklyQuests = useXpStore((s) => s.weeklyQuests);
@@ -326,6 +383,7 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
   const [showParty, setShowParty] = useState(false);
   const [isFalling, setIsFalling] = useState(false);
   const [loginPopupVisible, setLoginPopupVisible] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const partyAnim = useRef(new Animated.Value(0)).current;
   const prevStreakRef = useRef(0);
   const prevAllHighRef = useRef(false);
@@ -402,6 +460,11 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
     };
   }, [hunger, happiness, energy, moodText, name, ownerName, streakDays, equippedSkinKey, level]);
 
+  // Onboarding overlay — show once after first pet mint
+  useEffect(() => {
+    shouldShowOnboarding().then((show) => { if (show) setShowOnboarding(true); });
+  }, []);
+
   // Login calendar auto-popup on daily first open
   const lastLoginClaimDate = useAdventureStore((s) => s.lastLoginClaimDate);
   useEffect(() => {
@@ -469,12 +532,9 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
 
   // Play/stop headphones music when dance starts/stops
   useEffect(() => {
-    console.log('[HomeScreen] activeModel changed to:', activeModel);
     if (activeModel === 'dancing') {
-      console.log('[HomeScreen] 🎵 Starting headphones music...');
       playMusic('headphones');
     } else {
-      console.log('[HomeScreen] 🔇 Stopping music (activeModel is not dancing)');
       stopMusic();
     }
     return () => { stopMusic(); };
@@ -716,41 +776,13 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
         </Pressable>
       </Modal>
 
-      {/* Full-screen loading splash until 3D pet is rendered */}
-      {!petReady && (
-        <View
-          className="absolute inset-0 z-50 items-center justify-center"
-          style={{ backgroundColor: '#E8F4FA' }}
-        >
-          <View className="items-center">
-            <View
-              className="w-24 h-24 rounded-3xl bg-white items-center justify-center mb-6"
-              style={{
-                shadowColor: '#2B6B8F',
-                shadowOffset: { width: 0, height: 8 },
-                shadowOpacity: 0.15,
-                shadowRadius: 16,
-                elevation: 8,
-              }}
-            >
-              <Text className="text-5xl">{'\u{1F43E}'}</Text>
-            </View>
-            <ActivityIndicator size="large" color="#4FB0C6" />
-            <Text
-              className="text-pet-blue-dark text-sm mt-4"
-              style={{ fontFamily: petTypography.strong }}
-            >
-              Building your Nomi's environment
-            </Text>
-            <Text
-              className="text-pet-blue/60 text-xs mt-1"
-              style={{ fontFamily: petTypography.body }}
-            >
-              This may take a moment...
-            </Text>
-          </View>
-        </View>
+      {/* Onboarding overlay — first launch only */}
+      {showOnboarding && petReady && (
+        <OnboardingOverlay onDone={() => setShowOnboarding(false)} />
       )}
+
+      {/* Full-screen loading splash until 3D pet is rendered */}
+      {!petReady && <LoadingSplash />}
     </View>
   );
 }

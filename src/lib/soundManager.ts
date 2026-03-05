@@ -40,14 +40,11 @@ function ensureAudio(): boolean {
     Audio = mod.Audio;
     if (Audio) {
       audioReady = true;
-      console.log('[soundManager] expo-av Audio loaded OK');
       return true;
     }
-    console.warn('[soundManager] expo-av loaded but Audio is undefined');
     Audio = false;
     return false;
-  } catch (e: any) {
-    console.warn('[soundManager] expo-av not available:', e?.message);
+  } catch {
     Audio = false;
     return false;
   }
@@ -58,10 +55,7 @@ function ensureAudio(): boolean {
  * Call once at app startup.
  */
 export async function initSounds(): Promise<void> {
-  if (!ensureAudio()) {
-    console.log('[soundManager] initSounds skipped — no Audio');
-    return;
-  }
+  if (!ensureAudio()) return;
 
   try {
     await Audio.setAudioModeAsync({
@@ -69,10 +63,8 @@ export async function initSounds(): Promise<void> {
       staysActiveInBackground: false,
       shouldDuckAndroid: true,
     });
-    console.log('[soundManager] Audio mode configured');
-  } catch (err) {
-    console.warn('[soundManager] initSounds error:', err);
-  }
+  } catch {}
+
 }
 
 /**
@@ -97,29 +89,17 @@ export async function playSound(name: SoundName): Promise<void> {
  * Play a looping background music track. Stops any previously playing music.
  */
 export async function playMusic(name: MusicName): Promise<void> {
-  console.log(`[soundManager] playMusic("${name}") called, audioReady=${audioReady}`);
-
-  if (!ensureAudio()) {
-    console.log('[soundManager] playMusic BAIL — no Audio available');
-    return;
-  }
+  if (!ensureAudio()) return;
 
   // Already playing this track
-  if (currentMusicName === name && currentMusic) {
-    console.log('[soundManager] playMusic — already playing, skipping');
-    return;
-  }
+  if (currentMusicName === name && currentMusic) return;
 
   await stopMusic();
 
   const asset = MUSIC_ASSETS[name];
-  if (!asset) {
-    console.log('[soundManager] playMusic — no asset for', name);
-    return;
-  }
+  if (!asset) return;
 
   try {
-    console.log('[soundManager] Creating looping sound, volume=', muted ? 0 : volume);
     const { sound } = await Audio.Sound.createAsync(asset, {
       shouldPlay: true,
       isLooping: true,
@@ -127,10 +107,7 @@ export async function playMusic(name: MusicName): Promise<void> {
     });
     currentMusic = sound;
     currentMusicName = name;
-    console.log('[soundManager] Music playing!');
-  } catch (err: any) {
-    console.warn('[soundManager] playMusic error:', err?.message || err);
-  }
+  } catch {}
 }
 
 /**
@@ -138,7 +115,6 @@ export async function playMusic(name: MusicName): Promise<void> {
  */
 export async function stopMusic(): Promise<void> {
   if (currentMusic) {
-    console.log('[soundManager] Stopping music');
     try {
       await currentMusic.stopAsync();
       await currentMusic.unloadAsync();

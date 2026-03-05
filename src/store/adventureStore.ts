@@ -87,6 +87,7 @@ export interface LootReward {
   rarity: LootRarity;
   xp: number;
   coins: number;
+  skr: number; // SKR token reward
   shard: boolean;
   freeItem: boolean;
 }
@@ -135,10 +136,19 @@ function rollLoot(zone: AdventureZone, statsBonus: boolean): LootReward {
   const coins = rarity === 'common' ? 0 :
     Math.round((minCoin + Math.random() * (maxCoin - minCoin)) * mult * 100) / 100;
 
+  // SKR token rewards — rare and legendary adventures earn SKR
+  let skr = 0;
+  if (rarity === 'rare') {
+    skr = Math.round((1 + Math.random() * 4) * 100) / 100; // 1-5 SKR
+  } else if (rarity === 'legendary') {
+    skr = Math.round((5 + Math.random() * 10) * 100) / 100; // 5-15 SKR
+  }
+
   return {
     rarity,
     xp,
     coins,
+    skr,
     shard: rarity === 'legendary' && Math.random() < zone.shardChance * 10,
     freeItem: rarity === 'rare' && Math.random() < 0.3,
   };
@@ -400,6 +410,14 @@ export const useAdventureStore = create<AdventureStore>((set, get) => ({
       } catch {}
     }
 
+    // Award SKR tokens
+    if (pendingLoot.skr > 0) {
+      try {
+        const walletStore = require('./walletStore').useWalletStore.getState();
+        walletStore.addSkr?.(pendingLoot.skr);
+      } catch {}
+    }
+
     // Award shard
     if (pendingLoot.shard) {
       set({ evolutionShards: get().evolutionShards + 1 });
@@ -606,18 +624,14 @@ export const useAdventureStore = create<AdventureStore>((set, get) => ({
       }
     }
 
-    // If we completed all 7 days and it's been claimed, reset for next cycle
+    // If we completed all 7 days, reset for next cycle (regardless of when)
     if (currentLoginDay >= 7 && lastLoginClaimDate !== today) {
-      const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-      if (lastLoginClaimDate === yesterday) {
-        // Just finished day 7 yesterday — reset
-        set({
-          loginCalendar: createFreshCalendar(),
-          currentLoginDay: 0,
-          loginCalendarStartDate: '',
-        });
-        saveAdventureState(get());
-      }
+      set({
+        loginCalendar: createFreshCalendar(),
+        currentLoginDay: 0,
+        loginCalendarStartDate: '',
+      });
+      saveAdventureState(get());
     }
   },
 

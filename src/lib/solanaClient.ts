@@ -7,7 +7,7 @@ const DEVNET_URL = clusterApiUrl(CLUSTER);
 export const connection = new Connection(DEVNET_URL, 'confirmed');
 
 export const APP_IDENTITY = {
-  name: 'Oracle Pet',
+  name: 'Nomi',
   uri: 'https://oraclepet.app',
   icon: 'favicon.ico',
 };
@@ -28,6 +28,9 @@ export async function getBalance(address: string): Promise<number> {
 
 // Shop treasury address (devnet keypair — receives SOL for purchases)
 export const SHOP_TREASURY = 'FHE2gMqe3kk7JDqBQffFqJoBEQGp3DdeQ42K2pHswfJU';
+
+// SKR (Seeker) token — mainnet mint address
+export const SKR_MINT_ADDRESS = 'SKRbvo6Gf7GondiT3BbTfuRDPqLWei4j2Qy2NPGZhW3';
 
 // Solscan deep links (devnet)
 export function getSolscanTxUrl(signature: string): string {

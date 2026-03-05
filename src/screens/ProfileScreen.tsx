@@ -19,6 +19,7 @@ import { ScreenHeader } from '../components/ui/ScreenHeader';
 import { requestAirdrop } from '../lib/solanaTransactions';
 import { getSolscanTxUrl, getSolscanNftUrl, getSolscanAddressUrl } from '../lib/solanaClient';
 import { writeMemo } from '../lib/solanaTransactions';
+import { claimTestSkr } from '../lib/skrToken';
 
 interface InfoCardProps {
   title: string;
@@ -321,13 +322,16 @@ function CollectiblesRow() {
 }
 
 export function ProfileScreen() {
-  const { address, balance, disconnectWallet, refreshBalance, authToken } = useWalletStore();
+  const { address, balance, skrBalance, disconnectWallet, refreshBalance, refreshSkrBalance, authToken } = useWalletStore();
   const { name, ownerName, mintAddress, mintTxSignature, skin, clearPet, streakDays, hunger, happiness, energy } = usePetStore();
   const premium = usePremiumStore((s) => s.isPremium);
   const tier = usePremiumStore((s) => s.tier);
   const [airdropLoading, setAirdropLoading] = useState(false);
+  const [skrClaimLoading, setSkrClaimLoading] = useState(false);
   const [memoLoading, setMemoLoading] = useState(false);
   const [lastMemoTime, setLastMemoTime] = useState<string | null>(null);
+  const notificationsEnabled = useNotificationStore((s) => s.enabled);
+  const toggleNotifications = useNotificationStore((s) => s.setEnabled);
 
   const shortAddress = address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Not connected';
   const shortMintAddress = mintAddress ? `${mintAddress.slice(0, 6)}...${mintAddress.slice(-4)}` : 'N/A';
@@ -352,6 +356,27 @@ export function ProfileScreen() {
       setAirdropLoading(false);
     }
   }, [address, airdropLoading, refreshBalance]);
+
+  const handleClaimSkr = useCallback(async () => {
+    if (!authToken || skrClaimLoading) return;
+    setSkrClaimLoading(true);
+    try {
+      const txSig = await claimTestSkr(authToken);
+      try {
+        const { labelTransaction } = require('../store/txHistoryStore');
+        labelTransaction(txSig, 'Claimed SKR Tokens');
+      } catch {}
+      await refreshSkrBalance();
+      await refreshBalance();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('SKR Claimed!', '100 SKR tokens have been minted to your wallet.');
+    } catch (err: any) {
+      Alert.alert('Claim Failed', err?.message || 'Failed to claim SKR tokens.');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setSkrClaimLoading(false);
+    }
+  }, [authToken, skrClaimLoading, refreshSkrBalance, refreshBalance]);
 
   const handleSyncPetState = useCallback(async () => {
     if (!authToken || memoLoading) return;
@@ -433,8 +458,36 @@ export function ProfileScreen() {
               </TouchableOpacity>
             </View>
           </View>
+          <View className="flex-row justify-between py-3.5 border-b border-gray-100 items-center">
+            <Text className="text-[12px] font-semibold text-gray-500">SKR Balance</Text>
+            <View className="flex-row items-center">
+              <Text className="text-[12px] font-black text-purple-600 mr-2">{skrBalance.toFixed(2)} SKR</Text>
+              <TouchableOpacity onPress={refreshSkrBalance} activeOpacity={0.7}>
+                <MaterialCommunityIcons name="refresh" size={14} color="#9333ea" />
+              </TouchableOpacity>
+            </View>
+          </View>
           <InfoRow label="Network" value="Solana Devnet" valueColor="text-pet-blue-dark" />
-          <View className="py-3">
+          <View className="py-3" style={{ gap: 8 }}>
+            <TouchableOpacity onPress={handleClaimSkr} disabled={skrClaimLoading} activeOpacity={0.85}>
+              <LinearGradient
+                colors={['#9333ea', '#7c3aed']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                className="py-2.5 rounded-xl items-center flex-row justify-center"
+              >
+                {skrClaimLoading ? (
+                  <>
+                    <ActivityIndicator size="small" color="#fff" />
+                    <Text className="text-white text-[11px] font-black ml-2">Minting SKR...</Text>
+                  </>
+                ) : (
+                  <>
+                    <Text className="text-white text-[11px] font-black uppercase tracking-[0.5px]">{'\u{1F48E}'} Claim 100 Test SKR</Text>
+                  </>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
             <TouchableOpacity onPress={handleAirdrop} disabled={airdropLoading} activeOpacity={0.85}>
               <LinearGradient
                 colors={['#4FABC9', '#3E8AB3']}
@@ -516,15 +569,12 @@ export function ProfileScreen() {
           <View className="flex-row justify-between py-3.5 border-b border-gray-100 items-center">
             <Text className="text-[12px] font-semibold text-gray-500">Notifications</Text>
             <TouchableOpacity
-              onPress={() => {
-                const ns = useNotificationStore.getState();
-                ns.setEnabled(!ns.enabled);
-              }}
+              onPress={() => toggleNotifications(!notificationsEnabled)}
               activeOpacity={0.7}
             >
-              <View className={`px-3 py-1 rounded-full ${useNotificationStore.getState().enabled ? 'bg-pet-green' : 'bg-gray-300'}`}>
+              <View className={`px-3 py-1 rounded-full ${notificationsEnabled ? 'bg-pet-green' : 'bg-gray-300'}`}>
                 <Text className="text-[10px] font-black text-white">
-                  {useNotificationStore.getState().enabled ? 'ON' : 'OFF'}
+                  {notificationsEnabled ? 'ON' : 'OFF'}
                 </Text>
               </View>
             </TouchableOpacity>
@@ -533,7 +583,7 @@ export function ProfileScreen() {
 
         <TouchableOpacity onPress={handleDisconnect} activeOpacity={0.9}>
           <View
-            className="py-4 rounded-2xl mb-10 border border-pet-blue-dark/30 bg-white flex-row items-center justify-center"
+            className="py-4 rounded-2xl mb-5 border border-pet-blue-dark/30 bg-white flex-row items-center justify-center"
             style={{
               shadowColor: '#4FB0C6',
               shadowOffset: { width: 0, height: 6 },
@@ -546,6 +596,22 @@ export function ProfileScreen() {
             <Text className="ml-2 text-pet-blue-dark font-black text-[13px] tracking-[0.6px] uppercase">Disconnect Wallet</Text>
           </View>
         </TouchableOpacity>
+
+        {/* Solana branding for hackathon judges */}
+        <View className="items-center mb-10 py-4">
+          <LinearGradient
+            colors={['#9945FF', '#14F195']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            className="flex-row items-center px-5 py-2.5 rounded-2xl"
+          >
+            <Text className="text-[16px] mr-2">{'\u{26A1}'}</Text>
+            <Text className="text-[12px] font-black text-white uppercase tracking-[0.8px]">Powered by Solana</Text>
+          </LinearGradient>
+          <Text className="text-[10px] text-gray-400 font-semibold mt-2">
+            Real on-chain transactions {'\u00B7'} Devnet {'\u00B7'} Mobile Wallet Adapter
+          </Text>
+        </View>
       </ScrollView>
     </View>
   );

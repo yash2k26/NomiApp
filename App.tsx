@@ -1,7 +1,7 @@
 // Polyfills MUST be imported before anything else
 import './src/polyfills';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Component, type ErrorInfo, type ReactNode } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { View, Text, TouchableOpacity, LogBox, AppState, BackHandler, Platform, Image, type ImageSourcePropType } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -23,6 +23,32 @@ import { GamesScreen } from './src/screens/GamesScreen';
 import { petTypography } from './src/theme/typography';
 
 import './global.css';
+
+// Error boundary to prevent white-screen crashes during demo
+class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
+  state = { hasError: false };
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error('[ErrorBoundary]', error, info.componentStack);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#E8F4F8' }}>
+          <Text style={{ fontSize: 48, marginBottom: 12 }}>{'😵'}</Text>
+          <Text style={{ fontSize: 18, fontWeight: '700', color: '#2D6B90', marginBottom: 8 }}>Oops! Something went wrong</Text>
+          <TouchableOpacity
+            onPress={() => this.setState({ hasError: false })}
+            style={{ backgroundColor: '#4FB0C6', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 16 }}
+          >
+            <Text style={{ color: 'white', fontWeight: '700', fontSize: 16 }}>Try Again</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 // Suppress EXGL warnings globally
 LogBox.ignoreLogs([
@@ -50,7 +76,7 @@ const TAB_ICONS: Record<Tab, ImageSourcePropType> = {
   home: require('./assets/Icons/Home.png'),
   games: require('./assets/Icons/Play.png'),
   shop: require('./assets/Icons/Shop.png'),
-  profile: require('./assets/Icons/Home.png'), // fallback, no profile icon
+  profile: require('./assets/Icons/Feed.png'), // distinct icon for profile tab
 };
 
 const TABS: { key: Tab; label: string }[] = [
@@ -137,12 +163,16 @@ export default function App() {
   const hydrateEvents = useEventStore((s) => s.hydrateEvents);
   const hydrateNotifications = useNotificationStore((s) => s.hydrateNotifications);
   const hydrateTxLabels = useTxHistoryStore((s) => s.hydrateTxLabels);
+  const refreshSkrBalance = useWalletStore((s) => s.refreshSkrBalance);
   const requestNotificationPermission = useNotificationStore((s) => s.requestPermission);
   const scheduleReturnNotifications = useNotificationStore((s) => s.scheduleReturnNotifications);
 
   useEffect(() => {
-    Promise.all([hydratePetStore(), hydrateWallet(), hydrateShop(), hydrateXp(), hydrateAdventure(), hydratePremium(), hydratePersonality(), hydrateEvents(), hydrateNotifications(), hydrateTxLabels(), initSounds()]).finally(() => setHydrated(true));
-  }, [hydrateWallet, hydrateShop, hydrateXp, hydrateAdventure, hydratePremium, hydratePersonality, hydrateEvents, hydrateNotifications, hydrateTxLabels]);
+    Promise.all([hydratePetStore(), hydrateWallet(), hydrateShop(), hydrateXp(), hydrateAdventure(), hydratePremium(), hydratePersonality(), hydrateEvents(), hydrateNotifications(), hydrateTxLabels(), initSounds()]).then(() => {
+      // Refresh SKR balance after wallet is hydrated
+      refreshSkrBalance();
+    }).finally(() => setHydrated(true));
+  }, [hydrateWallet, hydrateShop, hydrateXp, hydrateAdventure, hydratePremium, hydratePersonality, hydrateEvents, hydrateNotifications, hydrateTxLabels, refreshSkrBalance]);
 
   // Android system back gesture/button behavior for custom, non-stack navigation flow.
   useEffect(() => {
@@ -257,14 +287,16 @@ export default function App() {
   }
 
   return (
-    <GestureHandlerRootView className="flex-1">
-      <SafeAreaProvider>
-        <SafeAreaView className="flex-1 bg-pet-background" edges={['top']}>
-          <View className="flex-1">{renderScreen(activeTab)}</View>
-          <TabBar activeTab={activeTab} onTabPress={setActiveTab} />
-          <StatusBar style="dark" />
-        </SafeAreaView>
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+    <ErrorBoundary>
+      <GestureHandlerRootView className="flex-1">
+        <SafeAreaProvider>
+          <SafeAreaView className="flex-1 bg-pet-background" edges={['top']}>
+            <View className="flex-1">{renderScreen(activeTab)}</View>
+            <TabBar activeTab={activeTab} onTabPress={setActiveTab} />
+            <StatusBar style="dark" />
+          </SafeAreaView>
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    </ErrorBoundary>
   );
 }

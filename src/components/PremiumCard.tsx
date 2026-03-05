@@ -1,9 +1,11 @@
-import { View, Text, TouchableOpacity, Alert } from 'react-native';
+import { useState } from 'react';
+import { View, Text, TouchableOpacity, Alert, ActivityIndicator, Linking } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { usePremiumStore } from '../store/premiumStore';
 import { useWalletStore } from '../store/walletStore';
 import { type PremiumTier, TIER_CONFIGS, TIER_ORDER, getTierOrdinal, getUpgradeCost } from '../data/premiumTiers';
+import { getSolscanTxUrl } from '../lib/solanaClient';
 
 const TIER_PERKS: Record<Exclude<PremiumTier, 'none'>, { emoji: string; text: string }[]> = {
   silver: [
@@ -36,9 +38,10 @@ interface TierOptionProps {
   tier: Exclude<PremiumTier, 'none'>;
   currentTier: PremiumTier;
   onPurchase: (tier: PremiumTier) => void;
+  purchasing?: boolean;
 }
 
-function TierOption({ tier, currentTier, onPurchase }: TierOptionProps) {
+function TierOption({ tier, currentTier, onPurchase, purchasing }: TierOptionProps) {
   const config = TIER_CONFIGS[tier];
   const isActive = currentTier === tier;
   const isBelow = getTierOrdinal(currentTier) > getTierOrdinal(tier);
@@ -95,22 +98,29 @@ function TierOption({ tier, currentTier, onPurchase }: TierOptionProps) {
 
         {/* Purchase/upgrade button */}
         {!isActive && !isBelow && (
-          <TouchableOpacity
-            onPress={() => onPurchase(tier)}
-            activeOpacity={0.85}
-            className="mt-2"
-          >
-            <LinearGradient
-              colors={config.gradientColors}
-              className="py-3 rounded-2xl items-center"
+          purchasing ? (
+            <View className="mt-2 py-3 rounded-2xl items-center bg-gray-100 border border-gray-200 flex-row justify-center">
+              <ActivityIndicator size="small" color="#3792A6" />
+              <Text className="text-gray-600 font-black text-[11px] uppercase tracking-[0.5px] ml-2">Confirm in Phantom...</Text>
+            </View>
+          ) : (
+            <TouchableOpacity
+              onPress={() => onPurchase(tier)}
+              activeOpacity={0.85}
+              className="mt-2"
             >
-              <Text className="text-white font-black text-[13px] uppercase tracking-[0.5px]">
-                {currentTier === 'none'
-                  ? `Get ${config.label} for ${config.price} SOL`
-                  : `Upgrade for ${cost} SOL`}
-              </Text>
-            </LinearGradient>
-          </TouchableOpacity>
+              <LinearGradient
+                colors={config.gradientColors}
+                className="py-3 rounded-2xl items-center"
+              >
+                <Text className="text-white font-black text-[13px] uppercase tracking-[0.5px]">
+                  {currentTier === 'none'
+                    ? `Get ${config.label} for ${config.price} SOL`
+                    : `Upgrade for ${cost} SOL`}
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          )
         )}
       </View>
     </View>
@@ -121,8 +131,10 @@ export function PremiumCard() {
   const tier = usePremiumStore((s) => s.tier);
   const purchaseTier = usePremiumStore((s) => s.purchaseTier);
   const balance = useWalletStore((s) => s.balance);
+  const [purchasing, setPurchasing] = useState(false);
 
   const handlePurchase = (targetTier: PremiumTier) => {
+    if (purchasing) return;
     const config = TIER_CONFIGS[targetTier];
     const cost = getUpgradeCost(tier, targetTier);
 
@@ -135,18 +147,34 @@ export function PremiumCard() {
     const action = tier === 'none' ? 'Get' : 'Upgrade to';
     Alert.alert(
       `${action} ${config.label}`,
-      `${action} ${config.label} tier for ${cost} SOL?\n\n${config.label === 'Diamond' ? 'All accessories will be unlocked immediately!' : `Unlock ${config.label}-tier perks!`}`,
+      `${action} ${config.label} tier for ${cost} SOL?\nThis will open Phantom for approval.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: `${action}!`,
-          onPress: () => {
-            const success = purchaseTier(targetTier);
-            if (success) {
+          onPress: async () => {
+            setPurchasing(true);
+            try {
+              const txSig = await purchaseTier(targetTier);
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            } else {
+              Alert.alert(
+                'Upgrade Complete!',
+                `Welcome to ${config.label} tier!`,
+                [
+                  { text: 'View on Solscan', onPress: () => txSig && Linking.openURL(getSolscanTxUrl(txSig)) },
+                  { text: 'OK' },
+                ],
+              );
+            } catch (err: any) {
+              const msg = err?.message || 'Purchase failed';
+              if (msg.includes('User rejected') || msg.includes('declined')) {
+                Alert.alert('Cancelled', 'Transaction cancelled in wallet.');
+              } else {
+                Alert.alert('Purchase Failed', msg);
+              }
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-              Alert.alert('Purchase Failed', 'Not enough SOL.');
+            } finally {
+              setPurchasing(false);
             }
           },
         },
@@ -215,6 +243,7 @@ export function PremiumCard() {
             tier={t}
             currentTier={tier}
             onPurchase={handlePurchase}
+            purchasing={purchasing}
           />
         ))}
       </View>

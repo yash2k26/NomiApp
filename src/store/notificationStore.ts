@@ -91,7 +91,7 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
 
       if (granted && Platform.OS === 'android') {
         await Notifications.setNotificationChannelAsync('default', {
-          name: 'Oracle Pet',
+          name: 'Nomi',
           importance: Notifications.AndroidImportance.HIGH,
           vibrationPattern: [0, 250, 250, 250],
         });

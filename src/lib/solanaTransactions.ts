@@ -52,15 +52,6 @@ export async function transferSOL(
   recipientAddress: string,
   amountSOL: number,
 ): Promise<string> {
-  const transaction = new Transaction().add(
-    SystemProgram.transfer({
-      fromPubkey: PublicKey.default, // placeholder — set by signAndSendTransaction
-      toPubkey: new PublicKey(recipientAddress),
-      lamports: Math.round(amountSOL * LAMPORTS_PER_SOL),
-    }),
-  );
-
-  // Fix: fromPubkey needs to be set inside withWallet where we know the address
   return withWallet(authToken, async (wallet, address) => {
     const payer = new PublicKey(address);
     const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
