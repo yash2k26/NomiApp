@@ -22,7 +22,7 @@ import { petTypography } from '../theme/typography';
 import { playMusic, stopMusic } from '../lib/soundManager';
 import { OnboardingOverlay, shouldShowOnboarding } from '../components/OnboardingOverlay';
 
-const FALLING_DURATION = 13000; // Gangnam clip is ~12.4s
+const BACKFLIP_DURATION = 2500; // Backflip clip duration
 
 function NeedBubble({ message }: { message: string }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -433,7 +433,7 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
   const allHighStats = shownHunger >= 100 && shownHappiness >= 100 && shownEnergy >= 100;
 
   const activeModel: ActiveModel = isFalling
-    ? 'falling'
+    ? 'backflip'
     : isExcitedBurst
       ? 'excited'
       : anySadStat
@@ -566,7 +566,7 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
 
   useEffect(() => {
     if (!isFalling) return;
-    const timer = setTimeout(() => setIsFalling(false), FALLING_DURATION);
+    const timer = setTimeout(() => setIsFalling(false), BACKFLIP_DURATION);
     return () => clearTimeout(timer);
   }, [isFalling]);
 

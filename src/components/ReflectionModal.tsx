@@ -25,8 +25,9 @@ function ReflectionOption({ icon, text, description, bgColor, onPress }: Reflect
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.8}
-      className={`${bgColor} rounded-4xl p-5 mb-4 flex-row items-center border-b-4 border-black/5`}
+      className={`${bgColor} p-5 mb-4 flex-row items-center border-b-4 border-black/5`}
       style={{
+        borderRadius: 18,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.05,

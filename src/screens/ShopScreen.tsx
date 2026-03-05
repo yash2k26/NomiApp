@@ -15,6 +15,13 @@ const PILL_RADIUS = 12;
 
 type ShopSection = 'All' | 'Accessories' | 'Animations' | 'Clothes' | 'Shoes' | 'Other';
 const SECTIONS: ShopSection[] = ['All', 'Accessories', 'Animations', 'Clothes', 'Shoes', 'Other'];
+
+type OwnershipFilter = 'all' | 'owned' | 'available';
+const OWNERSHIP_FILTERS: { key: OwnershipFilter; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'owned', label: 'Owned' },
+  { key: 'available', label: 'Available' },
+];
 const SECTION_META: Record<ShopSection, { icon: string; tone: string }> = {
   All: { icon: '\u{1F31F}', tone: 'bg-pet-blue' },
   Accessories: { icon: '\u{1F451}', tone: 'bg-pet-blue-dark' },
@@ -126,19 +133,19 @@ function ShopCard({
         className="absolute inset-0"
         style={{ borderRadius: 32 }}
       />
-      <View className="absolute top-1.5 left-2.5 flex-row" style={{ gap: 4 }}>
-        <View className={`px-2 py-0.5 rounded-full ${rarityInfo.bg}`}>
+      <View className="flex-row mb-2" style={{ gap: 4 }}>
+        <View className={`px-1 rounded-full ${rarityInfo.bg}`}>
           <Text className={`text-[9px] font-black ${rarityInfo.text}`}>{rarityInfo.label.toUpperCase()}</Text>
         </View>
         {item.tierTag && (
-          <View className="px-2 py-0.5 rounded-full bg-pet-blue-light/70 border border-pet-blue-light">
+          <View className="px-2.5 py-1 rounded-full bg-pet-blue-light/70 border border-pet-blue-light">
             <Text className="text-[9px] font-black text-pet-blue-dark">
               {item.tierTag === 'diamond_exclusive' ? '\u{1F48E}' : '\u{1F451}'}
             </Text>
           </View>
         )}
       </View>
-      <View className="items-center mb-4 mt-1">
+      <View className="items-center mb-4">
         <View
           className={`w-16 h-16 rounded-2xl items-center justify-center border ${
             equipped ? 'bg-pet-blue/15 border-pet-blue/30' : 'bg-gray-50 border-gray-100'
@@ -175,8 +182,8 @@ function ShopCard({
       </View>
 
       {isLocked ? (
-        <View className="py-2.5 items-center bg-gray-200 border border-gray-300" style={{ borderRadius: BUTTON_RADIUS }}>
-          <Text className="text-[9px] font-black text-gray-500 uppercase tracking-wider">
+        <View className="py-2.5 px-2 items-center justify-center bg-gray-200 border border-gray-300" style={{ borderRadius: BUTTON_RADIUS }}>
+          <Text className="text-[9px] font-black text-gray-500 uppercase tracking-wider text-center">
             {'\u{1F512}'} {lockState.reason}
           </Text>
         </View>
@@ -217,6 +224,7 @@ function ShopCard({
 export function ShopScreen() {
   const { items, buyItem, equipItem, unequipItem, equippedItemId, equippedAnimationId, hydrateShop } = useShopStore();
   const [selectedSection, setSelectedSection] = useState<ShopSection>('All');
+  const [ownershipFilter, setOwnershipFilter] = useState<OwnershipFilter>('all');
   const [purchasingId, setPurchasingId] = useState<string | null>(null);
   const balance = useWalletStore((s) => s.balance);
   const skrBalance = useWalletStore((s) => s.skrBalance);
@@ -238,8 +246,11 @@ export function ShopScreen() {
       if (!i.tierTag) return true;
       const required = TIER_TAG_MAP[i.tierTag];
       return required ? isAtLeastTier(tier, required) : true;
+    }).filter((i) => {
+      if (ownershipFilter === 'all') return true;
+      return ownershipFilter === 'owned' ? i.owned : !i.owned;
     });
-  }, [items, tier]);
+  }, [items, tier, ownershipFilter]);
 
   const sectioned = useMemo(() => {
     const bySection: Record<Exclude<ShopSection, 'All'>, ShopItem[]> = {
@@ -402,11 +413,30 @@ export function ShopScreen() {
         </ScrollView>
       </View>
 
-      <View className="px-6 mb-4">
-        <View className="rounded-[24px] border border-pet-blue-light/70 bg-white px-5 py-3 flex-row items-center">
-          <Text className="text-base mr-2">{'\u{1F49D}'}</Text>
-          <Text className="text-[12px] font-semibold text-pet-blue-dark flex-1" style={{ fontFamily: petTypography.body }}>Try matching outfit pieces for a softer look.</Text>
-        </View>
+      <View className="px-6 mb-4 flex-row" style={{ gap: 8 }}>
+        {OWNERSHIP_FILTERS.map((f) => (
+          <TouchableOpacity
+            key={f.key}
+            onPress={() => setOwnershipFilter(f.key)}
+            activeOpacity={0.85}
+          >
+            <View
+              className={`px-4 py-2 ${
+                ownershipFilter === f.key ? 'bg-pet-blue-dark' : 'bg-white border border-gray-200'
+              }`}
+              style={{ borderRadius: PILL_RADIUS }}
+            >
+              <Text
+                className={`text-[11px] font-bold tracking-[0.3px] ${
+                  ownershipFilter === f.key ? 'text-white' : 'text-gray-500'
+                }`}
+                style={{ fontFamily: petTypography.heading }}
+              >
+                {f.label}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        ))}
       </View>
 
       <ScrollView

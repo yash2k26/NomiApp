@@ -30,8 +30,8 @@ function StatBar({ label, value, icon, barColor, trackColor }: StatBarProps) {
   }, [value, widthAnim]);
 
   return (
-    <View className="mb-5 last:mb-0">
-      <View className="flex-row items-center justify-between mb-2.5">
+    <View>
+      <View className="flex-row items-center justify-between mb-2">
         <View className="flex-row items-center">
           <View className="w-7 h-7 rounded-full bg-white items-center justify-center mr-2 border border-gray-100">
             <Text className="text-xs">{icon}</Text>
@@ -276,9 +276,8 @@ export function CareActions() {
           </View>
         </LinearGradient>
 
-        <View className="p-5">
+        <View className="p-5" style={{ gap: 10 }}>
           <StaminaBar />
-
           <StatBar
             label="Hunger"
             value={hunger}

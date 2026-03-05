@@ -168,10 +168,11 @@ export default function App() {
   const scheduleReturnNotifications = useNotificationStore((s) => s.scheduleReturnNotifications);
 
   useEffect(() => {
-    Promise.all([hydratePetStore(), hydrateWallet(), hydrateShop(), hydrateXp(), hydrateAdventure(), hydratePremium(), hydratePersonality(), hydrateEvents(), hydrateNotifications(), hydrateTxLabels(), initSounds()]).then(() => {
-      // Refresh SKR balance after wallet is hydrated
-      refreshSkrBalance();
-    }).finally(() => setHydrated(true));
+    // Hydrate local stores first (fast), then wallet reauth (slow, talks to Phantom) in background
+    Promise.all([hydratePetStore(), hydrateShop(), hydrateXp(), hydrateAdventure(), hydratePremium(), hydratePersonality(), hydrateEvents(), hydrateNotifications(), hydrateTxLabels(), initSounds()])
+      .finally(() => setHydrated(true));
+    // Wallet reauth runs in parallel but doesn't block the UI
+    hydrateWallet().then(() => refreshSkrBalance()).catch(() => {});
   }, [hydrateWallet, hydrateShop, hydrateXp, hydrateAdventure, hydratePremium, hydratePersonality, hydrateEvents, hydrateNotifications, hydrateTxLabels, refreshSkrBalance]);
 
   // Android system back gesture/button behavior for custom, non-stack navigation flow.
@@ -250,7 +251,11 @@ export default function App() {
     if (showWelcomeIntro) {
       return (
         <GestureHandlerRootView className="flex-1">
-          <WelcomeIntro onContinue={() => setShowWelcomeIntro(false)} />
+          <WelcomeIntro onContinue={() => {
+            // Use requestAnimationFrame to defer the state update,
+            // allowing the button press animation to complete first
+            requestAnimationFrame(() => setShowWelcomeIntro(false));
+          }} />
           <StatusBar style="light" />
         </GestureHandlerRootView>
       );

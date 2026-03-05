@@ -99,7 +99,7 @@ function TierOption({ tier, currentTier, onPurchase, purchasing }: TierOptionPro
         {/* Purchase/upgrade button */}
         {!isActive && !isBelow && (
           purchasing ? (
-            <View className="mt-2 py-3 rounded-2xl items-center bg-gray-100 border border-gray-200 flex-row justify-center">
+            <View style={{ marginTop: 8, paddingVertical: 14, borderRadius: 18, alignItems: 'center', backgroundColor: '#f3f4f6', borderWidth: 1, borderColor: '#e5e7eb', flexDirection: 'row', justifyContent: 'center' }}>
               <ActivityIndicator size="small" color="#3792A6" />
               <Text className="text-gray-600 font-black text-[11px] uppercase tracking-[0.5px] ml-2">Confirm in Phantom...</Text>
             </View>
@@ -107,11 +107,11 @@ function TierOption({ tier, currentTier, onPurchase, purchasing }: TierOptionPro
             <TouchableOpacity
               onPress={() => onPurchase(tier)}
               activeOpacity={0.85}
-              className="mt-2"
+              style={{ marginTop: 8 }}
             >
               <LinearGradient
                 colors={config.gradientColors}
-                className="py-3 rounded-2xl items-center"
+                style={{ paddingVertical: 14, borderRadius: 18, alignItems: 'center' }}
               >
                 <Text className="text-white font-black text-[13px] uppercase tracking-[0.5px]">
                   {currentTier === 'none'

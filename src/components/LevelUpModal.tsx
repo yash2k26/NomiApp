@@ -92,8 +92,8 @@ export function LevelUpModal() {
           <View className="mt-8 mb-4">
             <LinearGradient
               colors={['#FFD700', '#CCA800']}
-              className="w-24 h-24 rounded-full items-center justify-center"
-              style={{ borderWidth: 4, borderColor: '#FFD700' }}
+              className="items-center justify-center"
+              style={{ width: 96, height: 96, borderRadius: 48, borderWidth: 4, borderColor: '#FFD700' }}
             >
               <Text className="text-white text-[36px] font-black">{level}</Text>
             </LinearGradient>

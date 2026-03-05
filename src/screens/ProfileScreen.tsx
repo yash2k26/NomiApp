@@ -16,6 +16,8 @@ import { TIER_CONFIGS } from '../data/premiumTiers';
 import { useShopStore } from '../store/shopStore';
 import { useNotificationStore } from '../store/notificationStore';
 import { ScreenHeader } from '../components/ui/ScreenHeader';
+import { SharePetCard } from '../components/SharePetCard';
+import { TransactionHistoryScreen } from './TransactionHistoryScreen';
 import { requestAirdrop } from '../lib/solanaTransactions';
 import { getSolscanTxUrl, getSolscanNftUrl, getSolscanAddressUrl } from '../lib/solanaClient';
 import { writeMemo } from '../lib/solanaTransactions';
@@ -88,37 +90,40 @@ function ProgressCard() {
         </View>
       </View>
 
-      <View className="px-2 pt-2">
+      <View className="px-3 pt-3 pb-1">
         <XpBar />
       </View>
 
-      <View className="flex-row justify-between px-5 pb-3">
-        <View className="items-center">
-          <View className="px-3 py-1 rounded-full bg-pet-blue-light/40 border border-pet-blue-light/90">
+      <View className="flex-row justify-between px-5 pt-3 pb-4">
+        <View className="items-center" style={{ gap: 4 }}>
+          <View className="px-3 py-1.5 rounded-full bg-pet-blue-light/40 border border-pet-blue-light/90">
             <Text className="text-[15px] font-black text-pet-blue-dark">{totalXp}</Text>
           </View>
           <Text className="text-[9px] font-bold text-gray-400 uppercase">Total XP</Text>
         </View>
-        <View className="items-center">
-          <View className="px-3 py-1 rounded-full bg-pet-blue-light/40 border border-pet-blue-light/90">
+        <View className="items-center" style={{ gap: 4 }}>
+          <View className="px-3 py-1.5 rounded-full bg-pet-blue-light/40 border border-pet-blue-light/90">
             <Text className="text-[15px] font-black text-pet-blue-dark">{title}</Text>
           </View>
           <Text className="text-[9px] font-bold text-gray-400 uppercase">Title</Text>
         </View>
-        <View className="items-center">
-          <View className="px-3 py-1 rounded-full bg-pet-blue-light/40 border border-pet-blue-light/90">
+        <View className="items-center" style={{ gap: 4 }}>
+          <View className="px-3 py-1.5 rounded-full bg-pet-blue-light/40 border border-pet-blue-light/90">
             <Text className="text-[15px] font-black text-pet-blue-dark">{unlockedCount}</Text>
           </View>
           <Text className="text-[9px] font-bold text-gray-400 uppercase">Badges</Text>
         </View>
       </View>
 
+      {/* Divider */}
+      <View className="mx-5 h-[1px] bg-pet-blue-light/40" />
+
       {/* Achievement Grid */}
-      <View className="px-4 pb-4">
-        <Text className="text-[11px] font-black text-gray-500 uppercase tracking-[0.6px] mb-2 px-1">Achievements</Text>
-        <View className="flex-row flex-wrap" style={{ gap: 8 }}>
+      <View className="px-4 pt-4 pb-5">
+        <Text className="text-[11px] font-black text-gray-500 uppercase tracking-[0.6px] mb-3 px-1">Achievements</Text>
+        <View className="flex-row flex-wrap" style={{ gap: 10 }}>
           {achievements.map(a => (
-            <View key={a.id} style={{ width: '23%' }}>
+            <View key={a.id} style={{ width: '22%' }}>
               <AchievementBadge achievement={a} />
             </View>
           ))}
@@ -206,7 +211,7 @@ function EvolutionCard() {
   );
 }
 
-function TransactionHistoryCard({ address }: { address: string }) {
+function TransactionHistoryCard({ address, onSeeAll }: { address: string; onSeeAll?: () => void }) {
   const { transactions, isLoading, fetchHistory } = useTxHistoryStore();
 
   useEffect(() => {
@@ -274,6 +279,14 @@ function TransactionHistoryCard({ address }: { address: string }) {
             </TouchableOpacity>
           ))
         )}
+        {transactions.length > 0 && onSeeAll && (
+          <TouchableOpacity onPress={onSeeAll} activeOpacity={0.7} className="py-3 items-center">
+            <View className="flex-row items-center">
+              <Text className="text-[11px] font-black text-pet-blue uppercase tracking-[0.5px]">View All Transactions</Text>
+              <MaterialCommunityIcons name="chevron-right" size={16} color="#4FABC9" />
+            </View>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
@@ -330,6 +343,7 @@ export function ProfileScreen() {
   const [skrClaimLoading, setSkrClaimLoading] = useState(false);
   const [memoLoading, setMemoLoading] = useState(false);
   const [lastMemoTime, setLastMemoTime] = useState<string | null>(null);
+  const [showTxHistory, setShowTxHistory] = useState(false);
   const notificationsEnabled = useNotificationStore((s) => s.enabled);
   const toggleNotifications = useNotificationStore((s) => s.setEnabled);
 
@@ -406,6 +420,10 @@ export function ProfileScreen() {
 
   const skinDisplayName = skin === 'default' ? 'Default' : skin.charAt(0).toUpperCase() + skin.slice(1);
 
+  if (showTxHistory) {
+    return <TransactionHistoryScreen onBack={() => setShowTxHistory(false)} />;
+  }
+
   return (
     <View className="flex-1 bg-pet-background">
       <LinearGradient
@@ -431,11 +449,15 @@ export function ProfileScreen() {
           )}
         />
 
+        <View style={{ height: 16 }} />
+
         <ProgressCard />
 
         <EvolutionCard />
 
         <PremiumCard />
+
+        <SharePetCard />
 
         <View className="mt-1" />
 
@@ -474,7 +496,7 @@ export function ProfileScreen() {
                 colors={['#9333ea', '#7c3aed']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
-                className="py-2.5 rounded-xl items-center flex-row justify-center"
+                style={{ paddingVertical: 12, borderRadius: 18, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' }}
               >
                 {skrClaimLoading ? (
                   <>
@@ -493,7 +515,7 @@ export function ProfileScreen() {
                 colors={['#4FABC9', '#3E8AB3']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
-                className="py-2.5 rounded-xl items-center flex-row justify-center"
+                style={{ paddingVertical: 12, borderRadius: 18, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' }}
               >
                 {airdropLoading ? (
                   <>
@@ -541,7 +563,7 @@ export function ProfileScreen() {
           <CollectiblesRow />
           <View className="py-3">
             <TouchableOpacity onPress={handleSyncPetState} disabled={memoLoading} activeOpacity={0.85}>
-              <View className="py-2.5 rounded-xl items-center flex-row justify-center bg-pet-blue-light/40 border border-pet-blue-light/80">
+              <View style={{ paddingVertical: 12, borderRadius: 18, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', backgroundColor: 'rgba(167,215,230,0.4)', borderWidth: 1, borderColor: 'rgba(167,215,230,0.8)' }}>
                 {memoLoading ? (
                   <>
                     <ActivityIndicator size="small" color="#3792A6" />
@@ -561,7 +583,7 @@ export function ProfileScreen() {
           </View>
         </InfoCard>
 
-        {address && <TransactionHistoryCard address={address} />}
+        {address && <TransactionHistoryCard address={address} onSeeAll={() => setShowTxHistory(true)} />}
 
         <InfoCard title="App" icon={'\u2699'} accent="bg-pet-blue-dark">
           <InfoRow label="Version" value="2.1.0" />
@@ -583,8 +605,16 @@ export function ProfileScreen() {
 
         <TouchableOpacity onPress={handleDisconnect} activeOpacity={0.9}>
           <View
-            className="py-4 rounded-2xl mb-5 border border-pet-blue-dark/30 bg-white flex-row items-center justify-center"
             style={{
+              paddingVertical: 16,
+              borderRadius: 18,
+              marginBottom: 20,
+              borderWidth: 1,
+              borderColor: 'rgba(55,146,166,0.3)',
+              backgroundColor: 'white',
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
               shadowColor: '#4FB0C6',
               shadowOffset: { width: 0, height: 6 },
               shadowOpacity: 0.15,
@@ -597,18 +627,12 @@ export function ProfileScreen() {
           </View>
         </TouchableOpacity>
 
-        {/* Solana branding for hackathon judges */}
+        {/* Solana branding */}
         <View className="items-center mb-10 py-4">
-          <LinearGradient
-            colors={['#9945FF', '#14F195']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            className="flex-row items-center px-5 py-2.5 rounded-2xl"
-          >
-            <Text className="text-[16px] mr-2">{'\u{26A1}'}</Text>
-            <Text className="text-[12px] font-black text-white uppercase tracking-[0.8px]">Powered by Solana</Text>
-          </LinearGradient>
-          <Text className="text-[10px] text-gray-400 font-semibold mt-2">
+          <Text className="text-[11px] font-bold uppercase tracking-[1.2px]" style={{ color: '#b0b8c1' }}>
+            Powered by Solana
+          </Text>
+          <Text className="text-[10px] font-semibold mt-1.5" style={{ color: '#c8cfd6' }}>
             Real on-chain transactions {'\u00B7'} Devnet {'\u00B7'} Mobile Wallet Adapter
           </Text>
         </View>

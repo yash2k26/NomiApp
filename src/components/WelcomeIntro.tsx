@@ -102,22 +102,21 @@ export function WelcomeIntro({ onContinue }: WelcomeIntroProps) {
         <TouchableOpacity
           onPress={onContinue}
           activeOpacity={0.88}
-          className="rounded-[22px] overflow-hidden"
           style={{
             shadowColor: '#1A4E6E',
             shadowOffset: { width: 0, height: 10 },
             shadowOpacity: 0.18,
             shadowRadius: 16,
             elevation: 7,
-            borderRadius: 22,
+            borderRadius: 9999,
+            overflow: 'hidden',
           }}
         >
           <LinearGradient
             colors={['#F8FDFF', '#E8F4FB']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            className="py-[18px] items-center border border-[#CFE8F6]"
-            style={{ borderRadius: 22 }}
+            style={{ paddingVertical: 18, alignItems: 'center', borderRadius: 9999, borderWidth: 1, borderColor: '#CFE8F6' }}
           >
             <Text
               className="text-[#2E7DA8] text-[16px] tracking-[0.3px]"

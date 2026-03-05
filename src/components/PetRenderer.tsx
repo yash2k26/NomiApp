@@ -157,7 +157,7 @@ function PetModel({ activeModel, onAnimationDone, equippedSkin }: PetModelProps)
   useEffect(() => {
     const mixer = mixerRef.current;
     if (!mixer || animations.length === 0) {
-      if (activeModel === 'excited' || activeModel === 'falling') {
+      if (activeModel === 'excited' || activeModel === 'falling' || activeModel === 'backflip') {
         const t = setTimeout(() => onAnimationDone?.(), 1500);
         return () => clearTimeout(t);
       }
@@ -198,7 +198,7 @@ function PetModel({ activeModel, onAnimationDone, equippedSkin }: PetModelProps)
     const action = mixer.clipAction(clip);
     action.reset();
 
-    if (activeModel === 'excited' || activeModel === 'falling') {
+    if (activeModel === 'excited' || activeModel === 'falling' || activeModel === 'backflip') {
       action.setLoop(THREE.LoopOnce, 1);
       action.clampWhenFinished = true;
     } else {
@@ -210,12 +210,12 @@ function PetModel({ activeModel, onAnimationDone, equippedSkin }: PetModelProps)
 
     const onFinished = () => onAnimationDone?.();
 
-    if (activeModel === 'excited' || activeModel === 'falling') {
+    if (activeModel === 'excited' || activeModel === 'falling' || activeModel === 'backflip') {
       mixer.addEventListener('finished', onFinished);
     }
 
     return () => {
-      if (activeModel === 'excited' || activeModel === 'falling') {
+      if (activeModel === 'excited' || activeModel === 'falling' || activeModel === 'backflip') {
         mixer.removeEventListener('finished', onFinished);
       }
     };

@@ -54,20 +54,19 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
     try {
       const result = await connectMobileWallet();
 
-      // Fetch real balance from devnet
-      const balance = await getBalance(result.address);
-      const skrBalance = await getSkrBalance(result.address).catch(() => 0);
-
+      // Connect immediately — don't wait for balance fetches
       set({
         connected: true,
         address: result.address,
         authToken: result.authToken,
-        balance,
-        skrBalance,
         isConnecting: false,
       });
 
-      await saveWalletState(result.address, result.authToken);
+      saveWalletState(result.address, result.authToken);
+
+      // Fetch balances in background (UI updates reactively via Zustand)
+      getBalance(result.address).then((balance) => set({ balance })).catch(() => {});
+      getSkrBalance(result.address).then((skrBalance) => set({ skrBalance })).catch(() => {});
     } catch (error: any) {
       const code = error?.code;
       let message = 'Failed to connect wallet';
@@ -142,18 +141,19 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
 
       // Try to reauthorize with stored auth token
       const result = await reauthorizeMobileWallet(authToken);
-      const balance = await getBalance(result.address);
-      const skrBal = await getSkrBalance(result.address).catch(() => 0);
 
+      // Connect immediately — balances load in background
       set({
         connected: true,
         address: result.address,
         authToken: result.authToken,
-        balance,
-        skrBalance: skrBal,
       });
 
-      await saveWalletState(result.address, result.authToken);
+      saveWalletState(result.address, result.authToken);
+
+      // Fetch balances in background
+      getBalance(result.address).then((balance) => set({ balance })).catch(() => {});
+      getSkrBalance(result.address).then((skrBalance) => set({ skrBalance })).catch(() => {});
     } catch {
       // Reauth failed — user needs to connect again
       await AsyncStorage.removeItem(WALLET_STORAGE_KEY).catch(() => {});
