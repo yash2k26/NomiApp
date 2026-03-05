@@ -1,5 +1,5 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -221,11 +221,107 @@ function ShopCard({
   );
 }
 
+function PaymentModal({
+  item,
+  visible,
+  onClose,
+  onPaySol,
+  onPaySkr,
+  solBalance,
+  skrBalance,
+}: {
+  item: ShopItem | null;
+  visible: boolean;
+  onClose: () => void;
+  onPaySol: () => void;
+  onPaySkr: () => void;
+  solBalance: number;
+  skrBalance: number;
+}) {
+  if (!item) return null;
+  const canAffordSol = solBalance >= item.price;
+  const canAffordSkr = !!item.skrPrice && skrBalance >= item.skrPrice;
+
+  return (
+    <Modal transparent animationType="fade" visible={visible}>
+      <View className="flex-1 bg-black/50 items-center justify-center px-8">
+        <View
+          className="bg-white w-full px-6 py-7 items-center"
+          style={{ borderRadius: 28, shadowColor: '#4FB0C6', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.2, shadowRadius: 24, elevation: 15 }}
+        >
+          <View className="w-16 h-16 rounded-2xl items-center justify-center bg-pet-blue-light/30 border border-pet-blue-light/60 mb-4">
+            <Text className="text-4xl">{item.image}</Text>
+          </View>
+          <Text className="text-[18px] font-black text-gray-800 mb-1" style={{ fontFamily: petTypography.heading }}>{item.name}</Text>
+          <Text className="text-[12px] text-gray-400 font-semibold mb-5">Choose payment method</Text>
+
+          {/* SOL option */}
+          <TouchableOpacity
+            onPress={onPaySol}
+            disabled={!canAffordSol}
+            activeOpacity={0.85}
+            className="w-full mb-3"
+          >
+            <View
+              className={`flex-row items-center justify-between px-5 py-4 border ${canAffordSol ? 'bg-white border-pet-blue-light/60' : 'bg-gray-50 border-gray-200'}`}
+              style={{ borderRadius: 16 }}
+            >
+              <View className="flex-row items-center">
+                <View className="w-9 h-9 rounded-full bg-pet-blue-light/30 items-center justify-center mr-3">
+                  <Text className="text-[16px]">{'\u{2B50}'}</Text>
+                </View>
+                <View>
+                  <Text className={`text-[14px] font-black ${canAffordSol ? 'text-gray-800' : 'text-gray-400'}`}>Pay with SOL</Text>
+                  <Text className={`text-[11px] font-semibold ${canAffordSol ? 'text-gray-400' : 'text-gray-300'}`}>Balance: {solBalance.toFixed(2)} SOL</Text>
+                </View>
+              </View>
+              <Text className={`text-[16px] font-black ${canAffordSol ? 'text-pet-blue-dark' : 'text-gray-300'}`}>{item.price} SOL</Text>
+            </View>
+          </TouchableOpacity>
+
+          {/* SKR option */}
+          {item.skrPrice ? (
+            <TouchableOpacity
+              onPress={onPaySkr}
+              disabled={!canAffordSkr}
+              activeOpacity={0.85}
+              className="w-full mb-5"
+            >
+              <View
+                className={`flex-row items-center justify-between px-5 py-4 border ${canAffordSkr ? 'bg-white border-purple-200' : 'bg-gray-50 border-gray-200'}`}
+                style={{ borderRadius: 16 }}
+              >
+                <View className="flex-row items-center">
+                  <View className="w-9 h-9 rounded-full bg-purple-100 items-center justify-center mr-3">
+                    <Text className="text-[16px]">{'\u{1F48E}'}</Text>
+                  </View>
+                  <View>
+                    <Text className={`text-[14px] font-black ${canAffordSkr ? 'text-gray-800' : 'text-gray-400'}`}>Pay with SKR</Text>
+                    <Text className={`text-[11px] font-semibold ${canAffordSkr ? 'text-gray-400' : 'text-gray-300'}`}>Balance: {skrBalance.toFixed(0)} SKR</Text>
+                  </View>
+                </View>
+                <Text className={`text-[16px] font-black ${canAffordSkr ? 'text-purple-600' : 'text-gray-300'}`}>{item.skrPrice} SKR</Text>
+              </View>
+            </TouchableOpacity>
+          ) : (
+            <View className="mb-5" />
+          )}
+
+          <TouchableOpacity onPress={onClose} activeOpacity={0.85}>
+            <Text className="text-[13px] font-bold text-gray-400">Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 export function ShopScreen() {
   const { items, buyItem, equipItem, unequipItem, equippedItemId, equippedAnimationId, hydrateShop } = useShopStore();
   const [selectedSection, setSelectedSection] = useState<ShopSection>('All');
   const [ownershipFilter, setOwnershipFilter] = useState<OwnershipFilter>('all');
   const [purchasingId, setPurchasingId] = useState<string | null>(null);
+  const [paymentItem, setPaymentItem] = useState<ShopItem | null>(null);
   const balance = useWalletStore((s) => s.balance);
   const skrBalance = useWalletStore((s) => s.skrBalance);
   const premium = usePremiumStore((s) => s.isPremium);
@@ -300,47 +396,31 @@ export function ShopScreen() {
 
   const handleBuy = (item: ShopItem) => {
     if (purchasingId) return;
+    setPaymentItem(item);
+  };
 
-    // If item has SKR price, offer both payment options
-    if (item.skrPrice && skrBalance >= item.skrPrice) {
-      const canAffordSol = balance >= item.price;
-      const buttons: any[] = [{ text: 'Cancel', style: 'cancel' }];
-
-      buttons.push({
-        text: `Pay ${item.skrPrice} SKR`,
-        onPress: () => doPurchase(item, true),
-      });
-
-      if (canAffordSol) {
-        buttons.push({
-          text: `Pay ${item.price} SOL`,
-          onPress: () => doPurchase(item, false),
-        });
-      }
-
-      Alert.alert(
-        'Choose Payment',
-        `Buy ${item.name}\n\nYou can pay with SKR or SOL.`,
-        buttons,
-      );
-      return;
-    }
-
-    // SOL-only payment
-    if (balance < item.price) {
+  const handlePaySol = () => {
+    if (!paymentItem) return;
+    if (balance < paymentItem.price) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Not Enough SOL', `You need ${item.price} SOL but only have ${balance.toFixed(2)} SOL.`);
+      Alert.alert('Not Enough SOL', `You need ${paymentItem.price} SOL but only have ${balance.toFixed(2)} SOL.`);
       return;
     }
+    const item = paymentItem;
+    setPaymentItem(null);
+    doPurchase(item, false);
+  };
 
-    Alert.alert(
-      'Confirm Purchase',
-      `Buy ${item.name} for ${item.price} SOL?\nThis will open Phantom for approval.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Buy', onPress: () => doPurchase(item, false) },
-      ]
-    );
+  const handlePaySkr = () => {
+    if (!paymentItem || !paymentItem.skrPrice) return;
+    if (skrBalance < paymentItem.skrPrice) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Not Enough SKR', `You need ${paymentItem.skrPrice} SKR but only have ${skrBalance.toFixed(0)} SKR.`);
+      return;
+    }
+    const item = paymentItem;
+    setPaymentItem(null);
+    doPurchase(item, true);
   };
 
   const handleEquip = (item: ShopItem) => {
@@ -531,6 +611,16 @@ export function ShopScreen() {
           </>
         )}
       </ScrollView>
+
+      <PaymentModal
+        item={paymentItem}
+        visible={!!paymentItem}
+        onClose={() => setPaymentItem(null)}
+        onPaySol={handlePaySol}
+        onPaySkr={handlePaySkr}
+        solBalance={balance}
+        skrBalance={skrBalance}
+      />
     </View>
   );
 }

@@ -1,10 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, Animated, Modal } from 'react-native';
+import { View, Text, TouchableOpacity, Animated, Modal, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { useAdventureStore, ADVENTURE_ZONES, type LootReward, type AdventureZone } from '../store/adventureStore';
 import { usePetStore } from '../store/petStore';
 import { useXpStore } from '../store/xpStore';
+import { petTypography } from '../theme/typography';
+
+const EXPLORING_IMG = require('../../assets/Photos/Exploring-removebg-preview.png');
+const EXPLORE_EARTH_IMG = require('../../assets/Photos/exploreEarth-removebg-preview.png');
 
 function formatTime(ms: number): string {
   if (ms <= 0) return 'Done!';
@@ -50,7 +54,7 @@ function LootRevealModal({ loot, visible, onClose }: { loot: LootReward | null; 
     <Modal transparent animationType="none" visible={visible}>
       <Animated.View style={{ opacity: opacityAnim }} className="flex-1 bg-black/50 items-center justify-center px-8">
         <Animated.View
-          style={{ transform: [{ scale: scaleAnim }], shadowColor: '#9381FF', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.3, shadowRadius: 24, elevation: 20 }}
+          style={{ transform: [{ scale: scaleAnim }], shadowColor: '#4FB0C6', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.25, shadowRadius: 24, elevation: 20 }}
           className="bg-white rounded-[36px] items-center px-8 py-10 w-full"
         >
           <Text className="text-[48px] mb-4">{'\u{1F381}'}</Text>
@@ -58,41 +62,41 @@ function LootRevealModal({ loot, visible, onClose }: { loot: LootReward | null; 
             <Text className={`text-[14px] font-black uppercase tracking-[1px] ${rarity.text}`}>{rarity.label}</Text>
           </View>
 
-          <Text className="text-[28px] font-black text-gray-800 mb-4">Loot Found!</Text>
+          <Text className="text-[28px] font-black text-gray-800 mb-4" style={{ fontFamily: petTypography.display }}>Loot Found!</Text>
 
-          <View className="w-full space-y-2 mb-6">
-            <View className="flex-row justify-between py-2 border-b border-gray-100">
+          <View className="w-full mb-6" style={{ gap: 4 }}>
+            <View className="flex-row justify-between py-2.5 border-b border-gray-100">
               <Text className="text-gray-500 font-semibold">XP Earned</Text>
-              <Text className="font-black text-pet-purple">+{loot.xp} XP</Text>
+              <Text className="font-black text-pet-blue-dark">+{loot.xp} XP</Text>
             </View>
             {loot.coins > 0 && (
-              <View className="flex-row justify-between py-2 border-b border-gray-100">
+              <View className="flex-row justify-between py-2.5 border-b border-gray-100">
                 <Text className="text-gray-500 font-semibold">Coins</Text>
-                <Text className="font-black text-pet-gold-dark">+{loot.coins.toFixed(2)} SOL</Text>
+                <Text className="font-black text-pet-blue-dark">+{loot.coins.toFixed(2)} SOL</Text>
               </View>
             )}
             {loot.skr > 0 && (
-              <View className="flex-row justify-between py-2 border-b border-gray-100">
+              <View className="flex-row justify-between py-2.5 border-b border-gray-100">
                 <Text className="text-gray-500 font-semibold">SKR Tokens</Text>
-                <Text className="font-black text-purple-600">{'\u{1F48E}'} +{loot.skr.toFixed(2)} SKR</Text>
+                <Text className="font-black text-purple-600">+{loot.skr.toFixed(2)} SKR</Text>
               </View>
             )}
             {loot.shard && (
-              <View className="flex-row justify-between py-2 border-b border-gray-100">
+              <View className="flex-row justify-between py-2.5 border-b border-gray-100">
                 <Text className="text-gray-500 font-semibold">Evolution Shard</Text>
-                <Text className="font-black text-pet-purple">{'\u{1F48E}'} +1</Text>
+                <Text className="font-black text-pet-blue-dark">+1</Text>
               </View>
             )}
             {loot.freeItem && (
-              <View className="flex-row justify-between py-2 border-b border-gray-100">
+              <View className="flex-row justify-between py-2.5 border-b border-gray-100">
                 <Text className="text-gray-500 font-semibold">Bonus</Text>
-                <Text className="font-black text-pet-pink">{'\u{1F381}'} Free Item Token</Text>
+                <Text className="font-black text-pet-blue-dark">Free Item Token</Text>
               </View>
             )}
           </View>
 
           <TouchableOpacity onPress={onClose} activeOpacity={0.85} className="w-full">
-            <LinearGradient colors={['#9381FF', '#766BD1']} className="py-3.5 rounded-2xl items-center">
+            <LinearGradient colors={['#4FABC9', '#3E8AB3']} className="py-3.5 items-center" style={{ borderRadius: 18 }}>
               <Text className="text-white text-[14px] font-black uppercase tracking-[1px]">Collect!</Text>
             </LinearGradient>
           </TouchableOpacity>
@@ -108,24 +112,33 @@ function ZoneCard({ zone, onSelect, locked }: { zone: AdventureZone; onSelect: (
       onPress={onSelect}
       disabled={locked}
       activeOpacity={0.85}
-      className="mb-3"
+      style={{ marginBottom: 10 }}
     >
       <View
-        className={`flex-row items-center p-4 rounded-2xl border ${locked ? 'bg-gray-50 border-gray-200' : 'bg-white border-pet-blue-light/40'}`}
-        style={!locked ? { shadowColor: '#4FB0C6', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 3 } : undefined}
+        className={`p-4 border ${locked ? 'bg-gray-50 border-gray-200' : 'bg-white border-pet-blue-light/40'}`}
+        style={{
+          borderRadius: 18,
+          ...(locked ? {} : { shadowColor: '#4FB0C6', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 3 }),
+        }}
       >
-        <View className={`w-12 h-12 rounded-xl items-center justify-center mr-3 ${locked ? 'bg-gray-100' : 'bg-pet-blue-light/30'}`}>
-          <Text className="text-[24px]">{locked ? '\u{1F512}' : zone.emoji}</Text>
+        <View className="flex-row items-center">
+          <View className={`w-12 h-12 rounded-xl items-center justify-center mr-3 ${locked ? 'bg-gray-100' : 'bg-pet-blue-light/30'}`}>
+            <Text className="text-[24px]">{locked ? '\u{1F512}' : zone.emoji}</Text>
+          </View>
+          <View className="flex-1 mr-3">
+            <Text className={`text-[14px] font-black ${locked ? 'text-gray-400' : 'text-gray-800'}`}>{zone.name}</Text>
+            <Text className={`text-[11px] ${locked ? 'text-gray-300' : 'text-gray-500'}`} numberOfLines={2}>
+              {locked ? `Unlocks at Level ${zone.levelRequired}` : zone.description}
+            </Text>
+          </View>
         </View>
-        <View className="flex-1">
-          <Text className={`text-[14px] font-black ${locked ? 'text-gray-400' : 'text-gray-800'}`}>{zone.name}</Text>
-          <Text className={`text-[11px] ${locked ? 'text-gray-300' : 'text-gray-500'}`}>
-            {locked ? `Unlocks at Level ${zone.levelRequired}` : zone.description}
-          </Text>
-        </View>
-        <View className="items-end">
-          <Text className={`text-[10px] font-bold ${locked ? 'text-gray-300' : 'text-pet-blue-dark'}`}>{zone.durationLabel}</Text>
-          <Text className={`text-[10px] font-semibold ${locked ? 'text-gray-300' : 'text-pet-purple'}`}>{zone.xpRange[0]}-{zone.xpRange[1]} XP</Text>
+        <View className="flex-row items-center mt-2.5 ml-15" style={{ marginLeft: 60, gap: 8 }}>
+          <View className={`px-2.5 py-1 rounded-full ${locked ? 'bg-gray-100' : 'bg-pet-blue-light/30 border border-pet-blue-light/60'}`}>
+            <Text className={`text-[10px] font-bold ${locked ? 'text-gray-300' : 'text-pet-blue-dark'}`}>{zone.durationLabel}</Text>
+          </View>
+          <View className={`px-2.5 py-1 rounded-full ${locked ? 'bg-gray-100' : 'bg-pet-blue-light/30 border border-pet-blue-light/60'}`}>
+            <Text className={`text-[10px] font-bold ${locked ? 'text-gray-300' : 'text-pet-blue-dark'}`}>{zone.xpRange[0]}-{zone.xpRange[1]} XP</Text>
+          </View>
         </View>
       </View>
     </TouchableOpacity>
@@ -141,7 +154,6 @@ export function AdventureCard() {
   const [lootModal, setLootModal] = useState(false);
   const [claimedLoot, setClaimedLoot] = useState<LootReward | null>(null);
 
-  // Update timer
   useEffect(() => {
     if (!activeAdventure) return;
     const update = () => {
@@ -154,7 +166,6 @@ export function AdventureCard() {
     return () => clearInterval(interval);
   }, [activeAdventure, checkAdventureComplete]);
 
-  // Show loot modal when loot is pending
   useEffect(() => {
     if (pendingLoot && !lootModal) {
       setClaimedLoot(pendingLoot);
@@ -178,25 +189,30 @@ export function AdventureCard() {
   const statsOk = hunger >= 30 && happiness >= 30 && energy >= 30;
   const activeZone = activeAdventure ? ADVENTURE_ZONES.find(z => z.id === activeAdventure.zoneId) : null;
 
+  const progress = activeAdventure
+    ? Math.max(0, Math.min(100, ((activeAdventure.endsAt - activeAdventure.startedAt - remaining) / (activeAdventure.endsAt - activeAdventure.startedAt)) * 100))
+    : 0;
+
   return (
     <View className="px-6 mt-4">
       <View
-        className="bg-white rounded-[28px] overflow-hidden border border-gray-100"
-        style={{ shadowColor: '#1A2A40', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.07, shadowRadius: 14, elevation: 4 }}
+        className="bg-white rounded-[28px] overflow-hidden border border-pet-blue-light/50"
+        style={{ shadowColor: '#2E6E93', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.1, shadowRadius: 16, elevation: 5 }}
       >
+        {/* Header */}
         <LinearGradient
-          colors={['#FF9F43', '#FFB76B']}
+          colors={['#4FABC9', '#72C8DA']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
           className="px-5 py-3 flex-row items-center justify-between"
         >
           <View className="flex-row items-center">
-            <Text className="text-base mr-2">{'\u{1F5FA}\uFE0F'}</Text>
+            <Image source={EXPLORING_IMG} style={{ width: 108, height: 48, marginRight: 8 }} resizeMode="contain" />
             <Text className="text-[12px] font-black text-white tracking-[0.8px] uppercase">Adventures</Text>
           </View>
           {activeAdventure && (
             <View className="bg-white/20 px-2.5 py-1 rounded-full">
-              <Text className="text-[10px] font-bold text-white">{'\u{23F3}'} {formatTime(remaining)}</Text>
+              <Text className="text-[10px] font-bold text-white">{formatTime(remaining)}</Text>
             </View>
           )}
         </LinearGradient>
@@ -205,27 +221,28 @@ export function AdventureCard() {
           {activeAdventure && activeZone ? (
             // Active adventure
             <View className="items-center">
-              <Text className="text-[40px] mb-2">{activeZone.emoji}</Text>
-              <Text className="text-[16px] font-black text-gray-800 mb-1">{activeZone.name}</Text>
-              <Text className="text-[13px] text-gray-500 mb-3">Nomi is exploring...</Text>
-              <View className="w-full h-3 rounded-full bg-pet-orange-light/40 overflow-hidden">
+              <Image source={EXPLORING_IMG} style={{ width: 56, height: 56, marginBottom: 12 }} resizeMode="contain" />
+              <Text className="text-[16px] font-black text-gray-800 mb-0.5" style={{ fontFamily: petTypography.heading }}>{activeZone.name}</Text>
+              <Text className="text-[12px] text-gray-400 font-semibold mb-4">Nomi is out exploring...</Text>
+
+              {/* Progress bar */}
+              <View className="w-full h-2.5 rounded-full bg-pet-blue-light/35 overflow-hidden">
                 <View
-                  className="h-full rounded-full bg-pet-orange"
-                  style={{
-                    width: `${Math.max(0, Math.min(100, ((activeAdventure.endsAt - activeAdventure.startedAt - remaining) / (activeAdventure.endsAt - activeAdventure.startedAt)) * 100))}%`,
-                  }}
+                  className="h-full rounded-full bg-pet-blue"
+                  style={{ width: `${progress}%` }}
                 />
               </View>
-              <Text className="text-[12px] font-bold text-pet-orange-dark mt-2">
-                {remaining > 0 ? formatTime(remaining) + ' remaining' : 'Adventure complete! Tap to collect.'}
+              <Text className="text-[11px] font-bold text-pet-blue-dark mt-2">
+                {remaining > 0 ? formatTime(remaining) + ' remaining' : 'Adventure complete!'}
               </Text>
+
               {remaining <= 0 && (
                 <TouchableOpacity
                   onPress={() => checkAdventureComplete()}
-                  className="mt-3"
+                  className="mt-4 w-full"
                   activeOpacity={0.85}
                 >
-                  <LinearGradient colors={['#FF9F43', '#E88A2D']} className="px-8 py-3 rounded-2xl">
+                  <LinearGradient colors={['#4FABC9', '#3E8AB3']} className="py-3.5 items-center" style={{ borderRadius: 18 }}>
                     <Text className="text-white font-black text-[13px] uppercase tracking-[0.8px]">Open Loot</Text>
                   </LinearGradient>
                 </TouchableOpacity>
@@ -234,11 +251,13 @@ export function AdventureCard() {
           ) : showZones ? (
             // Zone selection
             <View>
-              <Text className="text-[14px] font-black text-gray-800 mb-1">Choose a Zone</Text>
+              <Text className="text-[14px] font-black text-gray-800 mb-3" style={{ fontFamily: petTypography.heading }}>Choose a Zone</Text>
               {!statsOk && (
-                <Text className="text-[11px] text-pet-pink-dark font-semibold mb-3">
-                  {'\u26A0\uFE0F'} All stats must be above 30% to depart
-                </Text>
+                <View className="bg-red-50 px-3 py-2 rounded-xl mb-3 border border-red-100">
+                  <Text className="text-[11px] text-red-500 font-semibold">
+                    All stats must be above 30% to depart
+                  </Text>
+                </View>
               )}
               {ADVENTURE_ZONES.map(zone => (
                 <ZoneCard
@@ -248,20 +267,36 @@ export function AdventureCard() {
                   onSelect={() => handleSelectZone(zone)}
                 />
               ))}
-              <TouchableOpacity onPress={() => setShowZones(false)} className="items-center mt-1">
+              <TouchableOpacity onPress={() => setShowZones(false)} className="items-center mt-2">
                 <Text className="text-[12px] font-bold text-gray-400">Cancel</Text>
               </TouchableOpacity>
             </View>
           ) : (
-            // Idle — show "Send on Adventure" button
+            // Idle
             <View className="items-center">
-              <Text className="text-[40px] mb-2">{'\u{1F30D}'}</Text>
-              <Text className="text-[14px] font-black text-gray-800 mb-1">Send Nomi Exploring</Text>
-              <Text className="text-[12px] text-gray-500 mb-4">
-                Earn XP, coins, and evolution shards!
+              <Image source={EXPLORE_EARTH_IMG} style={{ width: 404, height: 104, marginBottom: 12 }} resizeMode="contain" />
+              <Text className="text-[16px] font-black text-gray-800 mb-1" style={{ fontFamily: petTypography.heading }}>
+                Send Nomi Exploring
               </Text>
-              <TouchableOpacity onPress={() => setShowZones(true)} activeOpacity={0.85}>
-                <LinearGradient colors={['#FF9F43', '#E88A2D']} className="px-8 py-3 rounded-2xl">
+              <Text className="text-[12px] text-gray-400 font-semibold mb-5">
+                Earn XP, coins, and evolution shards
+              </Text>
+
+              {/* Quick info pills */}
+              <View className="flex-row mb-5" style={{ gap: 8 }}>
+                <View className="bg-pet-blue-light/30 px-3 py-1.5 rounded-full border border-pet-blue-light/60">
+                  <Text className="text-[10px] font-bold text-pet-blue-dark">5-60 XP</Text>
+                </View>
+                <View className="bg-pet-blue-light/30 px-3 py-1.5 rounded-full border border-pet-blue-light/60">
+                  <Text className="text-[10px] font-bold text-pet-blue-dark">3 Zones</Text>
+                </View>
+                <View className="bg-pet-blue-light/30 px-3 py-1.5 rounded-full border border-pet-blue-light/60">
+                  <Text className="text-[10px] font-bold text-pet-blue-dark">Rare Loot</Text>
+                </View>
+              </View>
+
+              <TouchableOpacity onPress={() => setShowZones(true)} activeOpacity={0.85} className="w-full">
+                <LinearGradient colors={['#4FABC9', '#3E8AB3']} className="py-3.5 items-center" style={{ borderRadius: 18 }}>
                   <Text className="text-white font-black text-[13px] uppercase tracking-[0.8px]">Choose Zone</Text>
                 </LinearGradient>
               </TouchableOpacity>

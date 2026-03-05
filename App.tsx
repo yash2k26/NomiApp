@@ -76,7 +76,7 @@ const TAB_ICONS: Record<Tab, ImageSourcePropType> = {
   home: require('./assets/Icons/Home.png'),
   games: require('./assets/Icons/Play.png'),
   shop: require('./assets/Icons/Shop.png'),
-  profile: require('./assets/Icons/Feed.png'), // distinct icon for profile tab
+  profile: require('./assets/Icons/Me.png'),
 };
 
 const TABS: { key: Tab; label: string }[] = [
@@ -120,7 +120,7 @@ function TabBar({ activeTab, onTabPress }: { activeTab: Tab; onTabPress: (tab: T
             }}>
               <Image
                 source={TAB_ICONS[tab.key]}
-                style={{ width: 60, height: 60, opacity: isActive ? 1 : 0.35 }}
+                style={{ width: tab.key === 'profile' ? 36 : 60, height: tab.key === 'profile' ? 36 : 60, opacity: isActive ? 1 : 0.35 }}
                 resizeMode="contain"
               />
             </View>
@@ -240,6 +240,7 @@ export default function App() {
       <GestureHandlerRootView className="flex-1">
         <SafeAreaProvider>
           <SafeAreaView className="flex-1 bg-pet-background items-center justify-center" edges={['top']}>
+            <Image source={TAB_ICONS.profile} style={{ width: 100, height: 100, marginBottom: 12 }} resizeMode="contain" />
             <StatusBar style="dark" />
           </SafeAreaView>
         </SafeAreaProvider>

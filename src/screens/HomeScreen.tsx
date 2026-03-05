@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, AppState, Animated, GestureResponderEvent, Modal, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, AppState, Animated, GestureResponderEvent, Modal, Pressable, ActivityIndicator, Image } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -23,6 +23,10 @@ import { playMusic, stopMusic } from '../lib/soundManager';
 import { OnboardingOverlay, shouldShowOnboarding } from '../components/OnboardingOverlay';
 
 const BACKFLIP_DURATION = 2500; // Backflip clip duration
+
+const ME_IMG = require('../../assets/Icons/Me.png');
+const EXPLORING_IMG = require('../../assets/Photos/Exploring-removebg-preview.png');
+const EXPLORE_EARTH_IMG = require('../../assets/Photos/exploreEarth-removebg-preview.png');
 
 function NeedBubble({ message }: { message: string }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -263,7 +267,7 @@ function LoadingSplash() {
           }}
           className="w-28 h-28 rounded-[28px] bg-white items-center justify-center mb-8"
         >
-          <Text className="text-6xl">{'\u{1F43E}'}</Text>
+          <Image source={ME_IMG} style={{ width: 80, height: 80 }} resizeMode="contain" />
         </Animated.View>
         <Text
           className="text-[28px] font-black text-pet-blue-dark mb-2"
@@ -345,7 +349,7 @@ function ActivityGlance({ onNavigateGames }: { onNavigateGames?: () => void }) {
           <TouchableOpacity className="flex-1 py-3.5 items-center border-r border-gray-100" activeOpacity={0.7} onPress={onNavigateGames}>
             {activeAdventure && activeZone ? (
               <>
-                <Text className="text-[16px] mb-0.5">{activeZone.emoji}</Text>
+                <Image source={EXPLORING_IMG} style={{ width: 32, height: 32, marginBottom: 2 }} resizeMode="contain" />
                 <Text className="text-[11px] font-black text-pet-blue-dark">
                   {remaining <= 0 ? 'Loot!' : formatTime(remaining)}
                 </Text>
@@ -353,7 +357,7 @@ function ActivityGlance({ onNavigateGames }: { onNavigateGames?: () => void }) {
               </>
             ) : (
               <>
-                <Text className="text-[16px] mb-0.5">{'\u{1F30D}'}</Text>
+                <Image source={EXPLORE_EARTH_IMG} style={{ width: 32, height: 32, marginBottom: 2 }} resizeMode="contain" />
                 <Text className="text-[11px] font-black text-gray-700">Go!</Text>
                 <Text className="text-[9px] font-semibold text-gray-400">Adventure</Text>
               </>
@@ -416,6 +420,8 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
   const equippedAnimItem = equippedAnimationId ? shopItems.find((i) => i.id === equippedAnimationId) : null;
   const equippedAnimModel = equippedAnimItem ? ANIM_SKIN_TO_MODEL[equippedAnimItem.skinKey] : null;
 
+  console.log(`[EQUIP-DEBUG] animId="${equippedAnimationId}", skinKey="${equippedAnimItem?.skinKey}", model="${equippedAnimModel}"`);
+
   const moodText = getMoodText();
   const needMessage = getPetNeeds(hunger, happiness, energy);
   const level = useXpStore((s) => s.level);
@@ -433,7 +439,7 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
   const allHighStats = shownHunger >= 100 && shownHappiness >= 100 && shownEnergy >= 100;
 
   const activeModel: ActiveModel = isFalling
-    ? 'backflip'
+    ? 'fallover'
     : isExcitedBurst
       ? 'excited'
       : anySadStat

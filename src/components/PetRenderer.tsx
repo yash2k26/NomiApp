@@ -1,5 +1,5 @@
 import React, { useRef, memo, useState, Suspense, useEffect, useCallback } from 'react';
-import { View, Text, Platform, LogBox, ActivityIndicator } from 'react-native';
+import { View, Text, Platform, LogBox, ActivityIndicator, Image } from 'react-native';
 import { Canvas, useFrame } from '@react-three/fiber/native';
 import { useGLTF, OrbitControls } from '@react-three/drei/native';
 import * as THREE from 'three';
@@ -7,14 +7,11 @@ import type { GLTF } from 'three-stdlib';
 
 LogBox.ignoreLogs(['EXGL: gl.pixelStorei()', 'THREE.THREE.Clock']);
 
-// Combined GLB with pet + accessories + core animations
-const MODEL = require('../../assets/pets/nomi-combined.glb');
+// App logo / loading image
+const ME_IMG = require('../../assets/Icons/Me.png');
 
-// External animation GLBs (not baked into combined model)
-const ANIM_GANGNAM = require('../../assets/animation/GangamStyle.glb');
-const ANIM_BACKFLIP = require('../../assets/animation/backflip.glb');
-const ANIM_PUNCH = require('../../assets/animation/Punch.glb');
-const ANIM_FALLOVER = require('../../assets/animation/FallOver.glb');
+// Single GLB with pet + accessories + ALL animations baked in
+const MODEL = require('../../assets/pets/nomi-combined.glb');
 
 type GLTFResult = GLTF & {
   nodes: Record<string, THREE.Object3D>;
@@ -23,21 +20,21 @@ type GLTFResult = GLTF & {
 
 export type ActiveModel = 'breathing' | 'excited' | 'sad' | 'falling' | 'dancing' | 'gangnam' | 'backflip' | 'punch' | 'fallover';
 
-// Clips baked into nomi-combined.glb
-const CLIP_NAME_MAP: Partial<Record<ActiveModel, string>> = {
+// All clips are baked into nomi-combined.glb
+const CLIP_NAME_MAP: Record<ActiveModel, string> = {
   breathing: 'Breathing',
   excited: 'Excited',
   sad: 'Sad',
   dancing: 'Dance',
+  falling: 'FallOver',
+  gangnam: 'Gangnam',
+  backflip: 'Backflip',
+  punch: 'Punch',
+  fallover: 'FallOver',
 };
 
-// External animation models — loaded separately
-const EXTERNAL_ANIM_MAP: Partial<Record<ActiveModel, { asset: any; clipName: string }>> = {
-  gangnam: { asset: ANIM_GANGNAM, clipName: 'Gangnam' },
-  backflip: { asset: ANIM_BACKFLIP, clipName: 'Backflip' },
-  punch: { asset: ANIM_PUNCH, clipName: 'Punch' },
-  fallover: { asset: ANIM_FALLOVER, clipName: 'FallOver' },
-};
+// One-shot animations (play once then done)
+const ONE_SHOT: Set<ActiveModel> = new Set(['excited', 'falling', 'backflip', 'fallover']);
 
 const HEAD_BONE_NAME = 'mixamorig:Head';
 
@@ -48,12 +45,8 @@ const ACCESSORY_NODES = {
   hoodie: 'Accessory_Hoodie',
 } as const;
 
-// Preload all models
+// Preload the single model
 useGLTF.preload(MODEL);
-useGLTF.preload(ANIM_GANGNAM);
-useGLTF.preload(ANIM_BACKFLIP);
-useGLTF.preload(ANIM_PUNCH);
-useGLTF.preload(ANIM_FALLOVER);
 
 // ── Crown spin component (needs useFrame) ──
 function CrownSpinner({ crownNode }: { crownNode: THREE.Object3D }) {
@@ -79,19 +72,7 @@ function PetModel({ activeModel, onAnimationDone, equippedSkin }: PetModelProps)
   const gltf = useGLTF(MODEL) as GLTFResult;
   const { scene, animations } = gltf;
 
-  // Load external animation GLBs
-  const gangnamGltf = useGLTF(ANIM_GANGNAM) as GLTFResult;
-  const backflipGltf = useGLTF(ANIM_BACKFLIP) as GLTFResult;
-  const punchGltf = useGLTF(ANIM_PUNCH) as GLTFResult;
-  const falloverGltf = useGLTF(ANIM_FALLOVER) as GLTFResult;
-
-  const externalClips = useRef<Record<string, THREE.AnimationClip[]>>({}).current;
-  externalClips.gangnam = gangnamGltf.animations;
-  externalClips.backflip = backflipGltf.animations;
-  externalClips.punch = punchGltf.animations;
-  externalClips.fallover = falloverGltf.animations;
-
-  // Setup: find bones, find accessory groups, hide all accessories initially
+  // Setup: mixer, bones, accessories
   useEffect(() => {
     const mixer = new THREE.AnimationMixer(scene);
     mixerRef.current = mixer;
@@ -135,7 +116,6 @@ function PetModel({ activeModel, onAnimationDone, equippedSkin }: PetModelProps)
       node.visible = isEquipped;
 
       if (isEquipped && headBone && (key === 'headphones' || key === 'crown')) {
-        // Re-parent to head bone if not already
         if (node.parent !== headBone) {
           node.parent?.remove(node);
 
@@ -153,41 +133,28 @@ function PetModel({ activeModel, onAnimationDone, equippedSkin }: PetModelProps)
     }
   }, [equippedSkin, headBone]);
 
-  // Animation switching — uses baked clips or external animation clips
+  // Animation switching — all clips are baked, just find by name
   useEffect(() => {
+    console.log(`[RENDER-DEBUG] activeModel="${activeModel}", clips available:`, animations.map(c => c.name));
     const mixer = mixerRef.current;
     if (!mixer || animations.length === 0) {
-      if (activeModel === 'excited' || activeModel === 'falling' || activeModel === 'backflip') {
+      if (ONE_SHOT.has(activeModel)) {
         const t = setTimeout(() => onAnimationDone?.(), 1500);
         return () => clearTimeout(t);
       }
       return;
     }
 
-    // Check if this is an external animation
-    const extAnim = EXTERNAL_ANIM_MAP[activeModel];
-    let clip: THREE.AnimationClip | undefined;
-
-    if (activeModel === 'falling') {
-      // Falling uses Dance (baked) or Gangnam (external)
-      if (equippedSkin === 'headphones') {
-        clip = animations.find(c => c.name === 'Dance');
-      } else {
-        const gangnamClips = externalClips.gangnam;
-        clip = gangnamClips?.find(c => c.name === 'Gangnam');
-      }
-    } else if (extAnim) {
-      // External animation — find clip from loaded GLB
-      const clips = externalClips[activeModel];
-      clip = clips?.find(c => c.name === extAnim.clipName);
-    } else {
-      // Baked animation
-      const clipName = CLIP_NAME_MAP[activeModel];
-      if (clipName) clip = animations.find(c => c.name === clipName);
+    // Special case: falling with headphones uses Dance instead of Gangnam
+    let clipName = CLIP_NAME_MAP[activeModel];
+    if (activeModel === 'falling' && equippedSkin === 'headphones') {
+      clipName = 'Dance';
     }
 
+    const clip = animations.find(c => c.name === clipName);
+
     if (!clip) {
-      console.warn(`[PetModel] clip for "${activeModel}" not found`);
+      console.warn(`[PetModel] clip "${clipName}" for "${activeModel}" not found. Available:`, animations.map(c => c.name));
       return;
     }
 
@@ -198,7 +165,7 @@ function PetModel({ activeModel, onAnimationDone, equippedSkin }: PetModelProps)
     const action = mixer.clipAction(clip);
     action.reset();
 
-    if (activeModel === 'excited' || activeModel === 'falling' || activeModel === 'backflip') {
+    if (ONE_SHOT.has(activeModel)) {
       action.setLoop(THREE.LoopOnce, 1);
       action.clampWhenFinished = true;
     } else {
@@ -210,16 +177,16 @@ function PetModel({ activeModel, onAnimationDone, equippedSkin }: PetModelProps)
 
     const onFinished = () => onAnimationDone?.();
 
-    if (activeModel === 'excited' || activeModel === 'falling' || activeModel === 'backflip') {
+    if (ONE_SHOT.has(activeModel)) {
       mixer.addEventListener('finished', onFinished);
     }
 
     return () => {
-      if (activeModel === 'excited' || activeModel === 'falling' || activeModel === 'backflip') {
+      if (ONE_SHOT.has(activeModel)) {
         mixer.removeEventListener('finished', onFinished);
       }
     };
-  }, [activeModel, animations, externalClips, onAnimationDone]);
+  }, [activeModel, animations, equippedSkin, onAnimationDone]);
 
   useFrame((_state, delta) => {
     mixerRef.current?.update(delta);
@@ -228,7 +195,6 @@ function PetModel({ activeModel, onAnimationDone, equippedSkin }: PetModelProps)
   return (
     <group position={[0, -1, 0]}>
       <primitive object={scene} />
-      {/* Crown spin — only active when crown is equipped & node found */}
       {equippedSkin === 'crown' && crownNode && (
         <CrownSpinner crownNode={crownNode} />
       )}
@@ -239,9 +205,7 @@ function PetModel({ activeModel, onAnimationDone, equippedSkin }: PetModelProps)
 function FallbackView() {
   return (
     <View className="flex-1 items-center justify-center bg-sky-200">
-      <View className="w-32 h-32 bg-white rounded-3xl items-center justify-center shadow-lg">
-        <Text className="text-6xl">{'\u{1F43E}'}</Text>
-      </View>
+      <Image source={ME_IMG} style={{ width: 120, height: 120 }} resizeMode="contain" />
     </View>
   );
 }
@@ -249,7 +213,8 @@ function FallbackView() {
 function ModelLoadingFallback() {
   return (
     <View className="absolute inset-0 items-center justify-center z-10 bg-sky-200">
-      <ActivityIndicator size="large" color="#3b82f6" />
+      <Image source={ME_IMG} style={{ width: 100, height: 100, marginBottom: 12 }} resizeMode="contain" />
+      <ActivityIndicator size="small" color="#3b82f6" />
       <Text className="text-blue-400 text-xs mt-3 font-bold">Loading Nomi...</Text>
     </View>
   );

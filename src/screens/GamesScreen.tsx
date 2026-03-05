@@ -51,7 +51,7 @@ function GameCard({ title, emoji, description, xpRange, staminaCost, locked, loc
       </View>
 
       <View className="flex-row items-center justify-between mt-3">
-        <View className="flex-row items-center space-x-3">
+        <View className="flex-row items-center" style={{ gap: 8 }}>
           <View className="bg-pet-blue-light/35 px-2.5 py-1 rounded-full border border-pet-blue-light/80">
             <Text className="text-[10px] font-bold text-pet-blue-dark">{xpRange} XP</Text>
           </View>
@@ -68,7 +68,8 @@ function GameCard({ title, emoji, description, xpRange, staminaCost, locked, loc
         <TouchableOpacity onPress={onPlay} disabled={disabled} activeOpacity={0.85}>
           <LinearGradient
             colors={disabled ? ['#D1D5DB', '#9CA3AF'] : ['#4FABC9', '#3E8AB3']}
-            className="px-5 py-2 rounded-xl"
+            className="px-5 py-2.5"
+            style={{ borderRadius: 18 }}
           >
             <Text className="text-white font-black text-[11px] uppercase">
               {locked ? 'Locked' : onCooldown ? cooldownText : !canAfford ? 'No Stamina' : 'Play'}
