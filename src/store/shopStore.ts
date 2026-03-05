@@ -69,7 +69,6 @@ const SHOP_ITEMS: ShopItem[] = [
   { id: 'gold-wings', name: 'Gold Wings', category: 'Accessories', price: 5.0, skrPrice: 50, image: '\u2728', owned: false, skinKey: 'gold-wings', rarity: 'legendary', tierTag: 'gold_exclusive', unlockCondition: { type: 'level', value: 20, label: 'Reach Level 20' } },
   { id: 'diamond-halo', name: 'Diamond Halo', category: 'Accessories', price: 8.0, skrPrice: 80, image: '\u{1F48E}', owned: false, skinKey: 'diamond-halo', rarity: 'legendary', tierTag: 'diamond_exclusive', unlockCondition: { type: 'level', value: 25, label: 'Reach Level 25' } },
   // Animations
-  { id: 'anim-gangnam', name: 'Gangnam Style', category: 'Animations', price: 0, image: '\u{1F57A}', owned: true, skinKey: 'anim-gangnam', rarity: 'common' },
   { id: 'anim-backflip', name: 'Backflip', category: 'Animations', price: 0, image: '\u{1F938}', owned: true, skinKey: 'anim-backflip', rarity: 'common' },
   { id: 'anim-punch', name: 'Punch', category: 'Animations', price: 0.5, image: '\u{1F4A5}', owned: false, skinKey: 'anim-punch', rarity: 'rare', unlockCondition: { type: 'level', value: 5, label: 'Reach Level 5' } },
   { id: 'anim-fallover', name: 'Fall Over', category: 'Animations', price: 0.3, image: '\u{1F92A}', owned: false, skinKey: 'anim-fallover', rarity: 'common' },

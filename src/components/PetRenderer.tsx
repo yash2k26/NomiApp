@@ -18,7 +18,7 @@ type GLTFResult = GLTF & {
   materials: Record<string, THREE.Material>;
 };
 
-export type ActiveModel = 'breathing' | 'excited' | 'sad' | 'falling' | 'dancing' | 'gangnam' | 'backflip' | 'punch' | 'fallover';
+export type ActiveModel = 'breathing' | 'excited' | 'sad' | 'falling' | 'dancing' | 'backflip' | 'punch' | 'fallover';
 
 // All clips are baked into nomi-combined.glb
 const CLIP_NAME_MAP: Record<ActiveModel, string> = {
@@ -27,7 +27,6 @@ const CLIP_NAME_MAP: Record<ActiveModel, string> = {
   sad: 'Sad',
   dancing: 'Dance',
   falling: 'FallOver',
-  gangnam: 'Gangnam',
   backflip: 'Backflip',
   punch: 'Punch',
   fallover: 'FallOver',

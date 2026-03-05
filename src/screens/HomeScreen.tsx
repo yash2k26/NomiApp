@@ -412,7 +412,6 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
 
   // Map equipped animation skinKey → ActiveModel
   const ANIM_SKIN_TO_MODEL: Record<string, ActiveModel> = {
-    'anim-gangnam': 'gangnam',
     'anim-backflip': 'backflip',
     'anim-punch': 'punch',
     'anim-fallover': 'fallover',

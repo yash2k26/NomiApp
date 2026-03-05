@@ -117,10 +117,13 @@ function TabBar({ activeTab, onTabPress }: { activeTab: Tab; onTabPress: (tab: T
               backgroundColor: isActive ? 'rgba(79, 176, 198, 0.15)' : 'transparent',
               borderWidth: isActive ? 1 : 0,
               borderColor: isActive ? 'rgba(167, 215, 230, 0.8)' : 'transparent',
+              height: 60,
+              justifyContent: 'center',
+              alignItems: 'center',
             }}>
               <Image
                 source={TAB_ICONS[tab.key]}
-                style={{ width: tab.key === 'profile' ? 36 : 60, height: tab.key === 'profile' ? 36 : 60, opacity: isActive ? 1 : 0.35 }}
+                style={{ width: 60, height: 60, opacity: isActive ? 1 : 0.35 }}
                 resizeMode="contain"
               />
             </View>

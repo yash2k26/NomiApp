@@ -1,21 +1,25 @@
 {
   "name": "Nomi Companion",
   "symbol": "OPET",
-  "description": "A Nomi companion pet — minted on Solana as a unique 1/1 NFT. Cared for, evolved, and loved by its owner.",
+  "description": "Nomi is a living on-chain companion. Feed, play, and grow together — your bond is minted forever on Solana.",
   "seller_fee_basis_points": 0,
-  "image": "https://raw.githubusercontent.com/yash-dev/oracle-pet/main/assets/icon.png",
+  "image": "https://raw.githubusercontent.com/yash2k26/NomiApp/main/assets/Icons/Me.png",
   "external_url": "https://oraclepet.app",
   "attributes": [
-    { "trait_type": "Type", "value": "Companion Pet" },
+    { "trait_type": "Species", "value": "Nomi" },
+    { "trait_type": "Generation", "value": "Genesis" },
+    { "trait_type": "Evolution Stage", "value": "Baby" },
+    { "trait_type": "Companion Type", "value": "Original" },
     { "trait_type": "Rarity", "value": "1/1 Unique" },
-    { "trait_type": "Platform", "value": "Solana Mobile" }
+    { "trait_type": "Platform", "value": "Solana Mobile" },
+    { "trait_type": "Art Style", "value": "2D" }
   ],
   "properties": {
     "category": "image",
     "creators": [],
     "files": [
       {
-        "uri": "https://raw.githubusercontent.com/yash-dev/oracle-pet/main/assets/icon.png",
+        "uri": "https://raw.githubusercontent.com/yash2k26/NomiApp/main/assets/Icons/Me.png",
         "type": "image/png"
       }
     ]

@@ -4,7 +4,7 @@ import { withWallet } from './mobileWalletAdapter';
 
 // NFT metadata URI — host this JSON on nft.storage, GitHub Pages, or any public URL
 // Update this with your actual metadata URI before demo
-const NFT_METADATA_URI = 'https://raw.githubusercontent.com/yash-dev/oracle-pet/main/assets/nft-metadata.json';
+const NFT_METADATA_URI = 'https://raw.githubusercontent.com/yash2k26/NomiApp/main/assets/nft-metadata.json';
 
 // Token Metadata Program (Metaplex)
 const TOKEN_METADATA_PROGRAM_ID = new PublicKey('metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s');
