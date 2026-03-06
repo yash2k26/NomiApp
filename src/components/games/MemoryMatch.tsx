@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, TouchableOpacity, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
+import { playMusic, stopMusic } from '../../lib/soundManager';
 
 const EMOJIS = ['\u{1F436}', '\u{1F431}', '\u{1F430}', '\u{1F43C}', '\u{1F438}', '\u{1F427}',
                 '\u{1F981}', '\u{1F422}', '\u{1F98A}', '\u{1F40D}', '\u{1F419}', '\u{1F41D}'];
@@ -117,6 +118,12 @@ export function MemoryMatch({ onComplete, onCancel }: MemoryMatchProps) {
   // Peek power-up: briefly reveal all cards (once per game)
   const [peekUsed, setPeekUsed] = useState(false);
   const [peeking, setPeeking] = useState(false);
+
+  // Game music
+  useEffect(() => {
+    playMusic('game1');
+    return () => { stopMusic(); };
+  }, []);
 
   // Timer
   useEffect(() => {

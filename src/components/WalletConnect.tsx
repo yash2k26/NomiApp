@@ -125,7 +125,7 @@ export function WalletConnect() {
             <Text className="text-[12px] text-red-600 font-semibold text-center">{error}</Text>
             {error.includes('No Solana wallet') && (
               <TouchableOpacity onPress={() => Linking.openURL('https://phantom.app/download')} className="mt-1.5">
-                <Text className="text-[11px] text-white font-bold text-center underline">
+                <Text className="text-[11px] text-blue-500 font-bold text-center underline">
                   Get Phantom Wallet
                 </Text>
               </TouchableOpacity>

@@ -15,7 +15,7 @@ export function NameInputScreen({ onComplete }: NameInputScreenProps) {
   const setOwnerName = usePetStore((s) => s.setOwnerName);
 
   const trimmed = name.trim();
-  const isValid = trimmed.length >= 2 && trimmed.length <= 20;
+  const isValid = trimmed.length >= 2 && trimmed.length <= 12;
 
   const handleContinue = () => {
     if (!isValid) return;
@@ -81,7 +81,7 @@ export function NameInputScreen({ onComplete }: NameInputScreenProps) {
               onChangeText={setName}
               placeholder="Your name"
               placeholderTextColor="rgba(255,255,255,0.45)"
-              maxLength={20}
+              maxLength={12}
               autoFocus
               returnKeyType="done"
               onSubmitEditing={handleContinue}
@@ -96,6 +96,14 @@ export function NameInputScreen({ onComplete }: NameInputScreenProps) {
               style={{ fontFamily: petTypography.body }}
             >
               At least 2 characters
+            </Text>
+          )}
+          {trimmed.length >= 12 && (
+            <Text
+              className="text-white/60 text-[12px] text-center mt-2"
+              style={{ fontFamily: petTypography.body }}
+            >
+              Keep it short & sweet!
             </Text>
           )}
         </View>

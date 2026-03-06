@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, TouchableOpacity, Animated } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { playMusic, stopMusic } from '../../lib/soundManager';
 
 const BASE_COLORS = [
   { bg: 'bg-pet-pink', active: 'bg-pet-pink-dark', hex: '#FF6B8A', activeHex: '#D94F6A', label: 'Pink' },
@@ -42,6 +43,12 @@ export function PatternRecall({ onComplete, onCancel }: PatternRecallProps) {
   const [colors, setColors] = useState(BASE_COLORS);
   const scaleAnims = useRef([...BASE_COLORS, BONUS_COLOR].map(() => new Animated.Value(1))).current;
   const shakeAnim = useRef(new Animated.Value(0)).current;
+
+  // Game music
+  useEffect(() => {
+    playMusic('game1');
+    return () => { stopMusic(); };
+  }, []);
 
   // Speed increases with rounds
   const getShowDelay = useCallback((r: number) => {

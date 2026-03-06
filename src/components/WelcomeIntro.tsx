@@ -4,7 +4,6 @@ import { petTypography } from '../theme/typography';
 
 const HANGING_IMG = require('../../assets/Photos/hanging.png');
 const HEADPHONE_GUY_IMG = require('../../assets/Photos/headphoneguy.png');
-const ME_IMG = require('../../assets/Icons/Me.png');
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
@@ -68,7 +67,6 @@ export function WelcomeIntro({ onContinue }: WelcomeIntroProps) {
 
       {/* ─── Hero Copy ─── */}
       <View className="absolute left-0 right-0 px-8" style={{ top: SCREEN_H * 0.44 }}>
-        <Image source={ME_IMG} style={{ width: 64, height: 64, marginBottom: 16 }} resizeMode="contain" />
         <View className="self-start mb-3 px-3 py-1.5 rounded-full bg-white/25 border border-white/35">
           <Text
             className="text-white text-[10px] uppercase tracking-[1px]"

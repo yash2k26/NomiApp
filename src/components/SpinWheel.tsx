@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { useAdventureStore, SPIN_SEGMENTS, type SpinResult } from '../store/adventureStore';
 import { petTypography } from '../theme/typography';
+import { playSfx } from '../lib/soundManager';
 
 const SPIN_DURATION_MS = 4500;
 const SEGMENT_COUNT = SPIN_SEGMENTS.length;
@@ -386,12 +387,14 @@ export function SpinWheel() {
       setSpinning(false);
       setShowResult(true);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      playSfx('reward');
     });
   }, [canSpin, doSpin, spinAnim]);
 
   const rotateInterpolate = spinAnim.interpolate({
     inputRange: [0, 360],
     outputRange: ['0deg', '360deg'],
+    extrapolate: 'extend',
   });
 
   const buttonLabel = spinning
@@ -502,6 +505,7 @@ export function SpinWheel() {
       <SpinResultModal result={result} visible={showResult} onClaim={() => {
         if (result) claimSpinReward(result);
         setShowResult(false);
+        playSfx('happy');
       }} />
     </View>
   );

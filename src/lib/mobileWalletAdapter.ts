@@ -24,6 +24,7 @@ export async function connectMobileWallet(): Promise<WalletAuthResult> {
       chain: 'solana:devnet',
     });
 
+    if (!auth.accounts?.length) throw new Error('No accounts returned by wallet');
     const address = toBase58Address(auth.accounts[0].address);
 
     return {
@@ -44,6 +45,7 @@ export async function reauthorizeMobileWallet(authToken: string): Promise<Wallet
       identity: APP_IDENTITY,
     });
 
+    if (!auth.accounts?.length) throw new Error('No accounts returned by wallet');
     const address = toBase58Address(auth.accounts[0].address);
 
     return {
@@ -76,6 +78,7 @@ export async function withWallet<T>(
       auth_token: authToken,
       identity: APP_IDENTITY,
     });
+    if (!auth.accounts?.length) throw new Error('No accounts returned by wallet');
     const address = toBase58Address(auth.accounts[0].address);
     return callback(wallet, address);
   });

@@ -256,8 +256,6 @@ export default function App() {
       return (
         <GestureHandlerRootView className="flex-1">
           <WelcomeIntro onContinue={() => {
-            // Use requestAnimationFrame to defer the state update,
-            // allowing the button press animation to complete first
             requestAnimationFrame(() => setShowWelcomeIntro(false));
           }} />
           <StatusBar style="light" />

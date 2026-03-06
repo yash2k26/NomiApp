@@ -4,6 +4,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useWalletStore } from '../store/walletStore';
 import { usePetStore } from '../store/petStore';
+import { useXpStore } from '../store/xpStore';
+import { useAdventureStore } from '../store/adventureStore';
 import { ScreenHeader } from '../components/ui/ScreenHeader';
 import { mintPetNFT } from '../lib/nftMint';
 import { getSolscanTxUrl } from '../lib/solanaClient';
@@ -16,6 +18,10 @@ export function MintScreen() {
   const refreshBalance = useWalletStore((s) => s.refreshBalance);
   const mintPet = usePetStore((s) => s.mintPet);
   const petName = usePetStore((s) => s.name);
+  const ownerName = usePetStore((s) => s.ownerName);
+  const streakDays = usePetStore((s) => s.streakDays);
+  const level = useXpStore((s) => s.level);
+  const evolutionStage = useAdventureStore((s) => s.evolutionStage);
 
   const [mintState, setMintState] = useState<MintState>('idle');
   const [mintError, setMintError] = useState<string | null>(null);
@@ -33,8 +39,12 @@ export function MintScreen() {
 
     try {
       setMintState('minting');
-      const result = await mintPetNFT(authToken, petName || 'Nomi');
-
+      const result = await mintPetNFT(authToken, petName || 'Nomi', {
+        ownerName,
+        level,
+        stage: evolutionStage,
+        streak: streakDays,
+      });
       // Store real on-chain mint address and tx signature
       mintPet(result.mintAddress, result.txSignature);
       setTxSignature(result.txSignature);
@@ -44,13 +54,7 @@ export function MintScreen() {
       await refreshBalance();
     } catch (error: any) {
       const msg = error?.message || 'Minting failed';
-      if (msg.includes('User rejected') || msg.includes('declined')) {
-        setMintError('Transaction cancelled in wallet.');
-      } else if (msg.includes('insufficient')) {
-        setMintError('Insufficient SOL. Request an airdrop on devnet.');
-      } else {
-        setMintError(msg);
-      }
+      setMintError(msg);
       setMintState('error');
     }
   };
@@ -197,7 +201,7 @@ export function MintScreen() {
             colors={mintState === 'success' ? ['#16a34a', '#22c55e'] : mintState === 'error' ? ['#dc2626', '#ef4444'] : ['#3792A6', '#4FB0C6']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
-            className="py-4 rounded-2xl items-center"
+            className="py-4 rounded-[18px] items-center"
             style={{
               opacity: isBusy ? 0.75 : 1,
               shadowColor: '#3792A6',

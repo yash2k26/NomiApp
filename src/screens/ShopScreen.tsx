@@ -5,8 +5,10 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useShopStore, type ShopItem, type ItemRarity, getItemLockState } from '../store/shopStore';
 import { useWalletStore } from '../store/walletStore';
-import { usePremiumStore, getCurrentTier } from '../store/premiumStore';
+import { usePremiumStore } from '../store/premiumStore';
 import { isAtLeastTier, type PremiumTier } from '../data/premiumTiers';
+import { getPerksForLevel } from '../store/xpStore';
+import { useXpStore } from '../store/xpStore';
 import { ScreenHeader } from '../components/ui/ScreenHeader';
 import { petTypography } from '../theme/typography';
 
@@ -78,6 +80,49 @@ const RARITY_BORDER: Record<ItemRarity, string> = {
   legendary: '#83B8DA',
 };
 
+function CardPrice({ item, isPremium }: { item: ShopItem; isPremium: boolean }) {
+  const level = useXpStore((s) => s.level);
+  const discount = getPerksForLevel(level).shopDiscount;
+  const discountPercent = Math.round(discount * 100);
+  const finalPrice = Math.round(item.price * (1 - discount) * 100) / 100;
+  const hasDiscount = discount > 0 && item.price > 0 && !item.owned;
+
+  if (isPremium && !item.owned) {
+    return (
+      <View className="items-center mt-3 mb-4">
+        <Text className="text-[14px] font-black text-pet-blue-dark">FREE</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View className="items-center mt-3 mb-4">
+      <View className="flex-row items-center justify-center">
+        {hasDiscount ? (
+          <>
+            <Text className="text-[11px] font-semibold text-gray-300 line-through mr-1.5">{item.price}</Text>
+            <Text className="text-[14px] font-black text-pet-blue-dark">{finalPrice}</Text>
+          </>
+        ) : (
+          <Text className="text-[14px] font-black text-pet-blue-dark">{item.price}</Text>
+        )}
+        <Text className="text-[11px] font-bold text-gray-400 ml-1">SOL</Text>
+      </View>
+      {hasDiscount && (
+        <View className="bg-green-100 rounded-full px-2 py-0.5 mt-1">
+          <Text className="text-[9px] font-black text-green-700">-{discountPercent}% LVL {level}</Text>
+        </View>
+      )}
+      {item.skrPrice && !item.owned && (
+        <View className="flex-row items-center justify-center mt-1">
+          <Text className="text-[11px] font-black text-purple-600">{item.skrPrice}</Text>
+          <Text className="text-[9px] font-bold text-purple-400 ml-1">SKR</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
 function ShopCard({
   item,
   equipped,
@@ -97,10 +142,10 @@ function ShopCard({
 }) {
   const rarityInfo = RARITY_COLORS[item.rarity];
   const lockState = getItemLockState(item);
-  const isLocked = lockState.locked && !item.owned;
+  const isLocked = (lockState.locked || item.comingSoon) && !item.owned;
 
   const handlePress = () => {
-    if (isLocked) return;
+    if (isLocked || item.comingSoon) return;
     if (!item.owned) {
       onBuy();
     } else if (equipped) {
@@ -162,26 +207,21 @@ function ShopCard({
         {item.category}
       </Text>
 
-      <View className="items-center mt-3 mb-4">
-        {isPremium && !item.owned ? (
-            <Text className="text-[14px] font-black text-pet-blue-dark">FREE</Text>
-        ) : (
-          <>
-            <View className="flex-row items-center justify-center">
-              <Text className="text-[14px] font-black text-pet-blue-dark">{item.price}</Text>
-              <Text className="text-[11px] font-bold text-gray-400 ml-1">SOL</Text>
-            </View>
-            {item.skrPrice && !item.owned && (
-              <View className="flex-row items-center justify-center mt-1">
-                <Text className="text-[11px] font-black text-purple-600">{item.skrPrice}</Text>
-                <Text className="text-[9px] font-bold text-purple-400 ml-1">SKR</Text>
-              </View>
-            )}
-          </>
-        )}
-      </View>
+      <CardPrice item={item} isPremium={isPremium} />
 
-      {isLocked ? (
+      {item.comingSoon && !item.owned ? (
+        <LinearGradient
+          colors={['#F3E8FF', '#EDE5FF']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          className="py-2.5 px-2 items-center justify-center border border-purple-200"
+          style={{ borderRadius: BUTTON_RADIUS }}
+        >
+          <Text className="text-[10px] font-black text-purple-400 uppercase tracking-wider text-center">
+            {'\u{1F6A7}'} Coming Soon
+          </Text>
+        </LinearGradient>
+      ) : isLocked ? (
         <View className="py-2.5 px-2 items-center justify-center bg-gray-200 border border-gray-300" style={{ borderRadius: BUTTON_RADIUS }}>
           <Text className="text-[9px] font-black text-gray-500 uppercase tracking-wider text-center">
             {'\u{1F512}'} {lockState.reason}
@@ -238,10 +278,212 @@ function PaymentModal({
   solBalance: number;
   skrBalance: number;
 }) {
+  const [payMode, setPayMode] = useState<'choose' | 'sol' | 'skr'>('choose');
   if (!item) return null;
-  const canAffordSol = solBalance >= item.price;
+
+  // Calculate level discount
+  const level = useXpStore.getState().level;
+  const perks = getPerksForLevel(level);
+  const discount = perks.shopDiscount;
+  const discountPercent = Math.round(discount * 100);
+  const discountAmount = Math.round(item.price * discount * 100) / 100;
+  const finalPrice = Math.round(item.price * (1 - discount) * 100) / 100;
+  const networkFee = 0.000005; // Solana base tx fee
+  const totalSol = Math.round((finalPrice + networkFee) * 1000000) / 1000000;
+
+  const canAffordSol = solBalance >= totalSol;
   const canAffordSkr = !!item.skrPrice && skrBalance >= item.skrPrice;
 
+  const handleClose = () => {
+    setPayMode('choose');
+    onClose();
+  };
+
+  const handlePaySol = () => {
+    setPayMode('choose');
+    onPaySol();
+  };
+
+  const handlePaySkr = () => {
+    setPayMode('choose');
+    onPaySkr();
+  };
+
+  // ── Bill / Invoice view (SOL) ──
+  if (payMode === 'sol') {
+    return (
+      <Modal transparent animationType="fade" visible={visible}>
+        <View className="flex-1 bg-black/50 items-center justify-center px-6">
+          <View
+            className="bg-white w-full px-6 py-7"
+            style={{ borderRadius: 28, shadowColor: '#4FB0C6', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.2, shadowRadius: 24, elevation: 15 }}
+          >
+            {/* Header */}
+            <View className="items-center mb-5">
+              <View className="w-14 h-14 rounded-2xl items-center justify-center bg-pet-blue-light/30 border border-pet-blue-light/60 mb-3">
+                <Text className="text-3xl">{item.image}</Text>
+              </View>
+              <Text className="text-[17px] font-black text-gray-800" style={{ fontFamily: petTypography.heading }}>{item.name}</Text>
+              <Text className="text-[11px] text-gray-400 font-semibold mt-0.5">Purchase Summary</Text>
+            </View>
+
+            {/* Bill rows */}
+            <View className="bg-gray-50 rounded-2xl px-5 py-4 mb-5 border border-gray-100">
+              {/* Item price */}
+              <View className="flex-row justify-between items-center mb-2.5">
+                <Text className="text-[13px] text-gray-600 font-semibold">Item Price</Text>
+                <Text className="text-[13px] text-gray-800 font-bold">{item.price} SOL</Text>
+              </View>
+
+              {/* Discount */}
+              {discount > 0 && (
+                <View className="flex-row justify-between items-center mb-2.5">
+                  <View className="flex-row items-center">
+                    <Text className="text-[13px] text-green-600 font-semibold">Level {level} Discount</Text>
+                    <View className="bg-green-100 rounded-full px-2 py-0.5 ml-2">
+                      <Text className="text-[10px] font-black text-green-700">-{discountPercent}%</Text>
+                    </View>
+                  </View>
+                  <Text className="text-[13px] text-green-600 font-bold">-{discountAmount} SOL</Text>
+                </View>
+              )}
+
+              {/* Network fee */}
+              <View className="flex-row justify-between items-center mb-2.5">
+                <Text className="text-[13px] text-gray-600 font-semibold">Network Fee</Text>
+                <Text className="text-[13px] text-gray-500 font-bold">~0.000005 SOL</Text>
+              </View>
+
+              {/* Divider */}
+              <View className="border-t border-dashed border-gray-200 my-2" />
+
+              {/* Total */}
+              <View className="flex-row justify-between items-center">
+                <Text className="text-[15px] text-gray-800 font-black">Total</Text>
+                <Text className="text-[15px] text-pet-blue-dark font-black">{finalPrice} SOL</Text>
+              </View>
+            </View>
+
+            {/* Wallet balance */}
+            <View className="flex-row items-center justify-center mb-5">
+              <MaterialCommunityIcons name="wallet-outline" size={14} color="#9CA3AF" />
+              <Text className="text-[11px] text-gray-400 font-semibold ml-1">
+                Wallet Balance: {solBalance.toFixed(4)} SOL
+              </Text>
+              {!canAffordSol && (
+                <Text className="text-[11px] text-red-400 font-bold ml-2">Insufficient</Text>
+              )}
+            </View>
+
+            {/* Pay button */}
+            <TouchableOpacity
+              onPress={handlePaySol}
+              disabled={!canAffordSol}
+              activeOpacity={0.85}
+              className="mb-4"
+            >
+              <LinearGradient
+                colors={canAffordSol ? ['#48B4CD', '#3B8BB4'] : ['#D1D5DB', '#D1D5DB']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                className="py-4 items-center flex-row justify-center"
+                style={{ borderRadius: 14 }}
+              >
+                <MaterialCommunityIcons name="wallet" size={18} color="#fff" />
+                <Text className="text-white text-[14px] font-black tracking-wider uppercase ml-2">
+                  Pay with Phantom
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            {/* Back */}
+            <TouchableOpacity onPress={() => setPayMode('choose')} activeOpacity={0.85} className="items-center">
+              <Text className="text-[13px] font-bold text-gray-400">Back</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    );
+  }
+
+  // ── Bill / Invoice view (SKR) ──
+  if (payMode === 'skr' && item.skrPrice) {
+    return (
+      <Modal transparent animationType="fade" visible={visible}>
+        <View className="flex-1 bg-black/50 items-center justify-center px-6">
+          <View
+            className="bg-white w-full px-6 py-7"
+            style={{ borderRadius: 28, shadowColor: '#7C3AED', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.2, shadowRadius: 24, elevation: 15 }}
+          >
+            {/* Header */}
+            <View className="items-center mb-5">
+              <View className="w-14 h-14 rounded-2xl items-center justify-center bg-purple-100 border border-purple-200 mb-3">
+                <Text className="text-3xl">{item.image}</Text>
+              </View>
+              <Text className="text-[17px] font-black text-gray-800" style={{ fontFamily: petTypography.heading }}>{item.name}</Text>
+              <Text className="text-[11px] text-gray-400 font-semibold mt-0.5">Purchase Summary</Text>
+            </View>
+
+            {/* Bill rows */}
+            <View className="bg-gray-50 rounded-2xl px-5 py-4 mb-5 border border-gray-100">
+              <View className="flex-row justify-between items-center mb-2.5">
+                <Text className="text-[13px] text-gray-600 font-semibold">Item Price</Text>
+                <Text className="text-[13px] text-gray-800 font-bold">{item.skrPrice} SKR</Text>
+              </View>
+              <View className="flex-row justify-between items-center mb-2.5">
+                <Text className="text-[13px] text-gray-600 font-semibold">Network Fee</Text>
+                <Text className="text-[13px] text-gray-500 font-bold">~0.000005 SOL</Text>
+              </View>
+              <View className="border-t border-dashed border-gray-200 my-2" />
+              <View className="flex-row justify-between items-center">
+                <Text className="text-[15px] text-gray-800 font-black">Total</Text>
+                <Text className="text-[15px] text-purple-600 font-black">{item.skrPrice} SKR</Text>
+              </View>
+            </View>
+
+            {/* Wallet balance */}
+            <View className="flex-row items-center justify-center mb-5">
+              <MaterialCommunityIcons name="wallet-outline" size={14} color="#9CA3AF" />
+              <Text className="text-[11px] text-gray-400 font-semibold ml-1">
+                SKR Balance: {skrBalance.toFixed(0)} SKR
+              </Text>
+              {!canAffordSkr && (
+                <Text className="text-[11px] text-red-400 font-bold ml-2">Insufficient</Text>
+              )}
+            </View>
+
+            {/* Pay button */}
+            <TouchableOpacity
+              onPress={handlePaySkr}
+              disabled={!canAffordSkr}
+              activeOpacity={0.85}
+              className="mb-4"
+            >
+              <LinearGradient
+                colors={canAffordSkr ? ['#7C3AED', '#6D28D9'] : ['#D1D5DB', '#D1D5DB']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                className="py-4 items-center flex-row justify-center"
+                style={{ borderRadius: 14 }}
+              >
+                <MaterialCommunityIcons name="wallet" size={18} color="#fff" />
+                <Text className="text-white text-[14px] font-black tracking-wider uppercase ml-2">
+                  Pay with Phantom
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            {/* Back */}
+            <TouchableOpacity onPress={() => setPayMode('choose')} activeOpacity={0.85} className="items-center">
+              <Text className="text-[13px] font-bold text-gray-400">Back</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    );
+  }
+
+  // ── Payment method chooser (default) ──
   return (
     <Modal transparent animationType="fade" visible={visible}>
       <View className="flex-1 bg-black/50 items-center justify-center px-8">
@@ -257,7 +499,7 @@ function PaymentModal({
 
           {/* SOL option */}
           <TouchableOpacity
-            onPress={onPaySol}
+            onPress={() => setPayMode('sol')}
             disabled={!canAffordSol}
             activeOpacity={0.85}
             className="w-full mb-3"
@@ -275,14 +517,23 @@ function PaymentModal({
                   <Text className={`text-[11px] font-semibold ${canAffordSol ? 'text-gray-400' : 'text-gray-300'}`}>Balance: {solBalance.toFixed(2)} SOL</Text>
                 </View>
               </View>
-              <Text className={`text-[16px] font-black ${canAffordSol ? 'text-pet-blue-dark' : 'text-gray-300'}`}>{item.price} SOL</Text>
+              <View className="items-end">
+                {discount > 0 ? (
+                  <>
+                    <Text className={`text-[11px] font-semibold line-through ${canAffordSol ? 'text-gray-300' : 'text-gray-200'}`}>{item.price} SOL</Text>
+                    <Text className={`text-[15px] font-black ${canAffordSol ? 'text-pet-blue-dark' : 'text-gray-300'}`}>{finalPrice} SOL</Text>
+                  </>
+                ) : (
+                  <Text className={`text-[16px] font-black ${canAffordSol ? 'text-pet-blue-dark' : 'text-gray-300'}`}>{item.price} SOL</Text>
+                )}
+              </View>
             </View>
           </TouchableOpacity>
 
           {/* SKR option */}
           {item.skrPrice ? (
             <TouchableOpacity
-              onPress={onPaySkr}
+              onPress={() => setPayMode('skr')}
               disabled={!canAffordSkr}
               activeOpacity={0.85}
               className="w-full mb-5"
@@ -307,7 +558,7 @@ function PaymentModal({
             <View className="mb-5" />
           )}
 
-          <TouchableOpacity onPress={onClose} activeOpacity={0.85}>
+          <TouchableOpacity onPress={handleClose} activeOpacity={0.85}>
             <Text className="text-[13px] font-bold text-gray-400">Cancel</Text>
           </TouchableOpacity>
         </View>
@@ -376,10 +627,12 @@ export function ShopScreen() {
     setPurchasingId(item.id);
     try {
       await buyItem(item.id, withSkr);
+      // Auto-equip after purchase
+      equipItem(item.id);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(
         'Purchase Complete!',
-        `${item.name} is now yours! Check Profile for transaction details.`,
+        `${item.name} is now yours and equipped! Check Profile for transaction details.`,
       );
     } catch (err: any) {
       const msg = err?.message || 'Purchase failed';
@@ -401,9 +654,12 @@ export function ShopScreen() {
 
   const handlePaySol = () => {
     if (!paymentItem) return;
-    if (balance < paymentItem.price) {
+    const lvl = useXpStore.getState().level;
+    const disc = getPerksForLevel(lvl).shopDiscount;
+    const discountedPrice = Math.round(paymentItem.price * (1 - disc) * 100) / 100;
+    if (balance < discountedPrice) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Not Enough SOL', `You need ${paymentItem.price} SOL but only have ${balance.toFixed(2)} SOL.`);
+      Alert.alert('Not Enough SOL', `You need ${discountedPrice} SOL but only have ${balance.toFixed(2)} SOL.`);
       return;
     }
     const item = paymentItem;
@@ -522,7 +778,7 @@ export function ShopScreen() {
       <ScrollView
         className="flex-1"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 100 }}
       >
         {selectedSection === 'All' ? (
           sectionOrder.map((section) => {

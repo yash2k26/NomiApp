@@ -11,13 +11,23 @@ type SoundName =
   | 'spin'
   | 'reward'
   | 'levelup'
-  | 'equip';
+  | 'equip'
+  | 'fall';
 
-type MusicName = 'headphones';
+type MusicName = 'headphones' | 'game1';
 
 // Looping background music tracks — asset references
 const MUSIC_ASSETS: Record<MusicName, any> = {
   headphones: require('../../assets/Audio/Headphones_music.mp3'),
+  game1: require('../../assets/Audio/Game-1.mp3'),
+};
+
+// One-shot sound effects — asset references
+const SFX_ASSETS: Partial<Record<SoundName, any>> = {
+  levelup: require('../../assets/Audio/Level-up.mp3'),
+  reward: require('../../assets/Audio/Rewards.mp3'),
+  happy: require('../../assets/Audio/Reward_happy.mp3'),
+  fall: require('../../assets/Audio/Fall.mp3'),
 };
 
 let Audio: any = null;
@@ -86,18 +96,45 @@ export async function playSound(name: SoundName): Promise<void> {
 }
 
 /**
+ * Play a one-shot SFX from asset file. Creates sound, plays it, auto-unloads when done.
+ */
+export async function playSfx(name: SoundName): Promise<void> {
+  if (!ensureAudio() || muted) return;
+
+  const asset = SFX_ASSETS[name];
+  if (!asset) return;
+
+  try {
+    const { sound } = await Audio.Sound.createAsync(asset, {
+      shouldPlay: true,
+      volume,
+    });
+    sound.setOnPlaybackStatusUpdate((status: any) => {
+      if (status.didJustFinish) {
+        sound.unloadAsync().catch(() => {});
+      }
+    });
+  } catch {}
+}
+
+/**
  * Play a looping background music track. Stops any previously playing music.
  */
+let isLoadingMusic = false;
 export async function playMusic(name: MusicName): Promise<void> {
   if (!ensureAudio()) return;
 
   // Already playing this track
   if (currentMusicName === name && currentMusic) return;
 
+  // Prevent concurrent loads
+  if (isLoadingMusic) return;
+  isLoadingMusic = true;
+
   await stopMusic();
 
   const asset = MUSIC_ASSETS[name];
-  if (!asset) return;
+  if (!asset) { isLoadingMusic = false; return; }
 
   try {
     const { sound } = await Audio.Sound.createAsync(asset, {
@@ -108,6 +145,7 @@ export async function playMusic(name: MusicName): Promise<void> {
     currentMusic = sound;
     currentMusicName = name;
   } catch {}
+  isLoadingMusic = false;
 }
 
 /**

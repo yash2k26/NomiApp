@@ -90,7 +90,7 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
     if (authToken) {
       disconnectMobileWallet(authToken).catch(() => {});
     }
-    set({ connected: false, address: '', balance: 0, skrBalance: 0, authToken: '', error: null });
+    set({ connected: false, address: '', balance: 0, skrBalance: 0, authToken: '', isConnecting: false, error: null });
     AsyncStorage.removeItem(WALLET_STORAGE_KEY).catch(() => {});
   },
 

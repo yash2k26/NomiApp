@@ -3,8 +3,15 @@ import {
   PublicKey,
   Transaction,
   SystemProgram,
-  TransactionInstruction,
 } from '@solana/web3.js';
+import {
+  createInitializeMint2Instruction,
+  createAssociatedTokenAccountInstruction,
+  createMintToInstruction,
+  createTransferInstruction,
+  getAssociatedTokenAddressSync,
+  TOKEN_PROGRAM_ID,
+} from '@solana/spl-token';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { connection } from './solanaClient';
 import { withWallet } from './mobileWalletAdapter';
@@ -14,10 +21,7 @@ import { withWallet } from './mobileWalletAdapter';
 // Real SKR mint on mainnet (Solana Mobile Seeker token)
 export const SKR_MINT_MAINNET = 'SKRbvo6Gf7GondiT3BbTfuRDPqLWei4j2Qy2NPGZhW3';
 
-// SPL Token Program
-const TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
-const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
-const SYSVAR_RENT_PUBKEY = new PublicKey('SysvarRent111111111111111111111111111111111');
+// Use TOKEN_PROGRAM_ID from @solana/spl-token (imported above)
 
 // Devnet test mint stored here
 const SKR_DEVNET_MINT_KEY = 'oracle-pet-skr-devnet-mint';
@@ -27,11 +31,7 @@ const SKR_CLAIM_AMOUNT = 100; // 100 SKR per claim
 // ── Helpers ──
 
 function findAssociatedTokenAddress(owner: PublicKey, mint: PublicKey): PublicKey {
-  const [pda] = PublicKey.findProgramAddressSync(
-    [owner.toBuffer(), TOKEN_PROGRAM_ID.toBuffer(), mint.toBuffer()],
-    ASSOCIATED_TOKEN_PROGRAM_ID,
-  );
-  return pda;
+  return getAssociatedTokenAddressSync(mint, owner);
 }
 
 /**
@@ -125,49 +125,14 @@ export async function claimTestSkr(authToken: string): Promise<string> {
         }),
       );
 
-      // 2. Initialize mint (decimals=6, mintAuthority=payer)
-      tx.add({
-        programId: TOKEN_PROGRAM_ID,
-        keys: [
-          { pubkey: mintPubkey, isSigner: false, isWritable: true },
-          { pubkey: SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false },
-        ],
-        data: Buffer.from([
-          0, // InitializeMint instruction
-          SKR_DECIMALS, // decimals
-          ...payer.toBytes(), // mintAuthority
-          1, // has freezeAuthority
-          ...payer.toBytes(), // freezeAuthority
-        ]),
-      });
+      // 2. Initialize mint (decimals=6, mintAuthority=payer) — uses InitializeMint2 (correct encoding)
+      tx.add(createInitializeMint2Instruction(mintPubkey, SKR_DECIMALS, payer, payer));
 
       // 3. Create ATA
-      tx.add({
-        programId: ASSOCIATED_TOKEN_PROGRAM_ID,
-        keys: [
-          { pubkey: payer, isSigner: true, isWritable: true },
-          { pubkey: ata, isSigner: false, isWritable: true },
-          { pubkey: payer, isSigner: false, isWritable: false },
-          { pubkey: mintPubkey, isSigner: false, isWritable: false },
-          { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-          { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-        ],
-        data: Buffer.alloc(0),
-      });
+      tx.add(createAssociatedTokenAccountInstruction(payer, ata, payer, mintPubkey));
 
       // 4. Mint tokens
-      const amountBuffer = Buffer.alloc(8);
-      amountBuffer.writeBigUInt64LE(BigInt(amount));
-
-      tx.add({
-        programId: TOKEN_PROGRAM_ID,
-        keys: [
-          { pubkey: mintPubkey, isSigner: false, isWritable: true },
-          { pubkey: ata, isSigner: false, isWritable: true },
-          { pubkey: payer, isSigner: true, isWritable: false }, // mintAuthority
-        ],
-        data: Buffer.from([7, ...amountBuffer]), // MintTo instruction
-      });
+      tx.add(createMintToInstruction(mintPubkey, ata, payer, BigInt(amount)));
 
       tx.feePayer = payer;
       tx.recentBlockhash = blockhash;
@@ -205,37 +170,15 @@ export async function claimTestSkr(authToken: string): Promise<string> {
     const ata = findAssociatedTokenAddress(payer, mintPubkey);
     const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
 
-    const amountBuffer = Buffer.alloc(8);
-    amountBuffer.writeBigUInt64LE(BigInt(amount));
-
     const tx = new Transaction();
 
     // Check if ATA exists, create if not
     const ataInfo = await connection.getAccountInfo(ata);
     if (!ataInfo) {
-      tx.add({
-        programId: ASSOCIATED_TOKEN_PROGRAM_ID,
-        keys: [
-          { pubkey: payer, isSigner: true, isWritable: true },
-          { pubkey: ata, isSigner: false, isWritable: true },
-          { pubkey: payer, isSigner: false, isWritable: false },
-          { pubkey: mintPubkey, isSigner: false, isWritable: false },
-          { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-          { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-        ],
-        data: Buffer.alloc(0),
-      });
+      tx.add(createAssociatedTokenAccountInstruction(payer, ata, payer, mintPubkey));
     }
 
-    tx.add({
-      programId: TOKEN_PROGRAM_ID,
-      keys: [
-        { pubkey: mintPubkey, isSigner: false, isWritable: true },
-        { pubkey: ata, isSigner: false, isWritable: true },
-        { pubkey: payer, isSigner: true, isWritable: false }, // mintAuthority
-      ],
-      data: Buffer.from([7, ...amountBuffer]),
-    });
+    tx.add(createMintToInstruction(mintPubkey, ata, payer, BigInt(amount)));
 
     tx.feePayer = payer;
     tx.recentBlockhash = blockhash;
@@ -276,38 +219,17 @@ export async function transferSkr(
     const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
 
     const rawAmount = BigInt(Math.round(amount * Math.pow(10, SKR_DECIMALS)));
-    const amountBuffer = Buffer.alloc(8);
-    amountBuffer.writeBigUInt64LE(rawAmount);
 
     const tx = new Transaction();
 
     // Create recipient ATA if it doesn't exist
     const recipientAtaInfo = await connection.getAccountInfo(recipientAta);
     if (!recipientAtaInfo) {
-      tx.add({
-        programId: ASSOCIATED_TOKEN_PROGRAM_ID,
-        keys: [
-          { pubkey: payer, isSigner: true, isWritable: true },
-          { pubkey: recipientAta, isSigner: false, isWritable: true },
-          { pubkey: recipient, isSigner: false, isWritable: false },
-          { pubkey: mint, isSigner: false, isWritable: false },
-          { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-          { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-        ],
-        data: Buffer.alloc(0),
-      });
+      tx.add(createAssociatedTokenAccountInstruction(payer, recipientAta, recipient, mint));
     }
 
-    // SPL Token Transfer instruction (index 3)
-    tx.add({
-      programId: TOKEN_PROGRAM_ID,
-      keys: [
-        { pubkey: senderAta, isSigner: false, isWritable: true },
-        { pubkey: recipientAta, isSigner: false, isWritable: true },
-        { pubkey: payer, isSigner: true, isWritable: false }, // owner
-      ],
-      data: Buffer.from([3, ...amountBuffer]), // Transfer instruction
-    });
+    // SPL Token Transfer
+    tx.add(createTransferInstruction(senderAta, recipientAta, payer, rawAmount));
 
     tx.feePayer = payer;
     tx.recentBlockhash = blockhash;

@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { View, Text, ScrollView, Modal, Pressable, TouchableOpacity, Dimensions } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -122,9 +123,11 @@ export function DiaryModal({ visible, onClose }: DiaryModalProps) {
   }));
 
   // Reset position when modal opens
-  if (visible) {
-    translateY.value = 0;
-  }
+  useEffect(() => {
+    if (visible) {
+      translateY.value = 0;
+    }
+  }, [visible]);
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>

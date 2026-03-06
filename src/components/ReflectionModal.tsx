@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { View, Text, TouchableOpacity, Modal, Pressable, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { usePetStore } from '../store/petStore';
@@ -78,9 +79,11 @@ export function ReflectionModal({ visible, onClose }: ReflectionModalProps) {
   }));
 
   // Reset position when modal opens
-  if (visible) {
-    translateY.value = 0;
-  }
+  useEffect(() => {
+    if (visible) {
+      translateY.value = 0;
+    }
+  }, [visible]);
 
   return (
     <Modal
@@ -114,7 +117,7 @@ export function ReflectionModal({ visible, onClose }: ReflectionModalProps) {
                 <Text className="text-2xl font-black text-gray-800 uppercase tracking-tighter">Reflect with {name}</Text>
                 <Text className="text-sm font-bold text-gray-400 mt-1">How's your day going, hooman?</Text>
                 <View className="bg-pet-purple-light/35 px-2.5 py-1 rounded-full mt-3">
-                  <Text className="text-[10px] font-black text-pet-purple-dark">+25 XP reward</Text>
+                  <Text className="text-[10px] font-black text-pet-purple-dark">+20 XP reward</Text>
                 </View>
               </View>
 
@@ -145,7 +148,7 @@ export function ReflectionModal({ visible, onClose }: ReflectionModalProps) {
               <TouchableOpacity
                 onPress={onClose}
                 activeOpacity={0.8}
-                className="mt-4 py-5 bg-white rounded-3xl border-2 border-gray-100 border-b-4"
+                className="mt-4 py-5 bg-white rounded-[18px] border-2 border-gray-100 border-b-4"
               >
                 <Text className="text-gray-400 text-center font-black uppercase tracking-widest">Maybe Later</Text>
               </TouchableOpacity>

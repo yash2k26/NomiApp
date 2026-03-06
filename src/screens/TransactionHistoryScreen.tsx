@@ -120,7 +120,7 @@ export function TransactionHistoryScreen({ onBack }: { onBack: () => void }) {
         data={transactions}
         keyExtractor={(item) => item.signature}
         renderItem={({ item }) => <TxRow tx={item} />}
-        contentContainerStyle={{ paddingBottom: 40 }}
+        contentContainerStyle={{ paddingBottom: 100 }}
         refreshControl={
           <RefreshControl refreshing={isLoading} onRefresh={handleRefresh} tintColor="#3792A6" />
         }

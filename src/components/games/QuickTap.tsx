@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, TouchableOpacity, Animated, Dimensions } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { playMusic, stopMusic } from '../../lib/soundManager';
 
 const GAME_TIME = 30;
 const BASE_SPAWN_INTERVAL = 800;
-const { width: SCREEN_W } = Dimensions.get('window');
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const PLAY_AREA_W = SCREEN_W - 48;
-const PLAY_AREA_H = 400;
+const PLAY_AREA_H = Math.min(400, SCREEN_H * 0.45);
 
 // Frenzy triggers at streak 5, spawns faster, more golden targets
 const FRENZY_THRESHOLD = 5;
@@ -52,6 +53,12 @@ export function QuickTap({ onComplete, onCancel }: QuickTapProps) {
   const frenzyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const spawnInterval = frenzy ? FRENZY_SPAWN_INTERVAL : BASE_SPAWN_INTERVAL;
+
+  // Game music
+  useEffect(() => {
+    playMusic('game1');
+    return () => { stopMusic(); };
+  }, []);
 
   // Add floating score
   const addFloat = useCallback((text: string, color: string, x: number, y: number) => {

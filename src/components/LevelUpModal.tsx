@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, Animated, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { useXpStore, getTitleForLevel, LEVEL_REWARDS, LEVEL_PERKS, getNextPerkLevel } from '../store/xpStore';
+import { playSfx } from '../lib/soundManager';
 
 export function LevelUpModal() {
   const pendingLevelUp = useXpStore((s) => s.pendingLevelUp);
@@ -23,12 +24,13 @@ export function LevelUpModal() {
     if (!visible) return;
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    playSfx('levelup');
 
     scaleAnim.setValue(0.3);
     opacityAnim.setValue(0);
     starRotate.setValue(0);
 
-    Animated.parallel([
+    const anim = Animated.parallel([
       Animated.spring(scaleAnim, {
         toValue: 1,
         friction: 4,
@@ -47,11 +49,14 @@ export function LevelUpModal() {
           useNativeDriver: true,
         })
       ),
-    ]).start();
+    ]);
+    anim.start();
+    return () => anim.stop();
   }, [visible, scaleAnim, opacityAnim, starRotate]);
 
   const handleDismiss = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    playSfx('happy');
     Animated.timing(opacityAnim, {
       toValue: 0,
       duration: 200,
@@ -137,7 +142,7 @@ export function LevelUpModal() {
           <TouchableOpacity onPress={handleDismiss} activeOpacity={0.85} className="w-full mt-2">
             <LinearGradient
               colors={['#9381FF', '#766BD1']}
-              className="py-3.5 rounded-2xl items-center"
+              className="py-3.5 rounded-[18px] items-center"
             >
               <Text className="text-white text-[14px] font-black uppercase tracking-[1px]">
                 Awesome!

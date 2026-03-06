@@ -29,6 +29,8 @@ export interface ShopItem {
   tierTag?: string;
   /** If set, item requires meeting this condition before purchase */
   unlockCondition?: ItemUnlockCondition;
+  /** If true, item is teased but not yet available */
+  comingSoon?: boolean;
 }
 
 interface ShopState {
@@ -51,27 +53,29 @@ type ShopStore = ShopState & ShopActions;
 const SHOP_ITEMS: ShopItem[] = [
   // Common items
   { id: 'headphones', name: 'Headphones', category: 'Accessories', price: 0, image: '\u{1F3A7}', owned: true, skinKey: 'headphones', rarity: 'common' },
-  { id: 'party-hat', name: 'Party Hat', category: 'Hats', price: 0.5, image: '\u{1F389}', owned: false, skinKey: 'party-hat', rarity: 'common' },
-  { id: 'beanie', name: 'Beanie', category: 'Hats', price: 0.7, image: '\u{1F9E2}', owned: false, skinKey: 'beanie', rarity: 'common' },
-  { id: 'flip-flops', name: 'Flip Flops', category: 'Shoes', price: 0.3, image: '\u{1FA74}', owned: false, skinKey: 'flip-flops', rarity: 'common' },
-  { id: 'sneakers', name: 'Sneakers', category: 'Shoes', price: 0.6, image: '\u{1F45F}', owned: false, skinKey: 'sneakers', rarity: 'common' },
-  // Rare items — require progression
-  { id: 'hoodie', name: 'Hoodie', category: 'Shirts', price: 0.8, image: '\u{1F455}', owned: false, skinKey: 'hoodie', rarity: 'rare', unlockCondition: { type: 'level', value: 5, label: 'Reach Level 5' } },
-  { id: 'sunglasses', name: 'Sunglasses', category: 'Accessories', price: 0.9, image: '\u{1F576}\uFE0F', owned: false, skinKey: 'sunglasses', rarity: 'rare', unlockCondition: { type: 'streak', value: 3, label: '3-Day Login Streak' } },
-  { id: 'jersey', name: 'Jersey', category: 'Shirts', price: 1.0, image: '\u{1F454}', owned: false, skinKey: 'jersey', rarity: 'rare', unlockCondition: { type: 'adventures', value: 5, label: 'Complete 5 Adventures' } },
-  { id: 'boots', name: 'Boots', category: 'Shoes', price: 1.2, image: '\u{1F462}', owned: false, skinKey: 'boots', rarity: 'rare', unlockCondition: { type: 'level', value: 8, label: 'Reach Level 8' } },
-  // Epic items — require mid-game progression
-  { id: 'tuxedo', name: 'Tuxedo', category: 'Shirts', price: 1.5, image: '\u{1F3BD}', owned: false, skinKey: 'tuxedo', rarity: 'epic', unlockCondition: { type: 'level', value: 15, label: 'Reach Level 15' } },
+  { id: 'party-hat', name: 'Party Hat', category: 'Hats', price: 0.5, image: '\u{1F389}', owned: false, skinKey: 'party-hat', rarity: 'common', comingSoon: true },
+  { id: 'beanie', name: 'Beanie', category: 'Hats', price: 0.7, image: '\u{1F9E2}', owned: false, skinKey: 'beanie', rarity: 'common', comingSoon: true },
+  { id: 'flip-flops', name: 'Flip Flops', category: 'Shoes', price: 0.3, image: '\u{1FA74}', owned: false, skinKey: 'flip-flops', rarity: 'common', comingSoon: true },
+  { id: 'sneakers', name: 'Sneakers', category: 'Shoes', price: 0.6, image: '\u{1F45F}', owned: false, skinKey: 'sneakers', rarity: 'common', comingSoon: true },
+  // Rare items
+  { id: 'hoodie', name: 'Hoodie', category: 'Shirts', price: 0.8, image: '\u{1F455}', owned: false, skinKey: 'hoodie', rarity: 'rare', comingSoon: true },
+  { id: 'sunglasses', name: 'Sunglasses', category: 'Accessories', price: 0.9, image: '\u{1F576}\uFE0F', owned: false, skinKey: 'sunglasses', rarity: 'rare', comingSoon: true },
+  { id: 'jersey', name: 'Jersey', category: 'Shirts', price: 1.0, image: '\u{1F454}', owned: false, skinKey: 'jersey', rarity: 'rare', comingSoon: true },
+  { id: 'boots', name: 'Boots', category: 'Shoes', price: 1.2, image: '\u{1F462}', owned: false, skinKey: 'boots', rarity: 'rare', comingSoon: true },
+  // Epic items
+  { id: 'tuxedo', name: 'Tuxedo', category: 'Shirts', price: 1.5, image: '\u{1F3BD}', owned: false, skinKey: 'tuxedo', rarity: 'epic', comingSoon: true },
   { id: 'crown', name: 'Crown', category: 'Hats', price: 0, image: '\u{1F451}', owned: true, skinKey: 'crown', rarity: 'epic' },
-  { id: 'gold-chain', name: 'Gold Chain', category: 'Accessories', price: 3.0, skrPrice: 25, image: '\u{1F4FF}', owned: false, skinKey: 'gold-chain', rarity: 'epic', unlockCondition: { type: 'miniGames', value: 5, label: 'Win 5 Mini-Games' } },
+  { id: 'gold-chain', name: 'Gold Chain', category: 'Accessories', price: 3.0, skrPrice: 25, image: '\u{1F4FF}', owned: false, skinKey: 'gold-chain', rarity: 'epic', comingSoon: true },
   // Tier-exclusive items
-  { id: 'neon-jacket', name: 'Neon Jacket', category: 'Shirts', price: 3.5, skrPrice: 30, image: '\u{1F31F}', owned: false, skinKey: 'neon-jacket', rarity: 'epic', tierTag: 'gold_exclusive' },
-  { id: 'gold-wings', name: 'Gold Wings', category: 'Accessories', price: 5.0, skrPrice: 50, image: '\u2728', owned: false, skinKey: 'gold-wings', rarity: 'legendary', tierTag: 'gold_exclusive', unlockCondition: { type: 'level', value: 20, label: 'Reach Level 20' } },
-  { id: 'diamond-halo', name: 'Diamond Halo', category: 'Accessories', price: 8.0, skrPrice: 80, image: '\u{1F48E}', owned: false, skinKey: 'diamond-halo', rarity: 'legendary', tierTag: 'diamond_exclusive', unlockCondition: { type: 'level', value: 25, label: 'Reach Level 25' } },
+  { id: 'neon-jacket', name: 'Neon Jacket', category: 'Shirts', price: 3.5, skrPrice: 30, image: '\u{1F31F}', owned: false, skinKey: 'neon-jacket', rarity: 'epic', tierTag: 'gold_exclusive', comingSoon: true },
+  { id: 'gold-wings', name: 'Gold Wings', category: 'Accessories', price: 5.0, skrPrice: 50, image: '\u2728', owned: false, skinKey: 'gold-wings', rarity: 'legendary', tierTag: 'gold_exclusive', comingSoon: true },
+  { id: 'diamond-halo', name: 'Diamond Halo', category: 'Accessories', price: 8.0, skrPrice: 80, image: '\u{1F48E}', owned: false, skinKey: 'diamond-halo', rarity: 'legendary', tierTag: 'diamond_exclusive', comingSoon: true },
   // Animations
-  { id: 'anim-backflip', name: 'Backflip', category: 'Animations', price: 0, image: '\u{1F938}', owned: true, skinKey: 'anim-backflip', rarity: 'common' },
-  { id: 'anim-punch', name: 'Punch', category: 'Animations', price: 0.5, image: '\u{1F4A5}', owned: false, skinKey: 'anim-punch', rarity: 'rare', unlockCondition: { type: 'level', value: 5, label: 'Reach Level 5' } },
-  { id: 'anim-fallover', name: 'Fall Over', category: 'Animations', price: 0.3, image: '\u{1F92A}', owned: false, skinKey: 'anim-fallover', rarity: 'common' },
+  { id: 'anim-backflip', name: 'Backflip', category: 'Animations', price: 0.5, image: '\u{1F938}', owned: false, skinKey: 'anim-backflip', rarity: 'rare', comingSoon: true },
+  { id: 'anim-excited', name: 'Excited', category: 'Animations', price: 0, image: '\u{1F929}', owned: true, skinKey: 'anim-excited', rarity: 'common' },
+  { id: 'anim-dance', name: 'Dance', category: 'Animations', price: 0, image: '\u{1F57A}', owned: true, skinKey: 'anim-dance', rarity: 'common' },
+  { id: 'anim-punch', name: 'Punch', category: 'Animations', price: 0.5, image: '\u{1F4A5}', owned: false, skinKey: 'anim-punch', rarity: 'rare', comingSoon: true },
+  { id: 'anim-fallover', name: 'Fall Over', category: 'Animations', price: 0.3, image: '\u{1F92A}', owned: false, skinKey: 'anim-fallover', rarity: 'common', comingSoon: true },
 ];
 
 export interface ItemLockState {
@@ -133,7 +137,7 @@ export const useShopStore = create<ShopStore>((set, get) => ({
   buyItem: async (id, payWithSkr = false) => {
     const { items } = get();
     const item = items.find((i) => i.id === id);
-    if (!item || item.owned) return;
+    if (!item || item.owned || item.comingSoon) return;
 
     // Check unlock condition
     const lockState = getItemLockState(item);
@@ -164,10 +168,16 @@ export const useShopStore = create<ShopStore>((set, get) => ({
             labelTransaction(txSig, `Bought ${item.name} (SKR)`);
           } catch {}
 
-          await walletStore.refreshSkrBalance();
-          await walletStore.refreshBalance();
+          // Mark owned BEFORE refresh — tx already succeeded on-chain
+          const updated = items.map((i) => (i.id === id ? { ...i, owned: true } : i));
+          set({ items: updated });
+          const ownedIds = updated.filter((i) => i.owned).map((i) => i.id);
+          saveShopState(ownedIds, get().equippedItemId, get().equippedAnimationId);
+
+          try { await walletStore.refreshSkrBalance(); } catch {}
+          try { await walletStore.refreshBalance(); } catch {}
         } else {
-          walletStore.deductSkr(item.skrPrice);
+          throw new Error('Wallet not connected. Please reconnect to purchase.');
         }
       } else {
         // SOL payment path
@@ -194,23 +204,35 @@ export const useShopStore = create<ShopStore>((set, get) => ({
             labelTransaction(txSig, `Bought ${item.name}`);
           } catch {}
 
-          await walletStore.refreshBalance();
-        } else {
-          walletStore.deductBalance(finalPrice);
+          // Mark owned BEFORE refreshBalance — tx already succeeded on-chain
+          const updated = items.map((i) => (i.id === id ? { ...i, owned: true } : i));
+          set({ items: updated });
+          const ownedIds = updated.filter((i) => i.owned).map((i) => i.id);
+          saveShopState(ownedIds, get().equippedItemId, get().equippedAnimationId);
+
+          try { await walletStore.refreshBalance(); } catch {}
+        } else if (finalPrice > 0) {
+          throw new Error('Wallet not connected. Please reconnect to purchase.');
         }
       }
     }
 
-    const updated = items.map((i) => (i.id === id ? { ...i, owned: true } : i));
-    set({ items: updated });
+    // For free items or SKR path, mark owned here
+    const { items: currentItems } = get();
+    const alreadyOwned = currentItems.find((i) => i.id === id)?.owned;
+    if (!alreadyOwned) {
+      const updated = currentItems.map((i) => (i.id === id ? { ...i, owned: true } : i));
+      set({ items: updated });
+    }
 
-    const ownedIds = updated.filter((i) => i.owned).map((i) => i.id);
+    const finalItems = get().items;
+    const ownedIds = finalItems.filter((i) => i.owned).map((i) => i.id);
     saveShopState(ownedIds, get().equippedItemId, get().equippedAnimationId);
 
     // XP for buying
     const xpStore = require('./xpStore').useXpStore.getState();
     xpStore.addXp(30, 'buy');
-    xpStore.checkAchievements({ ownedCount: ownedIds.length, totalItems: updated.length });
+    xpStore.checkAchievements({ ownedCount: ownedIds.length, totalItems: finalItems.length });
   },
 
   equipItem: (id) => {

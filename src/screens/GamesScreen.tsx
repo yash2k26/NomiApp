@@ -8,12 +8,15 @@ import { useAdventureStore } from '../store/adventureStore';
 import { MemoryMatch } from '../components/games/MemoryMatch';
 import { QuickTap } from '../components/games/QuickTap';
 import { PatternRecall } from '../components/games/PatternRecall';
+import { ColorMatch } from '../components/games/ColorMatch';
+import { MathRush } from '../components/games/MathRush';
+import { EmojiCatch } from '../components/games/EmojiCatch';
 import { DailyQuests } from '../components/DailyQuests';
 import { AdventureCard } from '../components/AdventureCard';
 import { SpinWheel } from '../components/SpinWheel';
 import { ScreenHeader } from '../components/ui/ScreenHeader';
 
-type ActiveGame = 'memory' | 'quicktap' | 'pattern' | null;
+type ActiveGame = 'memory' | 'quicktap' | 'pattern' | 'colormatch' | 'mathrush' | 'emojicatch' | null;
 
 interface GameCardProps {
   title: string;
@@ -88,9 +91,10 @@ function formatCooldown(ms: number): string {
 
 export function GamesScreen() {
   const [activeGame, setActiveGame] = useState<ActiveGame>(null);
+  const [showAllGames, setShowAllGames] = useState(false);
   const level = useXpStore((s) => s.level);
   const { getStamina, consumeStamina, isOnCooldown, getCooldownRemaining, startCooldown } = usePetStore();
-  const { reportMiniGameScore, highScores } = useAdventureStore();
+  const { reportMiniGameScore, highScores, miniGamesWon, miniGameXpEarned } = useAdventureStore();
   const [, setTick] = useState(0);
 
   // Re-render every second for cooldowns
@@ -99,9 +103,13 @@ export function GamesScreen() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleGameComplete = (gameId: string, cooldownKey: string) => (score: number, xp: number) => {
+  const startGame = (gameId: ActiveGame, cooldownKey: string) => {
     consumeStamina(STAMINA_COSTS.miniGame);
     startCooldown(cooldownKey);
+    setActiveGame(gameId);
+  };
+
+  const handleGameComplete = (gameId: string) => (score: number, xp: number) => {
     reportMiniGameScore(gameId, score, xp);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setActiveGame(null);
@@ -113,7 +121,7 @@ export function GamesScreen() {
   if (activeGame === 'memory') {
     return (
       <MemoryMatch
-        onComplete={handleGameComplete('memory', 'miniGame_memory')}
+        onComplete={handleGameComplete('memory')}
         onCancel={() => setActiveGame(null)}
       />
     );
@@ -121,7 +129,7 @@ export function GamesScreen() {
   if (activeGame === 'quicktap') {
     return (
       <QuickTap
-        onComplete={handleGameComplete('quicktap', 'miniGame_quicktap')}
+        onComplete={handleGameComplete('quicktap')}
         onCancel={() => setActiveGame(null)}
       />
     );
@@ -129,7 +137,31 @@ export function GamesScreen() {
   if (activeGame === 'pattern') {
     return (
       <PatternRecall
-        onComplete={handleGameComplete('pattern', 'miniGame_pattern')}
+        onComplete={handleGameComplete('pattern')}
+        onCancel={() => setActiveGame(null)}
+      />
+    );
+  }
+  if (activeGame === 'colormatch') {
+    return (
+      <ColorMatch
+        onComplete={handleGameComplete('colormatch')}
+        onCancel={() => setActiveGame(null)}
+      />
+    );
+  }
+  if (activeGame === 'mathrush') {
+    return (
+      <MathRush
+        onComplete={handleGameComplete('mathrush')}
+        onCancel={() => setActiveGame(null)}
+      />
+    );
+  }
+  if (activeGame === 'emojicatch') {
+    return (
+      <EmojiCatch
+        onComplete={handleGameComplete('emojicatch')}
         onCancel={() => setActiveGame(null)}
       />
     );
@@ -144,7 +176,7 @@ export function GamesScreen() {
         end={{ x: 1, y: 1 }}
         className="absolute inset-0"
       />
-      <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+      <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
         <View className="pt-5 px-6 mb-4">
           <ScreenHeader
             eyebrow="Play Zone"
@@ -187,7 +219,7 @@ export function GamesScreen() {
           cooldownText={formatCooldown(getCooldownRemaining('miniGame_memory'))}
           canAfford={canAfford}
           highScore={highScores.memory ?? 0}
-          onPlay={() => setActiveGame('memory')}
+          onPlay={() => startGame('memory', 'miniGame_memory')}
         />
 
         <GameCard
@@ -202,7 +234,7 @@ export function GamesScreen() {
           cooldownText={formatCooldown(getCooldownRemaining('miniGame_quicktap'))}
           canAfford={canAfford}
           highScore={highScores.quicktap ?? 0}
-          onPlay={() => setActiveGame('quicktap')}
+          onPlay={() => startGame('quicktap', 'miniGame_quicktap')}
         />
 
         <GameCard
@@ -217,8 +249,82 @@ export function GamesScreen() {
           cooldownText={formatCooldown(getCooldownRemaining('miniGame_pattern'))}
           canAfford={getStamina() >= STAMINA_COSTS.miniGame + 5}
           highScore={highScores.pattern ?? 0}
-          onPlay={() => setActiveGame('pattern')}
+          onPlay={() => startGame('pattern', 'miniGame_pattern')}
         />
+
+        {/* View More / Show Less toggle */}
+        {!showAllGames && (
+          <TouchableOpacity onPress={() => setShowAllGames(true)} activeOpacity={0.85} className="mb-4">
+            <LinearGradient
+              colors={['#4FABC9', '#3E8AB3']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              className="py-4 flex-row items-center justify-center"
+              style={{ borderRadius: 20, shadowColor: '#3E8AB3', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 12, elevation: 4 }}
+            >
+              <Text className="text-white font-black text-[13px] uppercase tracking-[0.5px] mr-2">View More Games</Text>
+              <Text className="text-white/70 text-[11px]">{'\u25BE'}</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        )}
+
+        {showAllGames && (
+          <>
+            <GameCard
+              title="Color Match"
+              emoji={'\u{1F3A8}'}
+              description="Tap the color of the text, not the word!"
+              xpRange="15-60"
+              staminaCost={STAMINA_COSTS.miniGame}
+              locked={level < 2}
+              lockLevel={2}
+              onCooldown={isOnCooldown('miniGame_colormatch')}
+              cooldownText={formatCooldown(getCooldownRemaining('miniGame_colormatch'))}
+              canAfford={canAfford}
+              highScore={highScores.colormatch ?? 0}
+              onPlay={() => startGame('colormatch', 'miniGame_colormatch')}
+            />
+
+            <GameCard
+              title="Math Rush"
+              emoji={'\u{1F9EE}'}
+              description="Solve quick math problems before time runs out!"
+              xpRange="15-55"
+              staminaCost={STAMINA_COSTS.miniGame}
+              locked={level < 4}
+              lockLevel={4}
+              onCooldown={isOnCooldown('miniGame_mathrush')}
+              cooldownText={formatCooldown(getCooldownRemaining('miniGame_mathrush'))}
+              canAfford={canAfford}
+              highScore={highScores.mathrush ?? 0}
+              onPlay={() => startGame('mathrush', 'miniGame_mathrush')}
+            />
+
+            <GameCard
+              title="Emoji Catch"
+              emoji={'\u{1F34E}'}
+              description="Catch the target emoji as they rain down!"
+              xpRange="10-50"
+              staminaCost={STAMINA_COSTS.miniGame}
+              locked={level < 5}
+              lockLevel={5}
+              onCooldown={isOnCooldown('miniGame_emojicatch')}
+              cooldownText={formatCooldown(getCooldownRemaining('miniGame_emojicatch'))}
+              canAfford={canAfford}
+              highScore={highScores.emojicatch ?? 0}
+              onPlay={() => startGame('emojicatch', 'miniGame_emojicatch')}
+            />
+
+            <TouchableOpacity onPress={() => setShowAllGames(false)} activeOpacity={0.85} className="mb-4">
+              <View className="bg-gray-50 py-3.5 flex-row items-center justify-center border border-gray-200"
+                style={{ borderRadius: 20 }}
+              >
+                <Text className="text-gray-400 font-bold text-[12px] mr-1.5">Show less</Text>
+                <Text className="text-gray-400 text-[10px]">{'\u25B4'}</Text>
+              </View>
+            </TouchableOpacity>
+          </>
+        )}
 
         </View>
 
@@ -227,16 +333,16 @@ export function GamesScreen() {
           <Text className="text-[14px] font-black text-gray-800 mb-3">Game Stats</Text>
           <View className="flex-row justify-between">
             <View className="items-center">
-              <Text className="text-[20px] font-black text-pet-blue-dark">{useAdventureStore.getState().miniGamesWon}</Text>
+              <Text className="text-[20px] font-black text-pet-blue-dark">{miniGamesWon}</Text>
               <Text className="text-[10px] font-bold text-gray-400 uppercase">Games Won</Text>
             </View>
             <View className="items-center">
-              <Text className="text-[20px] font-black text-pet-blue-dark">{useAdventureStore.getState().miniGameXpEarned}</Text>
+              <Text className="text-[20px] font-black text-pet-blue-dark">{miniGameXpEarned}</Text>
               <Text className="text-[10px] font-bold text-gray-400 uppercase">XP Earned</Text>
             </View>
             <View className="items-center">
               <Text className="text-[20px] font-black text-pet-blue-dark">
-                {Math.max(highScores.memory ?? 0, highScores.quicktap ?? 0, highScores.pattern ?? 0)}
+                {Math.max(highScores.memory ?? 0, highScores.quicktap ?? 0, highScores.pattern ?? 0, highScores.colormatch ?? 0, highScores.mathrush ?? 0, highScores.emojicatch ?? 0)}
               </Text>
               <Text className="text-[10px] font-bold text-gray-400 uppercase">Best Score</Text>
             </View>

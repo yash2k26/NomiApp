@@ -19,7 +19,7 @@ import { useEventStore } from '../store/eventStore';
 import { usePersonalityStore, getActionDialogue, type DialogueContext } from '../store/personalityStore';
 import { ADVENTURE_ZONES } from '../store/adventureStore';
 import { petTypography } from '../theme/typography';
-import { playMusic, stopMusic } from '../lib/soundManager';
+import { playMusic, stopMusic, playSfx } from '../lib/soundManager';
 import { OnboardingOverlay, shouldShowOnboarding } from '../components/OnboardingOverlay';
 
 const BACKFLIP_DURATION = 2500; // Backflip clip duration
@@ -99,8 +99,8 @@ function MoodBadge({ moodText, isExcited, isUrgent }: { moodText: string; isExci
     if (isExcited || isUrgent) {
       Animated.loop(
         Animated.sequence([
-          Animated.timing(pulseAnim, { toValue: 1.08, duration: 560, useNativeDriver: true }),
-          Animated.timing(pulseAnim, { toValue: 1, duration: 560, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1.04, duration: 1200, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 1200, useNativeDriver: true }),
         ])
       ).start();
     } else {
@@ -108,12 +108,23 @@ function MoodBadge({ moodText, isExcited, isUrgent }: { moodText: string; isExci
     }
   }, [isExcited, isUrgent, pulseAnim]);
 
-  const bgColor = isExcited ? 'bg-pet-blue-dark' : isUrgent ? 'bg-pet-blue' : 'bg-pet-blue';
-  const borderColor = 'border-pet-blue-dark';
+  if (isUrgent) {
+    return (
+      <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+        <View
+          className="flex-row items-center px-4 py-2.5 rounded-[14px] bg-red-50 border border-red-200"
+          style={{ shadowColor: '#EF4444', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.15, shadowRadius: 6, elevation: 3 }}
+        >
+          <Text className="text-[14px] mr-1.5">{'\u26A0\uFE0F'}</Text>
+          <Text className="text-[12px] font-black text-red-500">{moodText}</Text>
+        </View>
+      </Animated.View>
+    );
+  }
 
   return (
     <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-      <View className={`px-4 py-2 rounded-full border ${bgColor} ${borderColor}`}>
+      <View className={`px-4 py-2 rounded-[14px] border ${isExcited ? 'bg-pet-blue-dark border-pet-blue-dark' : 'bg-pet-blue border-pet-blue-dark'}`}>
         <Text className="text-[12px] font-semibold text-white">{moodText}</Text>
       </View>
     </Animated.View>
@@ -349,7 +360,7 @@ function ActivityGlance({ onNavigateGames }: { onNavigateGames?: () => void }) {
           <TouchableOpacity className="flex-1 py-3.5 items-center border-r border-gray-100" activeOpacity={0.7} onPress={onNavigateGames}>
             {activeAdventure && activeZone ? (
               <>
-                <Image source={EXPLORING_IMG} style={{ width: 32, height: 32, marginBottom: 2 }} resizeMode="contain" />
+                <Text className="text-[16px] mb-0.5">{'\u{1F30D}'}</Text>
                 <Text className="text-[11px] font-black text-pet-blue-dark">
                   {remaining <= 0 ? 'Loot!' : formatTime(remaining)}
                 </Text>
@@ -357,7 +368,7 @@ function ActivityGlance({ onNavigateGames }: { onNavigateGames?: () => void }) {
               </>
             ) : (
               <>
-                <Image source={EXPLORE_EARTH_IMG} style={{ width: 32, height: 32, marginBottom: 2 }} resizeMode="contain" />
+                <Text className="text-[16px] mb-0.5">{'\u{1F30D}'}</Text>
                 <Text className="text-[11px] font-black text-gray-700">Go!</Text>
                 <Text className="text-[9px] font-semibold text-gray-400">Adventure</Text>
               </>
@@ -415,11 +426,11 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
     'anim-backflip': 'backflip',
     'anim-punch': 'punch',
     'anim-fallover': 'fallover',
+    'anim-excited': 'excited',
+    'anim-dance': 'dancing',
   };
   const equippedAnimItem = equippedAnimationId ? shopItems.find((i) => i.id === equippedAnimationId) : null;
   const equippedAnimModel = equippedAnimItem ? ANIM_SKIN_TO_MODEL[equippedAnimItem.skinKey] : null;
-
-  console.log(`[EQUIP-DEBUG] animId="${equippedAnimationId}", skinKey="${equippedAnimItem?.skinKey}", model="${equippedAnimModel}"`);
 
   const moodText = getMoodText();
   const needMessage = getPetNeeds(hunger, happiness, energy);
@@ -494,19 +505,21 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
   }, [tick, generateDialogue, dialogueCtx]);
 
   // Idle dialogue timer — every 45-90 seconds
+  const dialogueCtxRef = useRef(dialogueCtx);
+  dialogueCtxRef.current = dialogueCtx;
   useEffect(() => {
     const scheduleIdle = () => {
       const delay = 45000 + Math.random() * 45000;
       return setTimeout(() => {
         if (activeModel === 'breathing' || activeModel === 'dancing') {
-          generateIdleDialogue(dialogueCtx());
+          generateIdleDialogue(dialogueCtxRef.current());
         }
         idleTimerRef.current = scheduleIdle();
       }, delay);
     };
     const idleTimerRef = { current: scheduleIdle() };
     return () => clearTimeout(idleTimerRef.current);
-  }, [activeModel, generateIdleDialogue, dialogueCtx]);
+  }, [activeModel, generateIdleDialogue]);
 
   // Random event check — every 60 seconds
   const checkAndTriggerEvent = useEventStore((s) => s.checkAndTriggerEvent);
@@ -562,6 +575,7 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
   const handleDoubleTap = useCallback((_e: GestureResponderEvent) => {
     if (!isFalling) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      playSfx('fall');
       if (isExcitedBurst) {
         clearExcitedBurst();
       }
@@ -626,7 +640,7 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
       <ScrollView
         className="flex-1"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 40 }}
+        contentContainerStyle={{ paddingBottom: 100 }}
         bounces
       >
         <View
@@ -666,7 +680,7 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
               </View>
             </LinearGradient>
             <View className="bg-white px-6 py-6 items-center">
-              <Text className="text-[40px] leading-[42px] font-black text-gray-800" style={{ fontFamily: petTypography.display }}>{name}</Text>
+              <Text numberOfLines={1} className="text-[40px] leading-[42px] font-black text-gray-800" style={{ fontFamily: petTypography.display }}>{name}</Text>
               {ownerName ? (
                 <Text className="text-[12px] text-gray-400 mt-1" style={{ fontFamily: petTypography.body }}>{ownerName}'s companion</Text>
               ) : null}
@@ -733,6 +747,7 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
               end={{ x: 1, y: 1 }}
               className="rounded-[30px] p-5 border border-pet-blue-dark/20"
               style={{
+                borderRadius: 30,
                 shadowColor: '#3792A6',
                 shadowOffset: { width: 0, height: 8 },
                 shadowOpacity: 0.2,

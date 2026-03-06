@@ -287,9 +287,9 @@ export const usePetStore = create<PetStore>((set, get) => ({
   ownerName: '',
   mintAddress: '',
   mintTxSignature: '',
-  hunger: 25,
-  happiness: 15,
-  energy: 35,
+  hunger: 70,
+  happiness: 70,
+  energy: 70,
   skin: 'default',
   hasPet: false,
   lastTickAt: Date.now(),
@@ -674,7 +674,8 @@ export const usePetStore = create<PetStore>((set, get) => ({
     // Daily streak tracking
     const today = new Date().toISOString().slice(0, 10);
     if (today !== lastActiveDate) {
-      const yesterday = new Date(now - 86400000).toISOString().slice(0, 10);
+      const yd = new Date(now); yd.setDate(yd.getDate() - 1);
+      const yesterday = yd.toISOString().slice(0, 10);
       const newStreak = lastActiveDate === yesterday ? streakDays + 1 : 1;
       const streakBonus = Math.min(newStreak * 2, 10);
 

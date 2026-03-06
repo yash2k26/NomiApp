@@ -87,8 +87,12 @@ export async function transferSOL(
  */
 export async function requestAirdrop(address: string, amountSOL: number = 1): Promise<string> {
   const pubkey = new PublicKey(address);
+  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
   const sig = await connection.requestAirdrop(pubkey, amountSOL * LAMPORTS_PER_SOL);
-  await connection.confirmTransaction(sig, 'confirmed');
+  await connection.confirmTransaction(
+    { signature: sig, blockhash, lastValidBlockHeight },
+    'confirmed',
+  );
   return sig;
 }
 

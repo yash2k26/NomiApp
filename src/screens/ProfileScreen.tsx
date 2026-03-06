@@ -346,6 +346,8 @@ export function ProfileScreen() {
   const [showTxHistory, setShowTxHistory] = useState(false);
   const notificationsEnabled = useNotificationStore((s) => s.enabled);
   const toggleNotifications = useNotificationStore((s) => s.setEnabled);
+  const completedAdventures = useAdventureStore((s) => s.completedAdventures);
+  const miniGamesWon = useAdventureStore((s) => s.miniGamesWon);
 
   const shortAddress = address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Not connected';
   const shortMintAddress = mintAddress ? `${mintAddress.slice(0, 6)}...${mintAddress.slice(-4)}` : 'N/A';
@@ -436,7 +438,7 @@ export function ProfileScreen() {
       <View className="absolute top-52 -left-10 w-44 h-44 rounded-full bg-pet-blue-light/20" />
       <View className="absolute top-[520px] -right-12 w-48 h-48 rounded-full bg-pet-blue-light/25" />
 
-      <ScrollView className="flex-1 px-6 pt-6" contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+      <ScrollView className="flex-1 px-6 pt-6" contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
         <ScreenHeader
           eyebrow={premium ? `${TIER_CONFIGS[tier].label} Member` : 'Player Card'}
           title="Profile"
@@ -558,8 +560,8 @@ export function ProfileScreen() {
           )}
           <InfoRow label="Outfit" value={skinDisplayName} valueColor="text-pet-blue" />
           <InfoRow label="Streak" value={`${streakDays} day${streakDays === 1 ? '' : 's'}`} valueColor="text-pet-blue-dark" />
-          <InfoRow label="Adventures" value={`${useAdventureStore.getState().completedAdventures} completed`} valueColor="text-pet-blue-dark" />
-          <InfoRow label="Mini-Games" value={`${useAdventureStore.getState().miniGamesWon} won`} valueColor="text-pet-blue-dark" />
+          <InfoRow label="Adventures" value={`${completedAdventures} completed`} valueColor="text-pet-blue-dark" />
+          <InfoRow label="Mini-Games" value={`${miniGamesWon} won`} valueColor="text-pet-blue-dark" />
           <CollectiblesRow />
           <View className="py-3">
             <TouchableOpacity onPress={handleSyncPetState} disabled={memoLoading} activeOpacity={0.85}>

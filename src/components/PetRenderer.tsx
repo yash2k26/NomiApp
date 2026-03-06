@@ -76,6 +76,9 @@ function PetModel({ activeModel, onAnimationDone, equippedSkin }: PetModelProps)
     const mixer = new THREE.AnimationMixer(scene);
     mixerRef.current = mixer;
 
+    // Debug: log all animation clip names baked into the GLB
+    console.log('[PetRenderer] Available animation clips:', animations.map(c => `"${c.name}" (${c.duration.toFixed(2)}s)`).join(', '));
+
     // Find head bone
     let headBoneFound = scene.getObjectByName(HEAD_BONE_NAME);
     if (!headBoneFound) {
@@ -134,7 +137,6 @@ function PetModel({ activeModel, onAnimationDone, equippedSkin }: PetModelProps)
 
   // Animation switching — all clips are baked, just find by name
   useEffect(() => {
-    console.log(`[RENDER-DEBUG] activeModel="${activeModel}", clips available:`, animations.map(c => c.name));
     const mixer = mixerRef.current;
     if (!mixer || animations.length === 0) {
       if (ONE_SHOT.has(activeModel)) {
@@ -152,8 +154,10 @@ function PetModel({ activeModel, onAnimationDone, equippedSkin }: PetModelProps)
 
     const clip = animations.find(c => c.name === clipName);
 
+    console.log(`[PetRenderer] activeModel="${activeModel}" → clipName="${clipName}" → found=${!!clip}`);
+
     if (!clip) {
-      console.warn(`[PetModel] clip "${clipName}" for "${activeModel}" not found. Available:`, animations.map(c => c.name));
+      console.warn(`[PetRenderer] Clip "${clipName}" NOT FOUND. Available:`, animations.map(c => c.name));
       return;
     }
 

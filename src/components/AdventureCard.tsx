@@ -189,8 +189,9 @@ export function AdventureCard() {
   const statsOk = hunger >= 30 && happiness >= 30 && energy >= 30;
   const activeZone = activeAdventure ? ADVENTURE_ZONES.find(z => z.id === activeAdventure.zoneId) : null;
 
-  const progress = activeAdventure
-    ? Math.max(0, Math.min(100, ((activeAdventure.endsAt - activeAdventure.startedAt - remaining) / (activeAdventure.endsAt - activeAdventure.startedAt)) * 100))
+  const adventureDuration = activeAdventure ? activeAdventure.endsAt - activeAdventure.startedAt : 0;
+  const progress = activeAdventure && adventureDuration > 0
+    ? Math.max(0, Math.min(100, ((adventureDuration - remaining) / adventureDuration) * 100))
     : 0;
 
   return (

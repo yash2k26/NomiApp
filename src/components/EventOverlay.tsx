@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, Animated } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEventStore, type EventReward } from '../store/eventStore';
+import { playSfx } from '../lib/soundManager';
 
 const RARITY_COLORS: Record<string, readonly [string, string]> = {
   common: ['#4FB0C6', '#67BEE4'] as const,
@@ -92,6 +93,19 @@ export function EventOverlay() {
     return () => clearTimeout(timer);
   }, [activeEvent, event, dismissEvent]);
 
+  const handleResolve = useCallback(() => {
+    const reward = resolveEvent();
+    if (reward) {
+      setShowReward(reward);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      playSfx('reward');
+    }
+  }, [resolveEvent]);
+
+  // Keep a stable ref to handleResolve for the wait timer
+  const handleResolveRef = useRef(handleResolve);
+  handleResolveRef.current = handleResolve;
+
   // Wait interaction timer
   useEffect(() => {
     if (!isActive || event?.interaction !== 'wait') return;
@@ -101,23 +115,14 @@ export function EventOverlay() {
         const next = p + 1;
         if (next >= 10) {
           clearInterval(interval);
-          handleResolve();
+          handleResolveRef.current();
           return 10;
         }
         return next;
       });
     }, 1000);
     return () => clearInterval(interval);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive, event?.interaction]);
-
-  const handleResolve = useCallback(() => {
-    const reward = resolveEvent();
-    if (reward) {
-      setShowReward(reward);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }
-  }, [resolveEvent]);
 
   const handleTap = useCallback(() => {
     if (!isActive || !event) return;
@@ -135,6 +140,7 @@ export function EventOverlay() {
   }, [isActive, event, tapCount, handleResolve]);
 
   const handleRewardDone = useCallback(() => {
+    playSfx('happy');
     setShowReward(null);
     dismissEvent();
   }, [dismissEvent]);
