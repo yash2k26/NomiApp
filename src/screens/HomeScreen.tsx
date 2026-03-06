@@ -11,6 +11,7 @@ import { XpBar } from '../components/XpBar';
 import { LevelUpModal } from '../components/LevelUpModal';
 import { LoginCalendar } from '../components/LoginCalendar';
 import { DialogueBubble } from '../components/DialogueBubble';
+import { ThoughtBubble } from '../components/ThoughtBubble';
 import { DiaryModal } from '../components/DiaryModal';
 import { EventOverlay } from '../components/EventOverlay';
 import { TouchInteractionLayer } from '../components/TouchInteractionLayer';
@@ -19,7 +20,7 @@ import { useEventStore } from '../store/eventStore';
 import { usePersonalityStore, getActionDialogue, type DialogueContext } from '../store/personalityStore';
 import { ADVENTURE_ZONES } from '../store/adventureStore';
 import { petTypography } from '../theme/typography';
-import { playMusic, stopMusic, playSfx } from '../lib/soundManager';
+import { playMusic, stopMusic, playSfx, playSound, playRandomSadSound } from '../lib/soundManager';
 import { OnboardingOverlay, shouldShowOnboarding } from '../components/OnboardingOverlay';
 
 const BACKFLIP_DURATION = 2500; // Backflip clip duration
@@ -133,11 +134,15 @@ function MoodBadge({ moodText, isExcited, isUrgent }: { moodText: string; isExci
 
 function HelpModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const tips = [
-    'Swipe on Nomi to rotate and inspect the 3D model.',
-    'Hit 100% on all bars to trigger a one-time celebration dance.',
-    'Double-tap Nomi to trigger the fall reaction.',
-    'Daily check-ins build streak and add bonus happiness.',
-    'Use reflection when happiness drops to recover faster.',
+    'Feed, play, and rest to keep Nomi happy. Each bar decays over time!',
+    'Double-tap Nomi to make them fall over (they find it funny).',
+    'Max out all 3 bars to 100% for a special excited celebration!',
+    'Equip headphones from the shop to make Nomi dance to music.',
+    'When a bar drops below 50%, Nomi gets sad and thinks about what they need.',
+    'Check in daily to build your streak — longer streaks earn bonus rewards.',
+    'Spin the wheel for free daily rewards. Higher levels = more spins!',
+    'Open Nomi\'s diary to read about their day when you were away.',
+    'Use the reflect button to talk with Nomi and boost their mood.',
   ];
 
   return (
@@ -158,7 +163,7 @@ function HelpModal({ visible, onClose }: { visible: boolean; onClose: () => void
           </View>
           <View className="px-5 py-4">
             {tips.map((tip) => (
-              <View key={tip} className="flex-row mb-3 last:mb-0">
+              <View key={tip} className="flex-row mb-4 last:mb-0">
                 <Text className="text-pet-blue-dark mr-2">{'\u2022'}</Text>
                 <Text className="text-[13px] text-gray-700 flex-1">{tip}</Text>
               </View>
@@ -399,6 +404,7 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
   const [isFalling, setIsFalling] = useState(false);
   const [loginPopupVisible, setLoginPopupVisible] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [musicMuted, setMusicMuted] = useState(false);
   const partyAnim = useRef(new Animated.Value(0)).current;
   const prevStreakRef = useRef(0);
   const prevAllHighRef = useRef(false);
@@ -476,6 +482,22 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
     };
   }, [hunger, happiness, energy, moodText, name, ownerName, streakDays, equippedSkinKey, level]);
 
+  // Play random sad sounds when any stat drops below 50%
+  useEffect(() => {
+    if (!anySadStat) return;
+    const scheduleNext = () => {
+      const delay = 10000 + Math.random() * 5000; // 10-15 sec
+      return setTimeout(() => {
+        playRandomSadSound();
+        timerRef = scheduleNext();
+      }, delay);
+    };
+    // Play one immediately, then schedule more
+    playRandomSadSound();
+    let timerRef = scheduleNext();
+    return () => clearTimeout(timerRef);
+  }, [anySadStat]);
+
   // Onboarding overlay — show once after first pet mint
   useEffect(() => {
     shouldShowOnboarding().then((show) => { if (show) setShowOnboarding(true); });
@@ -545,18 +567,19 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
   useEffect(() => {
     if (equippedSkinKey === 'headphones' && anySadStat) {
       unequipItem();
+      setMusicMuted(false);
     }
   }, [equippedSkinKey, anySadStat, unequipItem]);
 
-  // Play/stop headphones music when dance starts/stops
+  // Play/stop headphones music when dance starts/stops or muted
   useEffect(() => {
-    if (activeModel === 'dancing') {
+    if (activeModel === 'dancing' && !musicMuted) {
       playMusic('headphones');
     } else {
       stopMusic();
     }
     return () => { stopMusic(); };
-  }, [activeModel]);
+  }, [activeModel, musicMuted]);
 
   useEffect(() => {
     if (streakDays > prevStreakRef.current) {
@@ -575,7 +598,7 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
   const handleDoubleTap = useCallback((_e: GestureResponderEvent) => {
     if (!isFalling) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      playSfx('fall');
+      playSound('fall');
       if (isExcitedBurst) {
         clearExcitedBurst();
       }
@@ -653,6 +676,31 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
             <SkyCloud className="top-52 left-12 scale-75" />
             <View className="absolute inset-0 bg-white/35 rounded-b-[52px]" />
             {!isExcitedBurst && <DialogueBubble message={currentDialogue ?? needMessage} />}
+            {anySadStat && <ThoughtBubble hunger={shownHunger} happiness={shownHappiness} energy={shownEnergy} />}
+            {equippedSkinKey === 'headphones' && (
+              <TouchableOpacity
+                onPress={() => setMusicMuted((m) => !m)}
+                activeOpacity={0.7}
+                style={{
+                  position: 'absolute',
+                  bottom: 70,
+                  left: 16,
+                  zIndex: 30,
+                  width: 36,
+                  height: 36,
+                  borderRadius: 18,
+                  backgroundColor: musicMuted ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.5)',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <MaterialCommunityIcons
+                  name={musicMuted ? 'music-off' : 'music'}
+                  size={16}
+                  color={musicMuted ? 'rgba(255,255,255,0.75)' : 'rgba(36,50,74,0.55)'}
+                />
+              </TouchableOpacity>
+            )}
             <PetRenderer activeModel={activeModel} onExcitedFinished={clearExcitedBurst} equippedSkin={equippedSkinKey} onReady={() => setPetReady(true)} />
           </TouchInteractionLayer>
         </View>

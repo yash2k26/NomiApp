@@ -111,43 +111,43 @@ function pick<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-function generateDialogueLines(ctx: DialogueContext, traits: PersonalityTraits, memories: PetMemory[]): DialogueLine[] {
+// ── Situation-specific dialogue pools ──
+// Each function returns lines ONLY for that specific situation.
+// The main generator picks the right pool based on current state.
+
+function getGreetingLines(o: string, time: string): DialogueLine[] {
   const lines: DialogueLine[] = [];
-  const time = getTimeOfDay();
-  const { hunger, happiness, energy, name, ownerName, streakDays, equippedSkin, hoursSinceLastOpen, isFirstOpenToday } = ctx;
-  const o = ownerName || 'friend';
-
-  // ── Time-of-day greetings (high priority on first open) ──
-  if (isFirstOpenToday) {
-    if (time === 'morning') {
-      lines.push(
-        { text: `Good morning, ${o}! I dreamed about butterflies...`, priority: 100, category: 'greeting' },
-        { text: `Rise and shine, ${o}! Ready for a new day?`, priority: 100, category: 'greeting' },
-        { text: `${o}! You're up early! I like that about you.`, priority: 95, category: 'greeting' },
-        { text: `Morning, ${o}~ I saved you a spot next to me.`, priority: 95, category: 'greeting' },
-      );
-    } else if (time === 'afternoon') {
-      lines.push(
-        { text: `Oh, ${o}! There you are! I've been waiting~`, priority: 100, category: 'greeting' },
-        { text: `Afternoon, ${o}! Want to hang out?`, priority: 95, category: 'greeting' },
-        { text: `Hey ${o}! I was just thinking about you.`, priority: 95, category: 'greeting' },
-      );
-    } else if (time === 'evening') {
-      lines.push(
-        { text: `Good evening, ${o}! The stars are coming out~`, priority: 100, category: 'greeting' },
-        { text: `Hey ${o}, you're back! Perfect timing for some fun.`, priority: 95, category: 'greeting' },
-        { text: `Evening vibes, ${o}~ let's chill together.`, priority: 95, category: 'greeting' },
-      );
-    } else {
-      lines.push(
-        { text: `It's late, ${o}... but I'm happy you're here!`, priority: 100, category: 'greeting' },
-        { text: `Night owl mode activated! Hi ${o}~`, priority: 95, category: 'greeting' },
-        { text: `Can't sleep either, ${o}? Let's keep each other company.`, priority: 95, category: 'greeting' },
-      );
-    }
+  if (time === 'morning') {
+    lines.push(
+      { text: `Good morning, ${o}! I dreamed about butterflies...`, priority: 100, category: 'greeting' },
+      { text: `Rise and shine, ${o}! Ready for a new day?`, priority: 100, category: 'greeting' },
+      { text: `${o}! You're up early! I like that about you.`, priority: 95, category: 'greeting' },
+      { text: `Morning, ${o}~ I saved you a spot next to me.`, priority: 95, category: 'greeting' },
+    );
+  } else if (time === 'afternoon') {
+    lines.push(
+      { text: `Oh, ${o}! There you are! I've been waiting~`, priority: 100, category: 'greeting' },
+      { text: `Afternoon, ${o}! Want to hang out?`, priority: 95, category: 'greeting' },
+      { text: `Hey ${o}! I was just thinking about you.`, priority: 95, category: 'greeting' },
+    );
+  } else if (time === 'evening') {
+    lines.push(
+      { text: `Good evening, ${o}! The stars are coming out~`, priority: 100, category: 'greeting' },
+      { text: `Hey ${o}, you're back! Perfect timing for some fun.`, priority: 95, category: 'greeting' },
+      { text: `Evening vibes, ${o}~ let's chill together.`, priority: 95, category: 'greeting' },
+    );
+  } else {
+    lines.push(
+      { text: `It's late, ${o}... but I'm happy you're here!`, priority: 100, category: 'greeting' },
+      { text: `Night owl mode activated! Hi ${o}~`, priority: 95, category: 'greeting' },
+      { text: `Can't sleep either, ${o}? Let's keep each other company.`, priority: 95, category: 'greeting' },
+    );
   }
+  return lines;
+}
 
-  // ── Long absence messages ──
+function getAbsenceLines(o: string, hoursSinceLastOpen: number): DialogueLine[] {
+  const lines: DialogueLine[] = [];
   if (hoursSinceLastOpen >= 12) {
     lines.push(
       { text: `${o}!! Where were you?! I missed you SO much...`, priority: 110, category: 'absence' },
@@ -167,190 +167,363 @@ function generateDialogueLines(ctx: DialogueContext, traits: PersonalityTraits, 
       { text: `Welcome back, ${o}~ I barely noticed you were gone. ...okay I totally noticed.`, priority: 70, category: 'absence' },
     );
   }
+  return lines;
+}
 
-  // ── Stat-based dialogue ──
-  if (hunger < 25) {
+function getHungerLines(o: string, hunger: number): DialogueLine[] {
+  const lines: DialogueLine[] = [];
+  if (hunger < 15) {
     lines.push(
-      { text: "I'm SO hungry... my tummy is making whale sounds!", priority: 85, category: 'need' },
-      { text: 'Is that... food I smell? Oh wait, no. Please feed me?', priority: 85, category: 'need' },
-      { text: "If I don't eat soon I might start nibbling the furniture...", priority: 80, category: 'need' },
+      { text: "I'm SO hungry... my tummy is making whale sounds!", priority: 90, category: 'hunger' },
+      { text: 'Is that... food I smell? Oh wait, no. Please feed me?', priority: 90, category: 'hunger' },
+      { text: "If I don't eat soon I might start nibbling the furniture...", priority: 85, category: 'hunger' },
+      { text: `${o}... food... please... I'm fading away~`, priority: 90, category: 'hunger' },
+      { text: "My tummy is louder than thunder right now...", priority: 85, category: 'hunger' },
+      { text: "I can't think about anything except food right now!", priority: 85, category: 'hunger' },
+    );
+  } else if (hunger < 30) {
+    lines.push(
+      { text: "I'm really hungry... can I have something to eat?", priority: 80, category: 'hunger' },
+      { text: 'My stomach is doing a protest march...', priority: 75, category: 'hunger' },
+      { text: `${o}, when's dinner? Or lunch? Or snack time? Anything?`, priority: 80, category: 'hunger' },
+      { text: "I keep imagining a giant pizza... is that normal?", priority: 75, category: 'hunger' },
+      { text: "*looks at food bowl* ...it's empty again.", priority: 75, category: 'hunger' },
     );
   } else if (hunger < 50) {
     lines.push(
-      { text: "Getting a little hungry... snack time maybe?", priority: 60, category: 'need' },
-      { text: 'My tummy just growled. Did you hear that?', priority: 55, category: 'need' },
+      { text: "Getting a little hungry... snack time maybe?", priority: 60, category: 'hunger' },
+      { text: 'My tummy just growled. Did you hear that?', priority: 55, category: 'hunger' },
+      { text: "A little snack would really hit the spot right now~", priority: 55, category: 'hunger' },
+      { text: "Hmm I could go for some treats...", priority: 50, category: 'hunger' },
+      { text: `${o}, any chance we could grab a bite?`, priority: 55, category: 'hunger' },
     );
   }
+  return lines;
+}
 
-  if (happiness < 25) {
+function getHappinessLines(o: string, happiness: number): DialogueLine[] {
+  const lines: DialogueLine[] = [];
+  if (happiness < 15) {
     lines.push(
-      { text: "I'm feeling really lonely... are you busy?", priority: 85, category: 'need' },
-      { text: "Everything feels gray today... can we play?", priority: 85, category: 'need' },
-      { text: 'I just need a hug right now...', priority: 80, category: 'need' },
+      { text: "I'm feeling really lonely... are you busy?", priority: 90, category: 'happiness' },
+      { text: "Everything feels gray today... can we play?", priority: 90, category: 'happiness' },
+      { text: 'I just need a hug right now...', priority: 85, category: 'happiness' },
+      { text: `${o}... I feel so alone... please stay with me.`, priority: 90, category: 'happiness' },
+      { text: "I don't feel like doing anything... everything is boring.", priority: 85, category: 'happiness' },
+      { text: "Even my shadow doesn't want to play with me today...", priority: 85, category: 'happiness' },
+    );
+  } else if (happiness < 30) {
+    lines.push(
+      { text: "I'm a bit down today... can we do something fun?", priority: 80, category: 'happiness' },
+      { text: `${o}, play with me? I need some cheering up...`, priority: 80, category: 'happiness' },
+      { text: "I tried to entertain myself but it's just not the same alone.", priority: 75, category: 'happiness' },
+      { text: "A game would make me feel so much better right now!", priority: 75, category: 'happiness' },
     );
   } else if (happiness < 50) {
     lines.push(
-      { text: "I could use some fun... want to play?", priority: 60, category: 'need' },
-      { text: "Things are okay but... I'd be happier if we did something together.", priority: 55, category: 'need' },
+      { text: "I could use some fun... want to play?", priority: 60, category: 'happiness' },
+      { text: "Things are okay but... I'd be happier if we did something together.", priority: 55, category: 'happiness' },
+      { text: "Wanna do something fun? I'm getting a little restless~", priority: 55, category: 'happiness' },
+      { text: `${o}, got any games? I'm feeling a bit meh.`, priority: 50, category: 'happiness' },
     );
   }
+  return lines;
+}
 
-  if (energy < 25) {
+function getEnergyLines(o: string, energy: number): DialogueLine[] {
+  const lines: DialogueLine[] = [];
+  if (energy < 15) {
     lines.push(
-      { text: "So... tired... can barely... keep eyes... open...", priority: 85, category: 'need' },
-      { text: '*yaaawns* I need a serious nap...', priority: 80, category: 'need' },
+      { text: "So... tired... can barely... keep eyes... open...", priority: 90, category: 'energy' },
+      { text: '*yaaawns* I need a serious nap...', priority: 85, category: 'energy' },
+      { text: `${o}... can I please just... sleep... for a bit...`, priority: 90, category: 'energy' },
+      { text: "My eyelids weigh a thousand pounds right now...", priority: 85, category: 'energy' },
+      { text: "*wobbles* I can barely stand up straight...", priority: 85, category: 'energy' },
+    );
+  } else if (energy < 30) {
+    lines.push(
+      { text: "I'm really sleepy... a nap would be amazing right now.", priority: 80, category: 'energy' },
+      { text: '*yawns* Can we take a break? Just a quick one?', priority: 75, category: 'energy' },
+      { text: "My energy is running on fumes...", priority: 80, category: 'energy' },
+      { text: "I keep dozing off... maybe I should rest?", priority: 75, category: 'energy' },
     );
   } else if (energy < 50) {
     lines.push(
-      { text: "Feeling a bit sleepy... a short rest would be nice.", priority: 55, category: 'need' },
+      { text: "Feeling a bit sleepy... a short rest would be nice.", priority: 60, category: 'energy' },
+      { text: "A power nap sounds pretty good right about now~", priority: 55, category: 'energy' },
+      { text: `${o}, mind if I rest my eyes for a sec?`, priority: 55, category: 'energy' },
+      { text: "*stretches* I'm a little worn out...", priority: 50, category: 'energy' },
     );
   }
+  return lines;
+}
 
-  // All stats high
-  if (hunger >= 80 && happiness >= 80 && energy >= 80) {
+function getHeadphonesLines(o: string): DialogueLine[] {
+  return [
+    { text: '~ Pa Pari Pa, Pa Pari Pa ~', priority: 75, category: 'headphones' },
+    { text: 'Pa Pari Pa~ this song is SO catchy!', priority: 70, category: 'headphones' },
+    { text: "This beat is fire! I can't stop moving~", priority: 70, category: 'headphones' },
+    { text: '~ Pa Pa Pa Pari Pa ~', priority: 70, category: 'headphones' },
+    { text: '*nods head to the beat* Uh huh, uh huh~', priority: 65, category: 'headphones' },
+    { text: `${o}! Listen to this drop! *dun dun dun*`, priority: 65, category: 'headphones' },
+    { text: "This song makes me want to dance forever!", priority: 65, category: 'headphones' },
+    { text: '~ Pa Pari Pa ~ I know all the words now!', priority: 65, category: 'headphones' },
+    { text: `${o}, you have great taste in music!`, priority: 60, category: 'headphones' },
+    { text: "DJ Nomi in the house! Pa Pari Pa~", priority: 60, category: 'headphones' },
+    { text: "*moonwalks* Smooth, right? Right??", priority: 60, category: 'headphones' },
+    { text: "One more song... okay maybe ten more songs.", priority: 55, category: 'headphones' },
+  ];
+}
+
+function getAllHighLines(o: string): DialogueLine[] {
+  return [
+    { text: 'I feel AMAZING today! Life is great!', priority: 75, category: 'happy' },
+    { text: `${o}, you take such good care of me~ this is the best!`, priority: 75, category: 'happy' },
+    { text: "I'm so full of energy! Let's do something fun!", priority: 70, category: 'happy' },
+    { text: `You know what, ${o}? You're the best human ever.`, priority: 70, category: 'happy' },
+    { text: "Everything is perfect right now~ I'm so grateful!", priority: 65, category: 'happy' },
+    { text: `${o}, thank you for taking care of me!`, priority: 65, category: 'happy' },
+    { text: "I could conquer the world right now!", priority: 60, category: 'happy' },
+    { text: "Is this what cloud nine feels like?", priority: 60, category: 'happy' },
+  ];
+}
+
+function getPerfectLines(o: string): DialogueLine[] {
+  return [
+    { text: 'PERFECT! All stats maxed! I feel like I could fly!', priority: 90, category: 'perfect' },
+    { text: `${o}!! I'm literally glowing right now! Thank you!!!`, priority: 90, category: 'perfect' },
+    { text: "100% everything!! This is the BEST day ever!", priority: 85, category: 'perfect' },
+    { text: `${o}, we're unstoppable together!`, priority: 85, category: 'perfect' },
+  ];
+}
+
+function getNormalLines(o: string, time: string, traits: PersonalityTraits, memories: PetMemory[]): DialogueLine[] {
+  const lines: DialogueLine[] = [];
+
+  // Time-of-day ambient
+  if (time === 'morning') {
     lines.push(
-      { text: 'I feel AMAZING today! Life is great!', priority: 75, category: 'happy' },
-      { text: `${o}, you take such good care of me~ this is the best!`, priority: 75, category: 'happy' },
-      { text: "I'm so full of energy! Let's do something fun!", priority: 70, category: 'happy' },
-      { text: `You know what, ${o}? You're the best human ever.`, priority: 70, category: 'happy' },
+      { text: "The morning sun feels so warm~", priority: 30, category: 'ambient' },
+      { text: "What a beautiful morning! The birds are singing.", priority: 25, category: 'ambient' },
     );
-  }
-
-  if (hunger >= 100 && happiness >= 100 && energy >= 100) {
+  } else if (time === 'afternoon') {
     lines.push(
-      { text: 'PERFECT! All stats maxed! I feel like I could fly!', priority: 90, category: 'perfect' },
-      { text: `${o}!! I'm literally glowing right now! Thank you!!!`, priority: 90, category: 'perfect' },
+      { text: 'What should we do this afternoon?', priority: 30, category: 'ambient' },
+      { text: "Afternoon chill vibes~ I love this time of day.", priority: 25, category: 'ambient' },
+    );
+  } else if (time === 'evening') {
+    lines.push(
+      { text: 'The sunset is so pretty today...', priority: 30, category: 'ambient' },
+      { text: "Evening already? Time flies when I'm with you~", priority: 25, category: 'ambient' },
+    );
+  } else {
+    lines.push(
+      { text: 'The stars are beautiful tonight...', priority: 30, category: 'ambient' },
+      { text: "The night is so peaceful~", priority: 25, category: 'ambient' },
     );
   }
 
-  // ── Personality trait dialogue ──
+  // Trait-flavored normal chat
   if (traits.playful > 60) {
     lines.push(
-      { text: "Tag! You're it! ...oh wait, you can't reach me.", priority: 40, category: 'trait' },
-      { text: 'I bet I can do a backflip! Watch! ...okay maybe not.', priority: 35, category: 'trait' },
-      { text: "Let's play a game! I'm so bored right now~", priority: 40, category: 'trait' },
+      { text: "Tag! You're it! ...oh wait, you can't reach me.", priority: 35, category: 'trait' },
+      { text: 'I bet I can do a backflip! Watch! ...okay maybe not.', priority: 30, category: 'trait' },
+      { text: "Let's play a game! I'm so bored right now~", priority: 35, category: 'trait' },
     );
   }
   if (traits.foodie > 60) {
     lines.push(
-      { text: "I've been thinking about food again... is that weird?", priority: 40, category: 'trait' },
-      { text: 'You know what sounds good right now? Everything.', priority: 35, category: 'trait' },
-      { text: "I wonder what premium pet food tastes like...", priority: 35, category: 'trait' },
+      { text: "I've been thinking about food again... is that weird?", priority: 35, category: 'trait' },
+      { text: 'You know what sounds good right now? Everything.', priority: 30, category: 'trait' },
     );
   }
   if (traits.sleepy > 60) {
     lines.push(
-      { text: "Is it nap time yet? It's always nap time for me~", priority: 40, category: 'trait' },
-      { text: '*stretches* Five more minutes...', priority: 35, category: 'trait' },
-      { text: 'I had the coziest dream last night...', priority: 35, category: 'trait' },
+      { text: "Is it nap time yet? It's always nap time for me~", priority: 35, category: 'trait' },
+      { text: '*stretches* Five more minutes...', priority: 30, category: 'trait' },
     );
   }
   if (traits.adventurous > 60) {
     lines.push(
-      { text: 'I wonder what\'s beyond the mountains...', priority: 40, category: 'trait' },
-      { text: "Let's go on an adventure! I want to explore!", priority: 40, category: 'trait' },
-      { text: 'I can smell adventure in the air!', priority: 35, category: 'trait' },
+      { text: 'I wonder what\'s beyond the mountains...', priority: 35, category: 'trait' },
+      { text: "Let's go on an adventure! I want to explore!", priority: 35, category: 'trait' },
     );
   }
   if (traits.social > 60) {
     lines.push(
-      { text: `I love when we talk, ${o}... it makes me happy.`, priority: 40, category: 'trait' },
-      { text: `Tell me about your day, ${o}! I want to know everything.`, priority: 35, category: 'trait' },
+      { text: `I love when we talk, ${o}... it makes me happy.`, priority: 35, category: 'trait' },
+      { text: `Tell me about your day, ${o}! I want to know everything.`, priority: 30, category: 'trait' },
     );
   }
 
-  // ── Streak dialogue ──
-  if (streakDays >= 30) {
-    lines.push({ text: `${streakDays} days together, ${o}! We're inseparable!`, priority: 65, category: 'streak' });
-  } else if (streakDays >= 7) {
-    lines.push({ text: `${streakDays} day streak! ${o} never forgets about me~`, priority: 60, category: 'streak' });
-  } else if (streakDays >= 3) {
-    lines.push({ text: `${streakDays} days in a row, ${o}! You really do care!`, priority: 55, category: 'streak' });
-  }
-
-  // ── Equipped item dialogue ──
-  if (equippedSkin === 'headphones') {
-    lines.push(
-      { text: 'These headphones are BUMPING! Want to dance?', priority: 50, category: 'equip' },
-      { text: '~ la la la ~ Can you hear the music too?', priority: 45, category: 'equip' },
-    );
-  } else if (equippedSkin === 'crown') {
-    lines.push(
-      { text: 'Do I look royal? I feel royal.', priority: 50, category: 'equip' },
-      { text: 'Bow before the mighty Nomi! ...just kidding. Or am I?', priority: 45, category: 'equip' },
-    );
-  } else if (equippedSkin === 'hoodie') {
-    lines.push(
-      { text: "This hoodie is so cozy~ I never want to take it off.", priority: 50, category: 'equip' },
-      { text: 'Hoodie weather is the best weather.', priority: 45, category: 'equip' },
-    );
-  }
-
-  // ── Memory-based dialogue ──
+  // Memory-based
   const recentAdventure = memories.find(m => m.type === 'adventure_complete' && Date.now() - m.timestamp < 24 * 60 * 60 * 1000);
   if (recentAdventure?.detail) {
     lines.push(
-      { text: `Remember ${recentAdventure.detail}? That was so cool!`, priority: 55, category: 'memory' },
-      { text: `I keep thinking about our trip to ${recentAdventure.detail}...`, priority: 50, category: 'memory' },
+      { text: `Remember ${recentAdventure.detail}? That was so cool!`, priority: 40, category: 'memory' },
+      { text: `I keep thinking about our trip to ${recentAdventure.detail}...`, priority: 35, category: 'memory' },
     );
   }
-
   const recentLevel = memories.find(m => m.type === 'leveled' && Date.now() - m.timestamp < 2 * 60 * 60 * 1000);
   if (recentLevel) {
-    lines.push(
-      { text: 'I leveled up! I can feel myself getting stronger~', priority: 65, category: 'memory' },
-    );
+    lines.push({ text: 'I leveled up! I can feel myself getting stronger~', priority: 45, category: 'memory' });
   }
-
   const feedCount24h = memories.filter(m => m.type === 'fed' && Date.now() - m.timestamp < 24 * 60 * 60 * 1000).length;
   if (feedCount24h >= 3) {
-    lines.push(
-      { text: `${o} fed me ${feedCount24h} times today! I love you!`, priority: 50, category: 'memory' },
-    );
+    lines.push({ text: `${o} fed me ${feedCount24h} times today! I love you!`, priority: 35, category: 'memory' });
   }
-
-  const touchCount24h = memories.filter(m =>
-    (m.type === 'touched_headpat' || m.type === 'touched_hug') &&
-    Date.now() - m.timestamp < 24 * 60 * 60 * 1000
-  ).length;
+  const touchCount24h = memories.filter(m => (m.type === 'touched_headpat' || m.type === 'touched_hug') && Date.now() - m.timestamp < 24 * 60 * 60 * 1000).length;
   if (touchCount24h >= 5) {
-    lines.push(
-      { text: `${o} gave me ${touchCount24h} pats today! I'm the luckiest pet~`, priority: 50, category: 'memory' },
-    );
+    lines.push({ text: `${o} gave me ${touchCount24h} pats today! I'm the luckiest pet~`, priority: 35, category: 'memory' });
   }
 
-  // ── Time-of-day ambient ──
-  if (!isFirstOpenToday) {
-    if (time === 'morning') {
-      lines.push({ text: "The morning sun feels so warm~", priority: 20, category: 'ambient' });
-    } else if (time === 'afternoon') {
-      lines.push({ text: 'What should we do this afternoon?', priority: 20, category: 'ambient' });
-    } else if (time === 'evening') {
-      lines.push({ text: 'The sunset is so pretty today...', priority: 20, category: 'ambient' });
-    } else {
-      lines.push({ text: 'The stars are beautiful tonight...', priority: 20, category: 'ambient' });
-    }
-  }
-
-  // ── Generic filler (always available) ──
+  // Generic normal lines
   lines.push(
-    { text: `Hi ${o}! What are we doing today?`, priority: 10, category: 'filler' },
-    { text: `I like spending time with you, ${o}.`, priority: 10, category: 'filler' },
-    { text: "Just vibing~ don't mind me.", priority: 10, category: 'filler' },
-    { text: `Did you know, ${o}? Pets in apps dream about their humans!`, priority: 10, category: 'filler' },
-    { text: "I wonder what other pets are doing right now...", priority: 10, category: 'filler' },
+    { text: `Hi ${o}! What are we doing today?`, priority: 15, category: 'normal' },
+    { text: `I like spending time with you, ${o}.`, priority: 15, category: 'normal' },
+    { text: "Just vibing~ don't mind me.", priority: 15, category: 'normal' },
+    { text: `Did you know, ${o}? Pets in apps dream about their humans!`, priority: 15, category: 'normal' },
+    { text: "I wonder what other pets are doing right now...", priority: 15, category: 'normal' },
+    { text: "Today feels like a good day~", priority: 15, category: 'normal' },
+    { text: `${o}, you smell nice today! ...I think. Can I smell?`, priority: 15, category: 'normal' },
+    { text: "*looks around* Everything is so peaceful~", priority: 10, category: 'normal' },
   );
 
   return lines;
+}
+
+/**
+ * Generate situation-specific dialogue lines.
+ * Priority order: greeting/absence > stat needs > headphones > all-high/perfect > normal
+ * Only ONE situation's lines are returned — no mixing.
+ */
+function generateDialogueLines(ctx: DialogueContext, traits: PersonalityTraits, memories: PetMemory[]): DialogueLine[] {
+  const time = getTimeOfDay();
+  const { hunger, happiness, energy, ownerName, equippedSkin, hoursSinceLastOpen, isFirstOpenToday, streakDays } = ctx;
+  const o = ownerName || 'friend';
+
+  // 1. First open today → greeting (highest priority, one-time)
+  if (isFirstOpenToday) {
+    const lines = getGreetingLines(o, time);
+    // Add streak line if applicable
+    if (streakDays >= 30) {
+      lines.push({ text: `${streakDays} days together, ${o}! We're inseparable!`, priority: 65, category: 'streak' });
+    } else if (streakDays >= 7) {
+      lines.push({ text: `${streakDays} day streak! ${o} never forgets about me~`, priority: 60, category: 'streak' });
+    } else if (streakDays >= 3) {
+      lines.push({ text: `${streakDays} days in a row, ${o}! You really do care!`, priority: 55, category: 'streak' });
+    }
+    return lines;
+  }
+
+  // 2. Long absence → absence-specific messages
+  if (hoursSinceLastOpen >= 2) {
+    const lines = getAbsenceLines(o, hoursSinceLastOpen);
+    if (lines.length > 0) return lines;
+  }
+
+  // 3. Any stat below 50 → show ONLY that stat's lines (most urgent stat wins)
+  const hungerLow = hunger < 50;
+  const happinessLow = happiness < 50;
+  const energyLow = energy < 50;
+
+  if (hungerLow || happinessLow || energyLow) {
+    const lines: DialogueLine[] = [];
+    // Collect lines for ALL low stats so they're situation-accurate
+    if (hungerLow) lines.push(...getHungerLines(o, hunger));
+    if (happinessLow) lines.push(...getHappinessLines(o, happiness));
+    if (energyLow) lines.push(...getEnergyLines(o, energy));
+
+    // If multiple stats are low, add combo messages
+    if (hungerLow && happinessLow && energyLow) {
+      lines.push(
+        { text: `${o}... I need everything right now... food, fun, sleep...`, priority: 95, category: 'need' },
+        { text: "I miss you... please take care of me!", priority: 95, category: 'need' },
+      );
+    } else if (hungerLow && happinessLow) {
+      lines.push({ text: "I'm hungry AND bored... worst combo ever.", priority: 80, category: 'need' });
+    } else if (hungerLow && energyLow) {
+      lines.push({ text: "Hungry and tired... I just want food and a nap.", priority: 80, category: 'need' });
+    } else if (happinessLow && energyLow) {
+      lines.push({ text: "I'm sad and sleepy... can we play and then nap?", priority: 80, category: 'need' });
+    }
+    return lines;
+  }
+
+  // 4. Headphones equipped → headphones/dancing-specific messages ONLY
+  if (equippedSkin === 'headphones') {
+    return getHeadphonesLines(o);
+  }
+
+  // 5. All stats maxed → perfect messages
+  if (hunger >= 100 && happiness >= 100 && energy >= 100) {
+    return getPerfectLines(o);
+  }
+
+  // 6. All stats high (>= 80) → happy messages
+  if (hunger >= 80 && happiness >= 80 && energy >= 80) {
+    return getAllHighLines(o);
+  }
+
+  // 7. Normal state → ambient, trait-based, memory, generic
+  return getNormalLines(o, time, traits, memories);
 }
 
 // ── Idle dialogue (lighter, shorter) ──
 
 function generateIdleLines(ctx: DialogueContext, traits: PersonalityTraits): DialogueLine[] {
   const lines: DialogueLine[] = [];
-  const time = getTimeOfDay();
+  const { hunger, happiness, energy, equippedSkin } = ctx;
 
-  // Time-based idle
+  // ── Situation-specific idle lines ──
+
+  // Hungry idle
+  if (hunger < 50) {
+    lines.push(
+      { text: '*tummy grumbles*', priority: 15, category: 'idle' },
+      { text: '*stares at food bowl*', priority: 12, category: 'idle' },
+      { text: '...food...', priority: 12, category: 'idle' },
+      { text: '*sniff sniff* Is that food??', priority: 12, category: 'idle' },
+    );
+    return lines; // only hungry idles when hungry
+  }
+
+  // Sad idle
+  if (happiness < 50) {
+    lines.push(
+      { text: '*sighs*', priority: 15, category: 'idle' },
+      { text: '*sits quietly*', priority: 12, category: 'idle' },
+      { text: '...', priority: 12, category: 'idle' },
+      { text: '*looks down*', priority: 12, category: 'idle' },
+    );
+    return lines;
+  }
+
+  // Tired idle
+  if (energy < 50) {
+    lines.push(
+      { text: '*yawns*', priority: 15, category: 'idle' },
+      { text: '*nods off* ...huh?', priority: 12, category: 'idle' },
+      { text: 'zZz... oh! I\'m awake!', priority: 12, category: 'idle' },
+      { text: '*eyes drooping*', priority: 12, category: 'idle' },
+    );
+    return lines;
+  }
+
+  // Headphones idle
+  if (equippedSkin === 'headphones') {
+    lines.push(
+      { text: '~ Pa Pari Pa ~', priority: 12, category: 'idle' },
+      { text: '*head bobbing*', priority: 10, category: 'idle' },
+      { text: '~ Pa Pa Pa ~', priority: 10, category: 'idle' },
+      { text: '*does a little spin*', priority: 10, category: 'idle' },
+      { text: '~ Pari Pa ~', priority: 10, category: 'idle' },
+    );
+    return lines;
+  }
+
+  // Normal idle (all stats OK, no special equipment)
+  const time = getTimeOfDay();
   if (time === 'morning') {
     lines.push(
       { text: '*stretches* Ahhh~', priority: 10, category: 'idle' },
@@ -358,8 +531,8 @@ function generateIdleLines(ctx: DialogueContext, traits: PersonalityTraits): Dia
     );
   } else if (time === 'evening') {
     lines.push(
-      { text: '*yawns*', priority: 10, category: 'idle' },
-      { text: 'Getting sleepy...', priority: 10, category: 'idle' },
+      { text: '*yawns softly*', priority: 10, category: 'idle' },
+      { text: 'Getting cozy...', priority: 10, category: 'idle' },
     );
   } else if (time === 'night') {
     lines.push(
@@ -368,12 +541,9 @@ function generateIdleLines(ctx: DialogueContext, traits: PersonalityTraits): Dia
     );
   }
 
-  // Generic idle
   lines.push(
     { text: 'La la la~', priority: 5, category: 'idle' },
     { text: 'Hmm hmm hmm...', priority: 5, category: 'idle' },
-    { text: 'I wonder what\'s for dinner...', priority: 5, category: 'idle' },
-    { text: 'Did you see that cloud? It looked like a bone!', priority: 5, category: 'idle' },
     { text: '*wiggles ears*', priority: 5, category: 'idle' },
     { text: '*looks around curiously*', priority: 5, category: 'idle' },
     { text: '~ do do do ~', priority: 5, category: 'idle' },
@@ -382,7 +552,7 @@ function generateIdleLines(ctx: DialogueContext, traits: PersonalityTraits): Dia
     { text: 'What are you thinking about?', priority: 5, category: 'idle' },
   );
 
-  // Trait-influenced idle
+  // Trait-influenced (only in normal state)
   if (traits.playful > 50) {
     lines.push(
       { text: '*bounces around*', priority: 8, category: 'idle' },
@@ -390,21 +560,12 @@ function generateIdleLines(ctx: DialogueContext, traits: PersonalityTraits): Dia
     );
   }
   if (traits.foodie > 50) {
-    lines.push(
-      { text: '*sniff sniff* ...food?', priority: 8, category: 'idle' },
-    );
+    lines.push({ text: '*sniff sniff* ...food?', priority: 8, category: 'idle' });
   }
   if (traits.sleepy > 50) {
-    lines.push(
-      { text: '*curls up into a ball*', priority: 8, category: 'idle' },
-    );
+    lines.push({ text: '*curls up into a ball*', priority: 8, category: 'idle' });
   }
-
-  // Stat-influenced idle
-  if (ctx.hunger < 40) {
-    lines.push({ text: '*tummy grumbles*', priority: 12, category: 'idle' });
-  }
-  if (ctx.happiness >= 80) {
+  if (happiness >= 80) {
     lines.push({ text: '*happy wiggle*', priority: 8, category: 'idle' });
   }
 

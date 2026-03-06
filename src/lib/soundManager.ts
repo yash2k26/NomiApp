@@ -22,6 +22,12 @@ const MUSIC_ASSETS: Record<MusicName, any> = {
   game1: require('../../assets/Audio/Game-1.mp3'),
 };
 
+// Per-track volume multiplier (relative to master volume)
+const MUSIC_VOLUME: Record<MusicName, number> = {
+  headphones: 0.55,
+  game1: 1.0,
+};
+
 // One-shot sound effects — asset references
 const SFX_ASSETS: Partial<Record<SoundName, any>> = {
   levelup: require('../../assets/Audio/Level-up.mp3'),
@@ -29,6 +35,16 @@ const SFX_ASSETS: Partial<Record<SoundName, any>> = {
   happy: require('../../assets/Audio/Reward_happy.mp3'),
   fall: require('../../assets/Audio/Fall.mp3'),
 };
+
+// Sad ambient sounds — played randomly when pet is sad
+const SAD_SOUNDS = [
+  require('../../assets/Audio/Sad/Nested-Sequence-12.mp3'),
+  require('../../assets/Audio/Sad/Nested-Sequence-13.mp3'),
+  require('../../assets/Audio/Sad/Nested-Sequence-14.mp3'),
+  require('../../assets/Audio/Sad/Nested-Sequence-15.mp3'),
+  require('../../assets/Audio/Sad/Nested-Sequence-16.mp3'),
+  require('../../assets/Audio/Sad/Nested-Sequence-17.mp3'),
+];
 
 let Audio: any = null;
 let audioReady = false;
@@ -75,6 +91,14 @@ export async function initSounds(): Promise<void> {
     });
   } catch {}
 
+  // Preload frequently-used SFX for instant playback
+  for (const [name, asset] of Object.entries(SFX_ASSETS)) {
+    if (!asset) continue;
+    try {
+      const { sound } = await Audio.Sound.createAsync(asset);
+      loadedSounds.set(name as SoundName, sound);
+    } catch {}
+  }
 }
 
 /**
@@ -137,10 +161,11 @@ export async function playMusic(name: MusicName): Promise<void> {
   if (!asset) { isLoadingMusic = false; return; }
 
   try {
+    const targetVol = muted ? 0 : volume * (MUSIC_VOLUME[name] ?? 1.0);
     const { sound } = await Audio.Sound.createAsync(asset, {
       shouldPlay: true,
       isLooping: true,
-      volume: muted ? 0 : volume,
+      volume: targetVol,
     });
     currentMusic = sound;
     currentMusicName = name;
@@ -171,6 +196,26 @@ export async function stopAll(): Promise<void> {
       await sound.stopAsync();
     } catch {}
   }
+}
+
+/**
+ * Play a random sad ambient sound. One-shot, auto-unloads.
+ */
+export async function playRandomSadSound(): Promise<void> {
+  if (!ensureAudio() || muted) return;
+
+  const asset = SAD_SOUNDS[Math.floor(Math.random() * SAD_SOUNDS.length)];
+  try {
+    const { sound } = await Audio.Sound.createAsync(asset, {
+      shouldPlay: true,
+      volume: volume * 0.35,
+    });
+    sound.setOnPlaybackStatusUpdate((status: any) => {
+      if (status.didJustFinish) {
+        sound.unloadAsync().catch(() => {});
+      }
+    });
+  } catch {}
 }
 
 export function setVolume(v: number): void {

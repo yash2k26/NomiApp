@@ -101,6 +101,15 @@ async function main() {
       if (name) baseBoneMap.set(name, node);
     }
 
+    // Remove existing animation with the same name (avoid duplicates on re-run)
+    for (const existing of baseRoot.listAnimations()) {
+      if (existing.getName() === source.name) {
+        console.log(`  Removing existing "${source.name}" clip before replacing`);
+        existing.dispose();
+        break;
+      }
+    }
+
     // Create new animation in base document
     const newAnim = baseDoc.createAnimation(source.name);
 
