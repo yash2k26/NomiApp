@@ -28,7 +28,14 @@ export function MintScreen() {
   const [txSignature, setTxSignature] = useState<string | null>(null);
 
   const handleMint = async () => {
+    console.log('[MintScreen] handleMint triggered');
+    console.log('[MintScreen] authToken present:', !!authToken);
+    console.log('[MintScreen] balance:', balance, 'SOL');
+    console.log('[MintScreen] petName:', petName, 'ownerName:', ownerName);
+    console.log('[MintScreen] level:', level, 'evolutionStage:', evolutionStage, 'streakDays:', streakDays);
+
     if (!authToken) {
+      console.error('[MintScreen] No authToken — wallet not connected');
       setMintError('Wallet not connected. Please reconnect.');
       setMintState('error');
       return;
@@ -37,23 +44,37 @@ export function MintScreen() {
     setMintState('confirming');
     setMintError(null);
 
+    const mintStart = Date.now();
     try {
       setMintState('minting');
+      console.log('[MintScreen] Calling mintPetNFT...');
       const result = await mintPetNFT(authToken, petName || 'Nomi', {
         ownerName,
         level,
         stage: evolutionStage,
         streak: streakDays,
       });
+      console.log('[MintScreen] mintPetNFT returned in', Date.now() - mintStart, 'ms');
+      console.log('[MintScreen] mintAddress:', result.mintAddress);
+      console.log('[MintScreen] txSignature:', result.txSignature);
+
       // Store real on-chain mint address and tx signature
       mintPet(result.mintAddress, result.txSignature);
       setTxSignature(result.txSignature);
       setMintState('success');
+      console.log('[MintScreen] Mint SUCCESS — refreshing balance...');
 
       // Refresh balance to reflect SOL spent on fees
       await refreshBalance();
+      console.log('[MintScreen] Balance refreshed');
     } catch (error: any) {
+      const elapsed = Date.now() - mintStart;
       const msg = error?.message || 'Minting failed';
+      console.error('[MintScreen] ========== MINT FAILED ==========');
+      console.error('[MintScreen] Error after', elapsed, 'ms:', msg);
+      console.error('[MintScreen] Error type:', error?.constructor?.name);
+      console.error('[MintScreen] Error stack:', error?.stack);
+      console.error('[MintScreen] Full error object:', JSON.stringify(error, Object.getOwnPropertyNames(error || {})));
       setMintError(msg);
       setMintState('error');
     }
@@ -114,8 +135,8 @@ export function MintScreen() {
         <ScreenHeader
           eyebrow="Genesis Companion"
           title="Mint Nomi"
-          subtitle="Create your first companion NFT on Solana devnet."
-          badge="On-Chain NFT · Devnet"
+          subtitle="Create your first companion NFT on Solana."
+          badge="On-Chain NFT · Mainnet"
           rightSlot={(
             <View className="bg-white/20 rounded-xl px-3 py-1.5 border border-white/35">
               <Text className="text-white text-[10px] font-black">{balance.toFixed(2)} SOL</Text>
@@ -140,7 +161,7 @@ export function MintScreen() {
             </View>
             <View className="flex-row justify-between py-3 border-b border-gray-100">
               <Text className="text-[12px] font-bold uppercase tracking-[0.8px] text-gray-500">Network</Text>
-              <Text className="text-[13px] font-black text-pet-blue-dark">Solana Devnet</Text>
+              <Text className="text-[13px] font-black text-pet-blue-dark">Solana Mainnet</Text>
             </View>
             <View className="flex-row justify-between py-3 border-b border-gray-100">
               <Text className="text-[12px] font-bold uppercase tracking-[0.8px] text-gray-500">Standard</Text>
@@ -201,8 +222,10 @@ export function MintScreen() {
             colors={mintState === 'success' ? ['#16a34a', '#22c55e'] : mintState === 'error' ? ['#dc2626', '#ef4444'] : ['#3792A6', '#4FB0C6']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
-            className="py-4 rounded-[18px] items-center"
+            className="py-4 items-center"
             style={{
+              borderRadius: 9999,
+              overflow: 'hidden',
               opacity: isBusy ? 0.75 : 1,
               shadowColor: '#3792A6',
               shadowOffset: { width: 0, height: 6 },

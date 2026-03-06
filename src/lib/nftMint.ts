@@ -12,7 +12,7 @@ import {
   createCreateMasterEditionV3Instruction,
   PROGRAM_ID as TOKEN_METADATA_PROGRAM_ID,
 } from '@metaplex-foundation/mpl-token-metadata';
-import { getLatestBlockhashRaw, getMinimumBalanceForRentExemptionRaw, sendRawTransactionRaw, confirmTransactionRaw } from './solanaClient';
+import { getLatestBlockhash, getMinimumBalanceForRentExemption, sendTransaction, confirmTransaction } from './solanaSdk';
 import { withWallet } from './mobileWalletAdapter';
 
 const NFT_METADATA_URI = 'https://raw.githubusercontent.com/yash2k26/NomiApp/main/assets/nft-metadata.json';
@@ -34,21 +34,28 @@ export async function mintPetNFT(
   petName: string,
   attributes?: PetAttributes,
 ): Promise<MintResult> {
+  console.log('[nftMint] ========== mintPetNFT START ==========');
+
   const mintKeypair = Keypair.generate();
   const mintPubkey = mintKeypair.publicKey;
+  console.log('[nftMint] mint pubkey:', mintPubkey.toBase58());
 
-  // ── Phase 1: RPC calls OUTSIDE wallet session (avoid MWA timeout) ──
-  const [{ blockhash, lastValidBlockHeight }, mintRent] = await Promise.all([
-    getLatestBlockhashRaw(),
-    getMinimumBalanceForRentExemptionRaw(MINT_SIZE),
+  // ── Phase 1: RPC calls OUTSIDE wallet session ──
+  console.log('[nftMint] Phase 1: Fetching blockhash + rent...');
+  const [blockhashResult, mintRent] = await Promise.all([
+    getLatestBlockhash(),
+    getMinimumBalanceForRentExemption(MINT_SIZE),
   ]);
+  const { blockhash, lastValidBlockHeight } = blockhashResult;
+  console.log('[nftMint] Phase 1 done — blockhash:', blockhash, 'rent:', mintRent);
 
-  // ── Phase 2: Open wallet only for address + signing ──
-  return withWallet(authToken, async (wallet, address) => {
+  // ── Phase 2: Open wallet ONLY for signing, then close it ──
+  console.log('[nftMint] Phase 2: Wallet session for signing...');
+  const serializedTx = await withWallet(authToken, async (wallet, address) => {
     const payer = new PublicKey(address);
     const tokenAccount = getAssociatedTokenAddressSync(mintPubkey, payer);
+    console.log('[nftMint] payer:', address, 'ATA:', tokenAccount.toBase58());
 
-    // Build metadata URI with pet attributes
     let metadataUri = NFT_METADATA_URI;
     if (attributes) {
       const params: string[] = [];
@@ -57,10 +64,9 @@ export async function mintPetNFT(
       if (attributes.stage) params.push(`stage=${attributes.stage}`);
       if (attributes.streak) params.push(`streak=${attributes.streak}`);
       params.push(`mint=${mintPubkey.toBase58().slice(0, 8)}`);
-      if (params.length > 0) metadataUri = `${NFT_METADATA_URI}?${params.join('&')}`;
+      metadataUri = `${NFT_METADATA_URI}?${params.join('&')}`;
     }
 
-    // Find PDAs
     const [metadataPda] = PublicKey.findProgramAddressSync(
       [Buffer.from('metadata'), TOKEN_METADATA_PROGRAM_ID.toBuffer(), mintPubkey.toBuffer()],
       TOKEN_METADATA_PROGRAM_ID,
@@ -73,106 +79,75 @@ export async function mintPetNFT(
     const tx = new Transaction();
 
     // 1. Create mint account
-    tx.add(
-      SystemProgram.createAccount({
-        fromPubkey: payer,
-        newAccountPubkey: mintPubkey,
-        space: MINT_SIZE,
-        lamports: mintRent,
-        programId: TOKEN_PROGRAM_ID,
-      }),
-    );
+    tx.add(SystemProgram.createAccount({
+      fromPubkey: payer,
+      newAccountPubkey: mintPubkey,
+      space: MINT_SIZE,
+      lamports: mintRent,
+      programId: TOKEN_PROGRAM_ID,
+    }));
 
-    // 2. Initialize mint (decimals=0, authority=payer) — uses InitializeMint2 (no rent sysvar needed)
-    tx.add(
-      createInitializeMint2Instruction(mintPubkey, 0, payer, payer),
-    );
+    // 2. Initialize mint
+    tx.add(createInitializeMint2Instruction(mintPubkey, 0, payer, payer));
 
-    // 3. Create associated token account
-    tx.add(
-      createAssociatedTokenAccountInstruction(payer, tokenAccount, payer, mintPubkey),
-    );
+    // 3. Create ATA
+    tx.add(createAssociatedTokenAccountInstruction(payer, tokenAccount, payer, mintPubkey));
 
     // 4. Mint 1 token
-    tx.add(
-      createMintToInstruction(mintPubkey, tokenAccount, payer, 1),
-    );
+    tx.add(createMintToInstruction(mintPubkey, tokenAccount, payer, 1));
 
-    // 5. Create metadata account (Metaplex)
-    tx.add(
-      createCreateMetadataAccountV3Instruction(
-        {
-          metadata: metadataPda,
-          mint: mintPubkey,
-          mintAuthority: payer,
-          payer: payer,
-          updateAuthority: payer,
-        },
-        {
-          createMetadataAccountArgsV3: {
-            data: {
-              name: petName.slice(0, 32),
-              symbol: 'OPET',
-              uri: metadataUri.slice(0, 200),
-              sellerFeeBasisPoints: 0,
-              creators: null,
-              collection: null,
-              uses: null,
-            },
-            isMutable: true,
-            collectionDetails: null,
+    // 5. Create metadata
+    tx.add(createCreateMetadataAccountV3Instruction(
+      { metadata: metadataPda, mint: mintPubkey, mintAuthority: payer, payer, updateAuthority: payer },
+      {
+        createMetadataAccountArgsV3: {
+          data: {
+            name: petName.slice(0, 32),
+            symbol: 'OPET',
+            uri: metadataUri.slice(0, 200),
+            sellerFeeBasisPoints: 0,
+            creators: null,
+            collection: null,
+            uses: null,
           },
+          isMutable: true,
+          collectionDetails: null,
         },
-      ),
-    );
+      },
+    ));
 
-    // 6. Create master edition (makes it a 1/1 NFT)
-    tx.add(
-      createCreateMasterEditionV3Instruction(
-        {
-          edition: masterEditionPda,
-          mint: mintPubkey,
-          updateAuthority: payer,
-          mintAuthority: payer,
-          payer: payer,
-          metadata: metadataPda,
-        },
-        {
-          createMasterEditionArgs: {
-            maxSupply: 0,
-          },
-        },
-      ),
-    );
+    // 6. Create master edition
+    tx.add(createCreateMasterEditionV3Instruction(
+      { edition: masterEditionPda, mint: mintPubkey, updateAuthority: payer, mintAuthority: payer, payer, metadata: metadataPda },
+      { createMasterEditionArgs: { maxSupply: 0 } },
+    ));
 
     tx.feePayer = payer;
     tx.recentBlockhash = blockhash;
-
-    // Partial sign with mint keypair
     tx.partialSign(mintKeypair);
 
-    // Sign with wallet via MWA
+    console.log('[nftMint] tx size:', tx.serialize({ requireAllSignatures: false, verifySignatures: false }).length, 'bytes');
+    console.log('[nftMint] Signing with wallet...');
+
     const signedTxs = await wallet.signTransactions({ transactions: [tx] });
-
-    // ── Phase 3: Send + confirm ──
     const serialized = signedTxs[0].serialize();
-    let txSig: string | null = null;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        txSig = await sendRawTransactionRaw(serialized);
-        break;
-      } catch (err: any) {
-        if (attempt === 2) throw err;
-        await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
-      }
-    }
-    if (!txSig) throw new Error('Failed to send transaction after retries');
+    console.log('[nftMint] Signed! Serialized size:', serialized.length, 'bytes');
 
-    await confirmTransactionRaw(txSig, blockhash, lastValidBlockHeight);
-
-    return {
-      mintAddress: mintPubkey.toBase58(),
-      txSignature: txSig,
-    };
+    // Return the serialized bytes — do NOT send from inside the wallet session
+    return serialized;
   });
+
+  // ── Phase 3: Send + confirm OUTSIDE wallet session (MWA closed) ──
+  console.log('[nftMint] Phase 3: Sending transaction (wallet session closed)...');
+  const txSig = await sendTransaction(serializedTx);
+  console.log('[nftMint] Sent! signature:', txSig);
+
+  console.log('[nftMint] Confirming...');
+  await confirmTransaction(txSig, blockhash, lastValidBlockHeight);
+  console.log('[nftMint] ========== mintPetNFT SUCCESS ==========');
+
+  return {
+    mintAddress: mintPubkey.toBase58(),
+    txSignature: txSig,
+  };
 }
