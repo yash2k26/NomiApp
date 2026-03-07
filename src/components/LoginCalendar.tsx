@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { useAdventureStore } from '../store/adventureStore';
+import { playSfx } from '../lib/soundManager';
 
 export function LoginCalendar({ onClaimed }: { onClaimed?: () => void } = {}) {
   const { loginCalendar, currentLoginDay, lastLoginClaimDate, claimLoginReward, checkLoginCalendarReset } = useAdventureStore();
@@ -33,6 +34,7 @@ export function LoginCalendar({ onClaimed }: { onClaimed?: () => void } = {}) {
     const reward = claimLoginReward();
     if (reward) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      playSfx('reward').catch(() => {});
       onClaimed?.();
     }
   };
@@ -40,14 +42,15 @@ export function LoginCalendar({ onClaimed }: { onClaimed?: () => void } = {}) {
   return (
     <View className="px-6 mt-4">
       <View
-        className="bg-white rounded-[28px] overflow-hidden border border-gray-100"
-        style={{ shadowColor: '#FFD700', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.12, shadowRadius: 12, elevation: 4 }}
+        className="bg-white overflow-hidden border border-gray-100"
+        style={{ borderRadius: 18, shadowColor: '#FFD700', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.12, shadowRadius: 12, elevation: 4 }}
       >
         <LinearGradient
           colors={['#FFD700', '#FFC107']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
           className="px-5 py-3 flex-row items-center justify-between"
+          style={{ borderTopLeftRadius: 18, borderTopRightRadius: 18 }}
         >
           <View className="flex-row items-center">
             <Text className="text-base mr-2">{'\u{1F4C5}'}</Text>
@@ -97,7 +100,7 @@ export function LoginCalendar({ onClaimed }: { onClaimed?: () => void } = {}) {
           {/* Claim button or status */}
           {canClaim ? (
             <TouchableOpacity onPress={handleClaim} activeOpacity={0.85}>
-              <LinearGradient colors={['#FFD700', '#CCA800']} className="py-3 rounded-2xl items-center flex-row justify-center">
+              <LinearGradient colors={['#FFD700', '#CCA800']} className="py-3 items-center flex-row justify-center" style={{ borderRadius: 16 }}>
                 <Text className="text-white font-black text-[13px] uppercase tracking-[0.8px] mr-2">
                   Claim Day {nextDay}
                 </Text>
@@ -112,11 +115,11 @@ export function LoginCalendar({ onClaimed }: { onClaimed?: () => void } = {}) {
               </LinearGradient>
             </TouchableOpacity>
           ) : currentLoginDay >= 7 ? (
-            <View className="bg-pet-gold-light/30 py-2.5 rounded-2xl items-center">
+            <View className="bg-pet-gold-light/30 py-2.5 items-center" style={{ borderRadius: 16 }}>
               <Text className="text-pet-gold-dark font-black text-[12px]">{'\u{1F389}'} Week Complete! Resets tomorrow</Text>
             </View>
           ) : (
-            <View className="bg-gray-50 py-2.5 rounded-2xl items-center">
+            <View className="bg-gray-50 py-2.5 items-center" style={{ borderRadius: 16 }}>
               <Text className="text-gray-400 font-bold text-[12px]">{'\u2705'} Claimed today — come back tomorrow!</Text>
             </View>
           )}

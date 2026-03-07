@@ -1,7 +1,9 @@
-import React, { useCallback } from 'react';
-import { View, Text, TouchableOpacity, Share } from 'react-native';
+import React, { useCallback, useRef } from 'react';
+import { View, Text, TouchableOpacity, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import ViewShot, { captureRef } from 'react-native-view-shot';
+import * as Sharing from 'expo-sharing';
 import { usePetStore } from '../store/petStore';
 import { useXpStore, getTitleForLevel } from '../store/xpStore';
 import { useWalletStore } from '../store/walletStore';
@@ -27,36 +29,33 @@ export function SharePetCard() {
   const stageEmoji = evolutionStage === 1 ? '\u{1F423}' : evolutionStage === 2 ? '\u{1F431}' : evolutionStage === 3 ? '\u{1F981}' : evolutionStage === 4 ? '\u{1F409}' : '\u{1F451}';
   const shortMint = mintAddress ? `${mintAddress.slice(0, 4)}...${mintAddress.slice(-4)}` : 'Not minted';
 
-  const handleShare = useCallback(async () => {
-    const shareText = [
-      `Meet ${name}! ${stageEmoji}`,
-      `Lv.${level} ${title} \u00B7 ${totalXp} XP${streakDays > 0 ? ` \u00B7 \u{1F525} ${streakDays} day streak` : ''}`,
-      `\u{1F356} ${Math.round(hunger)}% \u00B7 \u{1F60A} ${Math.round(happiness)}% \u00B7 \u{26A1} ${Math.round(energy)}%`,
-      `${completedAdventures} adventures completed`,
-      mintAddress ? `NFT: ${shortMint} on Solana` : '',
-      '',
-      'Built with Nomi \u00B7 A Tamagotchi that lives on Solana',
-      '#Solana #SolanaMobile #NFT #Nomi',
-    ].filter(Boolean).join('\n');
+  const cardRef = useRef<ViewShot>(null);
 
+  const handleShare = useCallback(async () => {
     try {
-      await Share.share({
-        message: shareText,
-        title: `${name} - My Nomi Companion`,
+      const uri = await captureRef(cardRef, {
+        format: 'png',
+        quality: 1,
+        result: 'tmpfile',
+      });
+      await Sharing.shareAsync(uri, {
+        mimeType: 'image/png',
+        dialogTitle: `${name} - My Nomi Companion`,
       });
     } catch {}
-  }, [name, level, title, totalXp, streakDays, hunger, happiness, energy, completedAdventures, mintAddress, shortMint, stageEmoji]);
+  }, [name]);
 
   return (
     <View className="mb-5">
-      <View
-        style={{
-          borderRadius: 28,
-          overflow: 'hidden',
-          borderWidth: 1,
-          borderColor: 'rgba(167, 215, 230, 0.7)',
-        }}
-      >
+      <ViewShot ref={cardRef} options={{ format: 'png', quality: 1 }}>
+        <View
+          style={{
+            borderRadius: 28,
+            overflow: 'hidden',
+            borderWidth: 1,
+            borderColor: 'rgba(167, 215, 230, 0.7)',
+          }}
+        >
         {/* Header gradient */}
         <LinearGradient
           colors={['#2D6B90', '#4FABC9']}
@@ -133,7 +132,8 @@ export function SharePetCard() {
             <Text style={{ fontSize: 10, fontWeight: '600', color: '#9ca3af' }}>oraclepet.app</Text>
           </View>
         </View>
-      </View>
+        </View>
+      </ViewShot>
 
       {/* Share button */}
       <TouchableOpacity onPress={handleShare} activeOpacity={0.85} style={{ marginTop: 10 }}>

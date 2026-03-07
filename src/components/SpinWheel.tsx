@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, Modal, Animated, Easing, Dimensions } fro
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { useAdventureStore, SPIN_SEGMENTS, type SpinResult } from '../store/adventureStore';
+import { useWalletStore } from '../store/walletStore';
 import { petTypography } from '../theme/typography';
 import { playSfx } from '../lib/soundManager';
 
@@ -328,13 +329,76 @@ function Pointer() {
   );
 }
 
+function InsufficientFundsSpinModal({ visible, required, available, onClose }: { visible: boolean; required: number; available: number; onClose: () => void }) {
+  if (!visible) return null;
+  const shortage = Math.max(0, required - available);
+  return (
+    <Modal transparent animationType="fade" visible={visible}>
+      <View className="flex-1 bg-black/60 items-center justify-center px-7">
+        <View
+          style={{
+            backgroundColor: '#fff',
+            borderRadius: 28,
+            width: '100%',
+            paddingHorizontal: 24,
+            paddingVertical: 28,
+            alignItems: 'center',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 12 },
+            shadowOpacity: 0.2,
+            shadowRadius: 20,
+            elevation: 14,
+          }}
+        >
+          <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#FEF2F2', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+            <Text style={{ fontSize: 36 }}>{'\u{1F4B8}'}</Text>
+          </View>
+
+          <Text style={{ fontSize: 20, color: '#1F3A4D', marginBottom: 6, fontFamily: petTypography.display }}>
+            Insufficient SOL
+          </Text>
+          <Text style={{ fontSize: 13, color: '#7892A2', textAlign: 'center', marginBottom: 18, fontFamily: petTypography.body }}>
+            You need more SOL to spin the wheel.
+          </Text>
+
+          <View style={{ width: '100%', backgroundColor: '#FEF2F2', borderRadius: 16, padding: 14, borderWidth: 1, borderColor: '#FECACA', marginBottom: 20 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+              <Text style={{ fontSize: 12, color: '#9ca3af', fontFamily: petTypography.body }}>Spin Cost</Text>
+              <Text style={{ fontSize: 12, color: '#374151', fontFamily: petTypography.strong }}>{required} SOL</Text>
+            </View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+              <Text style={{ fontSize: 12, color: '#9ca3af', fontFamily: petTypography.body }}>Your Balance</Text>
+              <Text style={{ fontSize: 12, color: '#374151', fontFamily: petTypography.strong }}>{available.toFixed(4)} SOL</Text>
+            </View>
+            <View style={{ height: 1, backgroundColor: '#FECACA', marginVertical: 4 }} />
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <Text style={{ fontSize: 12, color: '#EF4444', fontFamily: petTypography.strong }}>Shortage</Text>
+              <Text style={{ fontSize: 12, color: '#EF4444', fontFamily: petTypography.strong }}>{shortage.toFixed(4)} SOL</Text>
+            </View>
+          </View>
+
+          <TouchableOpacity onPress={onClose} activeOpacity={0.85} style={{ width: '100%' }}>
+            <LinearGradient colors={['#6b7280', '#4b5563']} style={{ paddingVertical: 14, borderRadius: 16, alignItems: 'center' }}>
+              <Text style={{ color: '#fff', fontSize: 13, fontFamily: petTypography.strong, letterSpacing: 0.8, textTransform: 'uppercase' }}>
+                Got It
+              </Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 export function SpinWheel() {
   const { canSpinToday, doSpin, claimSpinReward, lastSpinDate, extraSpinsToday } = useAdventureStore();
+  const balance = useWalletStore((s) => s.balance);
   const spinAnim = useRef(new Animated.Value(0)).current;
   const currentRotation = useRef(0);
   const [spinning, setSpinning] = useState(false);
   const [showResult, setShowResult] = useState(false);
   const [result, setResult] = useState<SpinResult | null>(null);
+  const [showFundsModal, setShowFundsModal] = useState(false);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const pulseLoop = useRef<Animated.CompositeAnimation | null>(null);
 
@@ -342,6 +406,7 @@ export function SpinWheel() {
   const isFreeSpin = lastSpinDate !== today;
   const canSpin = canSpinToday() && !spinning;
   const paidSpinsRemaining = Math.max(0, 3 - extraSpinsToday);
+  const PAID_SPIN_COST = 0.2;
 
   const wheelSize = Math.min(292, Math.max(248, Dimensions.get('window').width * 0.67));
 
@@ -363,6 +428,12 @@ export function SpinWheel() {
 
   const handleSpin = useCallback(() => {
     if (!canSpin) return;
+
+    // Check balance for paid spins before attempting
+    if (!isFreeSpin && balance < PAID_SPIN_COST) {
+      setShowFundsModal(true);
+      return;
+    }
 
     const spinResult = doSpin();
     if (!spinResult) return;
@@ -389,7 +460,7 @@ export function SpinWheel() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       playSfx('reward');
     });
-  }, [canSpin, doSpin, spinAnim]);
+  }, [canSpin, isFreeSpin, balance, doSpin, spinAnim]);
 
   const rotateInterpolate = spinAnim.interpolate({
     inputRange: [0, 360],
@@ -507,6 +578,13 @@ export function SpinWheel() {
         setShowResult(false);
         playSfx('happy');
       }} />
+
+      <InsufficientFundsSpinModal
+        visible={showFundsModal}
+        required={PAID_SPIN_COST}
+        available={balance}
+        onClose={() => setShowFundsModal(false)}
+      />
     </View>
   );
 }

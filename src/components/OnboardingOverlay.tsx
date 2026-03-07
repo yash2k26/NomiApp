@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, Animated, Dimensions } from 'react-native
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { petTypography } from '../theme/typography';
+import { playSfx } from '../lib/soundManager';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const ONBOARDING_KEY = 'oracle-pet-onboarding-seen';
@@ -27,6 +28,7 @@ export function OnboardingOverlay({ onDone }: { onDone: () => void }) {
   const goNext = () => {
     if (step >= STEPS.length - 1) {
       AsyncStorage.setItem(ONBOARDING_KEY, 'true').catch(() => {});
+      playSfx('reward').catch(() => {});
       onDone();
       return;
     }
@@ -49,8 +51,9 @@ export function OnboardingOverlay({ onDone }: { onDone: () => void }) {
       <View className="flex-1 justify-center px-8">
         <Animated.View style={{ opacity: fadeAnim }}>
           <View
-            className="bg-white rounded-[32px] overflow-hidden"
+            className="bg-white overflow-hidden"
             style={{
+              borderRadius: 28,
               shadowColor: '#000',
               shadowOffset: { width: 0, height: 12 },
               shadowOpacity: 0.25,
@@ -63,6 +66,7 @@ export function OnboardingOverlay({ onDone }: { onDone: () => void }) {
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               className="items-center pt-10 pb-6"
+              style={{ borderTopLeftRadius: 28, borderTopRightRadius: 28 }}
             >
               <Text className="text-6xl mb-3">{current.emoji}</Text>
               <Text
@@ -95,7 +99,8 @@ export function OnboardingOverlay({ onDone }: { onDone: () => void }) {
               <TouchableOpacity onPress={goNext} activeOpacity={0.85}>
                 <LinearGradient
                   colors={['#4FB0C6', '#3A9BB0']}
-                  className="rounded-2xl py-4 items-center"
+                  className="py-4 items-center"
+                  style={{ borderRadius: 16 }}
                 >
                   <Text className="text-white text-[15px] font-black tracking-wide">
                     {isLast ? "Let's Go!" : 'Next'}

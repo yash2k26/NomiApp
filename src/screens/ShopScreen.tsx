@@ -1,5 +1,5 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Modal } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -84,7 +84,7 @@ function CardPrice({ item, isPremium }: { item: ShopItem; isPremium: boolean }) 
   const level = useXpStore((s) => s.level);
   const discount = getPerksForLevel(level).shopDiscount;
   const discountPercent = Math.round(discount * 100);
-  const finalPrice = Math.round(item.price * (1 - discount) * 100) / 100;
+  const finalPrice = Math.round(item.price * (1 - discount) * 1000000) / 1000000;
   const hasDiscount = discount > 0 && item.price > 0 && !item.owned;
 
   if (isPremium && !item.owned) {
@@ -286,8 +286,8 @@ function PaymentModal({
   const perks = getPerksForLevel(level);
   const discount = perks.shopDiscount;
   const discountPercent = Math.round(discount * 100);
-  const discountAmount = Math.round(item.price * discount * 100) / 100;
-  const finalPrice = Math.round(item.price * (1 - discount) * 100) / 100;
+  const discountAmount = Math.round(item.price * discount * 1000000) / 1000000;
+  const finalPrice = Math.round(item.price * (1 - discount) * 1000000) / 1000000;
   const networkFee = 0.000005; // Solana base tx fee
   const totalSol = Math.round((finalPrice + networkFee) * 1000000) / 1000000;
 
@@ -567,12 +567,277 @@ function PaymentModal({
   );
 }
 
+function InsufficientFundsModal({
+  visible,
+  currency,
+  required,
+  available,
+  onClose,
+}: {
+  visible: boolean;
+  currency: 'SOL' | 'SKR';
+  required: number;
+  available: number;
+  onClose: () => void;
+}) {
+  const shortage = currency === 'SOL'
+    ? (required - available).toFixed(4)
+    : (required - available).toFixed(0);
+
+  return (
+    <Modal transparent animationType="fade" visible={visible}>
+      <View className="flex-1 bg-black/50 items-center justify-center px-6">
+        <View
+          className="bg-white w-full px-6 py-7"
+          style={{
+            borderRadius: 28,
+            shadowColor: '#EF4444',
+            shadowOffset: { width: 0, height: 12 },
+            shadowOpacity: 0.2,
+            shadowRadius: 24,
+            elevation: 15,
+          }}
+        >
+          {/* Icon */}
+          <View className="items-center mb-4">
+            <View className="w-16 h-16 rounded-full items-center justify-center bg-orange-100">
+              <Text className="text-3xl">{'\u{1F4B8}'}</Text>
+            </View>
+          </View>
+
+          <Text
+            className="text-[18px] font-black text-center text-orange-600 mb-1"
+            style={{ fontFamily: petTypography.heading }}
+          >
+            Insufficient {currency}
+          </Text>
+          <Text className="text-[11px] text-gray-400 font-semibold text-center mb-5">
+            You don't have enough to complete this purchase
+          </Text>
+
+          {/* Breakdown */}
+          <View className="bg-gray-50 rounded-2xl px-5 py-4 mb-5 border border-gray-100">
+            <View className="flex-row justify-between items-center mb-2.5">
+              <Text className="text-[13px] text-gray-600 font-semibold">Required</Text>
+              <Text className="text-[13px] text-gray-800 font-bold">
+                {currency === 'SOL' ? required.toFixed(4) : required.toFixed(0)} {currency}
+              </Text>
+            </View>
+            <View className="flex-row justify-between items-center mb-2.5">
+              <Text className="text-[13px] text-gray-600 font-semibold">Your Balance</Text>
+              <Text className="text-[13px] text-gray-800 font-bold">
+                {currency === 'SOL' ? available.toFixed(4) : available.toFixed(0)} {currency}
+              </Text>
+            </View>
+            <View className="border-t border-dashed border-gray-200 my-2" />
+            <View className="flex-row justify-between items-center">
+              <Text className="text-[15px] text-gray-800 font-black">Shortage</Text>
+              <Text className="text-[15px] font-black text-red-500">{shortage} {currency}</Text>
+            </View>
+          </View>
+
+          {/* Close */}
+          <TouchableOpacity onPress={onClose} activeOpacity={0.85}>
+            <LinearGradient
+              colors={['#6B7280', '#4B5563']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              className="py-3.5 items-center"
+              style={{ borderRadius: 14 }}
+            >
+              <Text className="text-white text-[14px] font-black tracking-wider uppercase">
+                Got It
+              </Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function ReceiptModal({
+  visible,
+  success,
+  item,
+  paidWithSkr,
+  errorMsg,
+  onClose,
+}: {
+  visible: boolean;
+  success: boolean;
+  item: ShopItem | null;
+  paidWithSkr: boolean;
+  errorMsg: string;
+  onClose: () => void;
+}) {
+  if (!item) return null;
+
+  const level = useXpStore.getState().level;
+  const perks = getPerksForLevel(level);
+  const discount = perks.shopDiscount;
+  const discountPercent = Math.round(discount * 100);
+  const discountAmount = Math.round(item.price * discount * 1000000) / 1000000;
+  const finalPrice = Math.round(item.price * (1 - discount) * 1000000) / 1000000;
+  const networkFee = 0.000005;
+
+  const isCancelled = errorMsg.includes('rejected') || errorMsg.includes('declined') || errorMsg.includes('Cancelled');
+
+  return (
+    <Modal transparent animationType="fade" visible={visible}>
+      <View className="flex-1 bg-black/50 items-center justify-center px-6">
+        <View
+          className="bg-white w-full px-6 py-7"
+          style={{
+            borderRadius: 28,
+            shadowColor: success ? '#4FB0C6' : '#EF4444',
+            shadowOffset: { width: 0, height: 12 },
+            shadowOpacity: 0.2,
+            shadowRadius: 24,
+            elevation: 15,
+          }}
+        >
+          {/* Status icon */}
+          <View className="items-center mb-4">
+            <View
+              className={`w-16 h-16 rounded-full items-center justify-center ${
+                success ? 'bg-green-100' : isCancelled ? 'bg-orange-100' : 'bg-red-100'
+              }`}
+            >
+              <Text className="text-3xl">
+                {success ? '\u2705' : isCancelled ? '\u{1F6AB}' : '\u274C'}
+              </Text>
+            </View>
+          </View>
+
+          {/* Title */}
+          <Text
+            className={`text-[18px] font-black text-center mb-1 ${
+              success ? 'text-green-700' : isCancelled ? 'text-orange-600' : 'text-red-600'
+            }`}
+            style={{ fontFamily: petTypography.heading }}
+          >
+            {success ? 'Purchase Complete!' : isCancelled ? 'Transaction Cancelled' : 'Purchase Failed'}
+          </Text>
+          <Text className="text-[11px] text-gray-400 font-semibold text-center mb-5">
+            {success ? 'Receipt' : isCancelled ? 'No charges were made' : 'Something went wrong'}
+          </Text>
+
+          {/* Item info */}
+          <View className="flex-row items-center bg-gray-50 rounded-2xl px-4 py-3 mb-4 border border-gray-100">
+            <View className="w-12 h-12 rounded-xl items-center justify-center bg-white border border-gray-100 mr-3">
+              <Text className="text-2xl">{item.image}</Text>
+            </View>
+            <View className="flex-1">
+              <Text className="text-[15px] font-black text-gray-800" style={{ fontFamily: petTypography.heading }}>
+                {item.name}
+              </Text>
+              <Text className="text-[11px] font-semibold text-gray-400 uppercase">{item.category}</Text>
+            </View>
+            {success && (
+              <View className="bg-green-100 rounded-full px-2.5 py-1">
+                <Text className="text-[10px] font-black text-green-700">OWNED</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Bill breakdown */}
+          <View className="bg-gray-50 rounded-2xl px-5 py-4 mb-5 border border-gray-100">
+            {paidWithSkr && item.skrPrice ? (
+              <>
+                <View className="flex-row justify-between items-center mb-2.5">
+                  <Text className="text-[13px] text-gray-600 font-semibold">Item Price</Text>
+                  <Text className="text-[13px] text-gray-800 font-bold">{item.skrPrice} SKR</Text>
+                </View>
+                <View className="flex-row justify-between items-center mb-2.5">
+                  <Text className="text-[13px] text-gray-600 font-semibold">Network Fee</Text>
+                  <Text className="text-[13px] text-gray-500 font-bold">~0.000005 SOL</Text>
+                </View>
+                <View className="border-t border-dashed border-gray-200 my-2" />
+                <View className="flex-row justify-between items-center">
+                  <Text className="text-[15px] text-gray-800 font-black">Total</Text>
+                  <Text className={`text-[15px] font-black ${success ? 'text-purple-600' : 'text-gray-400 line-through'}`}>
+                    {item.skrPrice} SKR
+                  </Text>
+                </View>
+              </>
+            ) : (
+              <>
+                <View className="flex-row justify-between items-center mb-2.5">
+                  <Text className="text-[13px] text-gray-600 font-semibold">Item Price</Text>
+                  <Text className="text-[13px] text-gray-800 font-bold">{item.price} SOL</Text>
+                </View>
+                {discount > 0 && (
+                  <View className="flex-row justify-between items-center mb-2.5">
+                    <View className="flex-row items-center">
+                      <Text className="text-[13px] text-green-600 font-semibold">Level {level} Discount</Text>
+                      <View className="bg-green-100 rounded-full px-2 py-0.5 ml-2">
+                        <Text className="text-[10px] font-black text-green-700">-{discountPercent}%</Text>
+                      </View>
+                    </View>
+                    <Text className="text-[13px] text-green-600 font-bold">-{discountAmount} SOL</Text>
+                  </View>
+                )}
+                <View className="flex-row justify-between items-center mb-2.5">
+                  <Text className="text-[13px] text-gray-600 font-semibold">Network Fee</Text>
+                  <Text className="text-[13px] text-gray-500 font-bold">~{networkFee} SOL</Text>
+                </View>
+                <View className="border-t border-dashed border-gray-200 my-2" />
+                <View className="flex-row justify-between items-center">
+                  <Text className="text-[15px] text-gray-800 font-black">Total</Text>
+                  <Text className={`text-[15px] font-black ${success ? 'text-pet-blue-dark' : 'text-gray-400 line-through'}`}>
+                    {finalPrice} SOL
+                  </Text>
+                </View>
+              </>
+            )}
+          </View>
+
+          {/* Status message */}
+          {success && (
+            <View className="flex-row items-center justify-center mb-5 bg-green-50 rounded-xl py-2.5 px-3 border border-green-100">
+              <MaterialCommunityIcons name="check-circle" size={16} color="#15803D" />
+              <Text className="text-[12px] font-bold text-green-700 ml-2">Item equipped automatically</Text>
+            </View>
+          )}
+          {!success && !isCancelled && (
+            <View className="flex-row items-center justify-center mb-5 bg-red-50 rounded-xl py-2.5 px-3 border border-red-100">
+              <MaterialCommunityIcons name="alert-circle" size={16} color="#DC2626" />
+              <Text className="text-[11px] font-semibold text-red-600 ml-2 flex-1" numberOfLines={2}>{errorMsg}</Text>
+            </View>
+          )}
+
+          {/* Close button */}
+          <TouchableOpacity onPress={onClose} activeOpacity={0.85}>
+            <LinearGradient
+              colors={success ? ['#48B4CD', '#3B8BB4'] : ['#6B7280', '#4B5563']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              className="py-3.5 items-center"
+              style={{ borderRadius: 14 }}
+            >
+              <Text className="text-white text-[14px] font-black tracking-wider uppercase">
+                {success ? 'Done' : 'Close'}
+              </Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 export function ShopScreen() {
   const { items, buyItem, equipItem, unequipItem, equippedItemId, equippedAnimationId, hydrateShop } = useShopStore();
   const [selectedSection, setSelectedSection] = useState<ShopSection>('All');
   const [ownershipFilter, setOwnershipFilter] = useState<OwnershipFilter>('all');
   const [purchasingId, setPurchasingId] = useState<string | null>(null);
   const [paymentItem, setPaymentItem] = useState<ShopItem | null>(null);
+  const [receiptItem, setReceiptItem] = useState<ShopItem | null>(null);
+  const [receiptSuccess, setReceiptSuccess] = useState(false);
+  const [receiptSkr, setReceiptSkr] = useState(false);
+  const [receiptError, setReceiptError] = useState('');
+  const [fundsModal, setFundsModal] = useState<{ currency: 'SOL' | 'SKR'; required: number; available: number } | null>(null);
   const balance = useWalletStore((s) => s.balance);
   const skrBalance = useWalletStore((s) => s.skrBalance);
   const premium = usePremiumStore((s) => s.isPremium);
@@ -627,21 +892,19 @@ export function ShopScreen() {
     setPurchasingId(item.id);
     try {
       await buyItem(item.id, withSkr);
-      // Auto-equip after purchase
       equipItem(item.id);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(
-        'Purchase Complete!',
-        `${item.name} is now yours and equipped! Check Profile for transaction details.`,
-      );
+      setReceiptItem(item);
+      setReceiptSuccess(true);
+      setReceiptSkr(withSkr);
+      setReceiptError('');
     } catch (err: any) {
       const msg = err?.message || 'Purchase failed';
-      if (msg.includes('User rejected') || msg.includes('declined')) {
-        Alert.alert('Cancelled', 'Transaction cancelled in wallet.');
-      } else {
-        Alert.alert('Purchase Failed', msg);
-      }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setReceiptItem(item);
+      setReceiptSuccess(false);
+      setReceiptSkr(withSkr);
+      setReceiptError(msg);
     } finally {
       setPurchasingId(null);
     }
@@ -659,7 +922,7 @@ export function ShopScreen() {
     const discountedPrice = Math.round(paymentItem.price * (1 - disc) * 100) / 100;
     if (balance < discountedPrice) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Not Enough SOL', `You need ${discountedPrice} SOL but only have ${balance.toFixed(2)} SOL.`);
+      setFundsModal({ currency: 'SOL', required: discountedPrice, available: balance });
       return;
     }
     const item = paymentItem;
@@ -671,7 +934,7 @@ export function ShopScreen() {
     if (!paymentItem || !paymentItem.skrPrice) return;
     if (skrBalance < paymentItem.skrPrice) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Not Enough SKR', `You need ${paymentItem.skrPrice} SKR but only have ${skrBalance.toFixed(0)} SKR.`);
+      setFundsModal({ currency: 'SKR', required: paymentItem.skrPrice, available: skrBalance });
       return;
     }
     const item = paymentItem;
@@ -876,6 +1139,23 @@ export function ShopScreen() {
         onPaySkr={handlePaySkr}
         solBalance={balance}
         skrBalance={skrBalance}
+      />
+
+      <ReceiptModal
+        visible={!!receiptItem}
+        success={receiptSuccess}
+        item={receiptItem}
+        paidWithSkr={receiptSkr}
+        errorMsg={receiptError}
+        onClose={() => setReceiptItem(null)}
+      />
+
+      <InsufficientFundsModal
+        visible={!!fundsModal}
+        currency={fundsModal?.currency ?? 'SOL'}
+        required={fundsModal?.required ?? 0}
+        available={fundsModal?.available ?? 0}
+        onClose={() => setFundsModal(null)}
       />
     </View>
   );

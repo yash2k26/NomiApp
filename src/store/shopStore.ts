@@ -188,7 +188,7 @@ export const useShopStore = create<ShopStore>((set, get) => ({
           const level = require('./xpStore').useXpStore.getState().level;
           discount = getPerksForLevel(level).shopDiscount;
         } catch {}
-        const finalPrice = Math.round(item.price * (1 - discount) * 100) / 100;
+        const finalPrice = Math.round(item.price * (1 - discount) * 1000000) / 1000000;
 
         if (walletStore.balance < finalPrice) return;
 

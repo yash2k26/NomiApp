@@ -24,7 +24,7 @@ const MUSIC_ASSETS: Record<MusicName, any> = {
 
 // Per-track volume multiplier (relative to master volume)
 const MUSIC_VOLUME: Record<MusicName, number> = {
-  headphones: 0.55,
+  headphones: 0.275,
   game1: 1.0,
 };
 
@@ -143,7 +143,33 @@ export async function playSfx(name: SoundName): Promise<void> {
 
 /**
  * Play a looping background music track. Stops any previously playing music.
+ * Fade in/out uses InteractionManager to stay on the main thread (ExoPlayer requirement).
  */
+const FADE_DURATION_MS = 800;
+const FADE_STEPS = 16;
+
+function fadeVolume(sound: any, from: number, to: number, durationMs: number = FADE_DURATION_MS): Promise<void> {
+  return new Promise((resolve) => {
+    const { InteractionManager } = require('react-native');
+    const steps = FADE_STEPS;
+    const stepMs = durationMs / steps;
+    const delta = (to - from) / steps;
+    let step = 0;
+
+    const doStep = () => {
+      step++;
+      if (step > steps) { resolve(); return; }
+      InteractionManager.runAfterInteractions(() => {
+        try {
+          sound.setVolumeAsync(from + delta * step).catch(() => {});
+        } catch {}
+        setTimeout(() => InteractionManager.runAfterInteractions(doStep), stepMs);
+      });
+    };
+    doStep();
+  });
+}
+
 let isLoadingMusic = false;
 export async function playMusic(name: MusicName): Promise<void> {
   if (!ensureAudio()) return;
@@ -165,10 +191,12 @@ export async function playMusic(name: MusicName): Promise<void> {
     const { sound } = await Audio.Sound.createAsync(asset, {
       shouldPlay: true,
       isLooping: true,
-      volume: targetVol,
+      volume: 0,
     });
     currentMusic = sound;
     currentMusicName = name;
+    // Fade in
+    fadeVolume(sound, 0, targetVol);
   } catch {}
   isLoadingMusic = false;
 }
@@ -178,12 +206,23 @@ export async function playMusic(name: MusicName): Promise<void> {
  */
 export async function stopMusic(): Promise<void> {
   if (currentMusic) {
-    try {
-      await currentMusic.stopAsync();
-      await currentMusic.unloadAsync();
-    } catch {}
+    const music = currentMusic;
     currentMusic = null;
     currentMusicName = null;
+    try {
+      const status = await music.getStatusAsync();
+      const currentVol = status.isLoaded ? (status.volume ?? 0) : 0;
+      if (status.isLoaded && status.isPlaying && currentVol > 0) {
+        // Fade out then stop
+        fadeVolume(music, currentVol, 0).then(() => {
+          music.stopAsync().catch(() => {});
+          music.unloadAsync().catch(() => {});
+        });
+      } else {
+        await music.stopAsync();
+        await music.unloadAsync();
+      }
+    } catch {}
   }
 }
 
