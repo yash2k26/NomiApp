@@ -889,9 +889,22 @@ export function ShopScreen() {
   ];
 
   const doPurchase = async (item: ShopItem, withSkr: boolean) => {
+    const start = Date.now();
+    console.log('[ShopScreen] doPurchase start', {
+      itemId: item.id,
+      itemName: item.name,
+      withSkr,
+      solBalance: balance,
+      skrBalance,
+    });
     setPurchasingId(item.id);
     try {
       await buyItem(item.id, withSkr);
+      console.log('[ShopScreen] doPurchase success', {
+        itemId: item.id,
+        withSkr,
+        elapsedMs: Date.now() - start,
+      });
       equipItem(item.id);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setReceiptItem(item);
@@ -900,6 +913,13 @@ export function ShopScreen() {
       setReceiptError('');
     } catch (err: any) {
       const msg = err?.message || 'Purchase failed';
+      console.error('[ShopScreen] doPurchase failed', {
+        itemId: item.id,
+        withSkr,
+        elapsedMs: Date.now() - start,
+        error: msg,
+        stack: err?.stack,
+      });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setReceiptItem(item);
       setReceiptSuccess(false);
@@ -921,10 +941,20 @@ export function ShopScreen() {
     const disc = getPerksForLevel(lvl).shopDiscount;
     const discountedPrice = Math.round(paymentItem.price * (1 - disc) * 100) / 100;
     if (balance < discountedPrice) {
+      console.warn('[ShopScreen] handlePaySol insufficient balance', {
+        itemId: paymentItem.id,
+        required: discountedPrice,
+        available: balance,
+      });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setFundsModal({ currency: 'SOL', required: discountedPrice, available: balance });
       return;
     }
+    console.log('[ShopScreen] handlePaySol proceed', {
+      itemId: paymentItem.id,
+      discountedPrice,
+      balance,
+    });
     const item = paymentItem;
     setPaymentItem(null);
     doPurchase(item, false);
@@ -933,10 +963,20 @@ export function ShopScreen() {
   const handlePaySkr = () => {
     if (!paymentItem || !paymentItem.skrPrice) return;
     if (skrBalance < paymentItem.skrPrice) {
+      console.warn('[ShopScreen] handlePaySkr insufficient balance', {
+        itemId: paymentItem.id,
+        required: paymentItem.skrPrice,
+        available: skrBalance,
+      });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setFundsModal({ currency: 'SKR', required: paymentItem.skrPrice, available: skrBalance });
       return;
     }
+    console.log('[ShopScreen] handlePaySkr proceed', {
+      itemId: paymentItem.id,
+      skrPrice: paymentItem.skrPrice,
+      skrBalance,
+    });
     const item = paymentItem;
     setPaymentItem(null);
     doPurchase(item, true);
@@ -1160,6 +1200,5 @@ export function ShopScreen() {
     </View>
   );
 }
-
 
 

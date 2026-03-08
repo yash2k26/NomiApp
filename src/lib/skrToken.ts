@@ -13,7 +13,13 @@ import {
   TOKEN_PROGRAM_ID,
 } from '@solana/spl-token';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { connection } from './solanaClient';
+import {
+  getAccountInfoRaw,
+  getLatestBlockhashRaw,
+  getMinimumBalanceForRentExemptionRaw,
+  sendRawTransactionRaw,
+  confirmTransactionRaw,
+} from './solanaClient';
 import { withWallet } from './mobileWalletAdapter';
 
 // ── SKR Token Constants ──
@@ -75,7 +81,7 @@ export async function getSkrBalance(address: string): Promise<number> {
     const owner = new PublicKey(address);
     const ata = findAssociatedTokenAddress(owner, mint);
 
-    const accountInfo = await connection.getAccountInfo(ata);
+    const accountInfo = await getAccountInfoRaw(ata);
     if (!accountInfo) return 0;
 
     // Parse SPL token account data — balance is at offset 64, u64 LE
@@ -108,9 +114,9 @@ export async function claimTestSkr(authToken: string): Promise<string> {
       const payer = new PublicKey(address);
       const mintPubkey = mintKeypair.publicKey;
       const ata = findAssociatedTokenAddress(payer, mintPubkey);
-      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
+      const { blockhash, lastValidBlockHeight } = await getLatestBlockhashRaw();
 
-      const mintRent = await connection.getMinimumBalanceForRentExemption(82);
+      const mintRent = await getMinimumBalanceForRentExemptionRaw(82);
 
       const tx = new Transaction();
 
@@ -139,15 +145,9 @@ export async function claimTestSkr(authToken: string): Promise<string> {
       tx.partialSign(mintKeypair);
 
       const signedTxs = await wallet.signTransactions({ transactions: [tx] });
-      const sig = await connection.sendRawTransaction(signedTxs[0].serialize(), {
-        skipPreflight: false,
-        preflightCommitment: 'confirmed',
-      });
+      const sig = await sendRawTransactionRaw(signedTxs[0].serialize());
 
-      await connection.confirmTransaction(
-        { signature: sig, blockhash, lastValidBlockHeight },
-        'confirmed',
-      );
+      await confirmTransactionRaw(sig, blockhash, lastValidBlockHeight);
 
       return sig;
     });
@@ -168,12 +168,12 @@ export async function claimTestSkr(authToken: string): Promise<string> {
     const payer = new PublicKey(address);
     const mintPubkey = stored!.mintPubkey;
     const ata = findAssociatedTokenAddress(payer, mintPubkey);
-    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
+    const { blockhash, lastValidBlockHeight } = await getLatestBlockhashRaw();
 
     const tx = new Transaction();
 
     // Check if ATA exists, create if not
-    const ataInfo = await connection.getAccountInfo(ata);
+    const ataInfo = await getAccountInfoRaw(ata);
     if (!ataInfo) {
       tx.add(createAssociatedTokenAccountInstruction(payer, ata, payer, mintPubkey));
     }
@@ -184,15 +184,9 @@ export async function claimTestSkr(authToken: string): Promise<string> {
     tx.recentBlockhash = blockhash;
 
     const signedTxs = await wallet.signTransactions({ transactions: [tx] });
-    const sig = await connection.sendRawTransaction(signedTxs[0].serialize(), {
-      skipPreflight: false,
-      preflightCommitment: 'confirmed',
-    });
+    const sig = await sendRawTransactionRaw(signedTxs[0].serialize());
 
-    await connection.confirmTransaction(
-      { signature: sig, blockhash, lastValidBlockHeight },
-      'confirmed',
-    );
+    await confirmTransactionRaw(sig, blockhash, lastValidBlockHeight);
 
     return sig;
   });
@@ -216,14 +210,14 @@ export async function transferSkr(
     const recipient = new PublicKey(recipientAddress);
     const senderAta = findAssociatedTokenAddress(payer, mint);
     const recipientAta = findAssociatedTokenAddress(recipient, mint);
-    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
+    const { blockhash, lastValidBlockHeight } = await getLatestBlockhashRaw();
 
     const rawAmount = BigInt(Math.round(amount * Math.pow(10, SKR_DECIMALS)));
 
     const tx = new Transaction();
 
     // Create recipient ATA if it doesn't exist
-    const recipientAtaInfo = await connection.getAccountInfo(recipientAta);
+    const recipientAtaInfo = await getAccountInfoRaw(recipientAta);
     if (!recipientAtaInfo) {
       tx.add(createAssociatedTokenAccountInstruction(payer, recipientAta, recipient, mint));
     }
@@ -235,15 +229,9 @@ export async function transferSkr(
     tx.recentBlockhash = blockhash;
 
     const signedTxs = await wallet.signTransactions({ transactions: [tx] });
-    const sig = await connection.sendRawTransaction(signedTxs[0].serialize(), {
-      skipPreflight: false,
-      preflightCommitment: 'confirmed',
-    });
+    const sig = await sendRawTransactionRaw(signedTxs[0].serialize());
 
-    await connection.confirmTransaction(
-      { signature: sig, blockhash, lastValidBlockHeight },
-      'confirmed',
-    );
+    await confirmTransactionRaw(sig, blockhash, lastValidBlockHeight);
 
     return sig;
   });

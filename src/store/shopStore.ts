@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const SHOP_STORAGE_KEY = 'oracle-pet-shop';
+const SHOP_LOG = '[shopPurchase]';
 
 export type ShopCategory = 'All' | 'Hats' | 'Shirts' | 'Shoes' | 'Accessories' | 'Animations';
 
@@ -135,13 +136,29 @@ export const useShopStore = create<ShopStore>((set, get) => ({
   setCategory: (category) => set({ selectedCategory: category }),
 
   buyItem: async (id, payWithSkr = false) => {
+    const startedAt = Date.now();
+    console.log(`${SHOP_LOG} start`, { id, payWithSkr });
     const { items } = get();
     const item = items.find((i) => i.id === id);
-    if (!item || item.owned || item.comingSoon) return;
+    if (!item) {
+      console.warn(`${SHOP_LOG} abort: item not found`, { id });
+      return;
+    }
+    if (item.owned) {
+      console.warn(`${SHOP_LOG} abort: item already owned`, { id, name: item.name });
+      return;
+    }
+    if (item.comingSoon) {
+      console.warn(`${SHOP_LOG} abort: item coming soon`, { id, name: item.name });
+      return;
+    }
 
     // Check unlock condition
     const lockState = getItemLockState(item);
-    if (lockState.locked) return;
+    if (lockState.locked) {
+      console.warn(`${SHOP_LOG} abort: item locked`, { id, reason: lockState.reason });
+      return;
+    }
 
     // Premium users get all items free
     let premium = false;
@@ -149,19 +166,40 @@ export const useShopStore = create<ShopStore>((set, get) => ({
       const { isPremium } = require('./premiumStore');
       premium = isPremium();
     } catch {}
+    console.log(`${SHOP_LOG} premium status`, { premium, item: item.name, category: item.category });
 
     if (!premium) {
       const walletStore = require('./walletStore').useWalletStore.getState();
+      console.log(`${SHOP_LOG} wallet snapshot`, {
+        connected: walletStore.connected,
+        address: walletStore.address,
+        hasAuthToken: !!walletStore.authToken,
+        balance: walletStore.balance,
+        skrBalance: walletStore.skrBalance,
+      });
 
       // SKR payment path
       if (payWithSkr && item.skrPrice) {
-        if (walletStore.skrBalance < item.skrPrice) return;
+        if (walletStore.skrBalance < item.skrPrice) {
+          console.warn(`${SHOP_LOG} abort: insufficient SKR`, {
+            required: item.skrPrice,
+            available: walletStore.skrBalance,
+          });
+          return;
+        }
 
         const authToken = walletStore.authToken;
         if (authToken) {
           const { transferSkr } = require('../lib/skrToken');
           const { SHOP_TREASURY } = require('../lib/solanaClient');
+          console.log(`${SHOP_LOG} sending SKR tx`, {
+            to: SHOP_TREASURY,
+            amount: item.skrPrice,
+            itemId: item.id,
+            itemName: item.name,
+          });
           const txSig = await transferSkr(authToken, SHOP_TREASURY, item.skrPrice);
+          console.log(`${SHOP_LOG} SKR tx sent`, { txSig, itemId: item.id });
 
           try {
             const { labelTransaction } = require('./txHistoryStore');
@@ -176,7 +214,13 @@ export const useShopStore = create<ShopStore>((set, get) => ({
 
           try { await walletStore.refreshSkrBalance(); } catch {}
           try { await walletStore.refreshBalance(); } catch {}
+          console.log(`${SHOP_LOG} SKR purchase completed`, {
+            id,
+            txSig,
+            elapsedMs: Date.now() - startedAt,
+          });
         } else {
+          console.error(`${SHOP_LOG} missing auth token for SKR payment`, { id, item: item.name });
           throw new Error('Wallet not connected. Please reconnect to purchase.');
         }
       } else {
@@ -189,15 +233,35 @@ export const useShopStore = create<ShopStore>((set, get) => ({
           discount = getPerksForLevel(level).shopDiscount;
         } catch {}
         const finalPrice = Math.round(item.price * (1 - discount) * 1000000) / 1000000;
+        console.log(`${SHOP_LOG} SOL pricing`, {
+          itemId: item.id,
+          itemName: item.name,
+          basePrice: item.price,
+          discount,
+          finalPrice,
+        });
 
-        if (walletStore.balance < finalPrice) return;
+        if (walletStore.balance < finalPrice) {
+          console.warn(`${SHOP_LOG} abort: insufficient SOL`, {
+            required: finalPrice,
+            available: walletStore.balance,
+          });
+          return;
+        }
 
         // On-chain SOL transfer to shop treasury
         const authToken = walletStore.authToken;
         if (authToken && finalPrice > 0) {
           const { transferSOL } = require('../lib/solanaTransactions');
           const { SHOP_TREASURY } = require('../lib/solanaClient');
+          console.log(`${SHOP_LOG} sending SOL tx`, {
+            to: SHOP_TREASURY,
+            amountSOL: finalPrice,
+            itemId: item.id,
+            itemName: item.name,
+          });
           const txSig = await transferSOL(authToken, SHOP_TREASURY, finalPrice);
+          console.log(`${SHOP_LOG} SOL tx sent`, { txSig, itemId: item.id });
 
           try {
             const { labelTransaction } = require('./txHistoryStore');
@@ -211,7 +275,13 @@ export const useShopStore = create<ShopStore>((set, get) => ({
           saveShopState(ownedIds, get().equippedItemId, get().equippedAnimationId);
 
           try { await walletStore.refreshBalance(); } catch {}
+          console.log(`${SHOP_LOG} SOL purchase completed`, {
+            id,
+            txSig,
+            elapsedMs: Date.now() - startedAt,
+          });
         } else if (finalPrice > 0) {
+          console.error(`${SHOP_LOG} missing auth token for SOL payment`, { id, item: item.name });
           throw new Error('Wallet not connected. Please reconnect to purchase.');
         }
       }
@@ -233,6 +303,12 @@ export const useShopStore = create<ShopStore>((set, get) => ({
     const xpStore = require('./xpStore').useXpStore.getState();
     xpStore.addXp(30, 'buy');
     xpStore.checkAchievements({ ownedCount: ownedIds.length, totalItems: finalItems.length });
+    console.log(`${SHOP_LOG} done`, {
+      id,
+      payWithSkr,
+      elapsedMs: Date.now() - startedAt,
+      ownedCount: ownedIds.length,
+    });
   },
 
   equipItem: (id) => {

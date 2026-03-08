@@ -1,4 +1,4 @@
-import { connection } from './solanaClient';
+import { getSignaturesForAddressRaw } from './solanaClient';
 import { PublicKey } from '@solana/web3.js';
 
 export interface OnChainTransaction {
@@ -18,9 +18,7 @@ export async function getTransactionHistory(
 ): Promise<OnChainTransaction[]> {
   try {
     const pubkey = new PublicKey(address);
-    const signatures = await connection.getSignaturesForAddress(pubkey, {
-      limit,
-    });
+    const signatures = await getSignaturesForAddressRaw(pubkey, limit);
 
     return signatures.map((sig) => ({
       signature: sig.signature,
