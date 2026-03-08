@@ -185,7 +185,7 @@ function ShopCard({
         {item.tierTag && (
           <View className="px-2.5 py-1 rounded-full bg-pet-blue-light/70 border border-pet-blue-light">
             <Text className="text-[9px] font-black text-pet-blue-dark">
-              {item.tierTag === 'diamond_exclusive' ? '\u{1F48E}' : '\u{1F451}'}
+              {item.tierTag === 'pro_exclusive' ? '\u{1F48E}' : '\u{2B50}'}
             </Text>
           </View>
         )}
@@ -849,8 +849,8 @@ export function ShopScreen() {
 
   // Filter out items locked behind a higher tier
   const TIER_TAG_MAP: Record<string, PremiumTier> = {
-    gold_exclusive: 'gold',
-    diamond_exclusive: 'diamond',
+    plus_exclusive: 'plus',
+    pro_exclusive: 'pro',
   };
 
   const visibleItems = useMemo(() => {

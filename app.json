@@ -12,6 +12,7 @@
     "experiments": {
       "tsconfigPaths": true
     },
+    "scheme": "oraclepet",
     "orientation": "portrait",
     "icon": "./assets/App-icon.png",
     "userInterfaceStyle": "light",

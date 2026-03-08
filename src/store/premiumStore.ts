@@ -73,7 +73,7 @@ export const usePremiumStore = create<PremiumStore>((set, get) => ({
     }
 
     // Award XP scaled by tier
-    const xpByTier: Record<PremiumTier, number> = { none: 0, silver: 50, gold: 100, diamond: 200 };
+    const xpByTier: Record<PremiumTier, number> = { none: 0, plus: 75, pro: 200 };
     try {
       const xpStore = require('./xpStore').useXpStore.getState();
       xpStore.addXp(xpByTier[targetTier], 'premium-purchase');
@@ -95,8 +95,15 @@ export const usePremiumStore = create<PremiumStore>((set, get) => ({
           purchaseDate: data.purchaseDate ?? null,
         });
       } else if (data.isPremium) {
-        // Old 2 SOL users → gold tier (closest perk match)
-        set({ tier: 'gold', isPremium: true, purchaseDate: data.purchaseDate ?? null });
+        // Old users → plus tier
+        set({ tier: 'plus', isPremium: true, purchaseDate: data.purchaseDate ?? null });
+      }
+      // Migrate old tier names
+      const t = data.tier;
+      if (t === 'silver' || t === 'gold') {
+        set({ tier: 'plus', isPremium: true, purchaseDate: data.purchaseDate ?? null });
+      } else if (t === 'diamond') {
+        set({ tier: 'pro', isPremium: true, purchaseDate: data.purchaseDate ?? null });
       }
     } catch {}
   },
@@ -134,7 +141,7 @@ export function getPremiumSpinConfig() {
   return {
     maxFreeSpins: config.freeSpinsPerDay,
     maxPaidSpins: config.freeSpinsPerDay + 2,
-    paidSpinCost: config.tier === 'diamond' ? 0 : 0.2,
+    paidSpinCost: config.tier === 'pro' ? 0 : 0.002,
   };
 }
 

@@ -73,7 +73,7 @@ export function getEffectiveCooldown(action: string): number {
 // breathing.glb = default idle model, Sad.glb = any stat < 50%
 // Excited.glb = burst at 95%+, fallingdown.glb = double-tap easter egg
 // Model switching is handled in PetRenderer via activeModel prop.
-const DEFAULT_MODEL = require('../../assets/pets/breathing.glb');
+const DEFAULT_MODEL = require('../../assets/pets/nomi-combined.glb');
 
 export function getModelForMood(_mood: PetMood) {
   return DEFAULT_MODEL;

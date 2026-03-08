@@ -1,5 +1,5 @@
 import { Transaction, PublicKey, SystemProgram, LAMPORTS_PER_SOL, TransactionInstruction, Keypair } from '@solana/web3.js';
-import { connection } from './solanaClient';
+import { connection, getLatestBlockhashRaw, sendRawTransactionRaw, confirmTransactionRaw } from './solanaClient';
 import { withWallet } from './mobileWalletAdapter';
 
 const MEMO_PROGRAM_ID = new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
@@ -21,9 +21,10 @@ export async function signAndSendTransaction(
     const payer = new PublicKey(address);
     console.log('[solanaTx] signAndSend — payer:', payer.toBase58());
 
-    console.log('[solanaTx] signAndSend — fetching latest blockhash...');
+    // Use raw XMLHttpRequest-based RPC (reliable on Android)
+    console.log('[solanaTx] signAndSend — fetching latest blockhash via raw RPC...');
     const bhStart = Date.now();
-    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
+    const { blockhash, lastValidBlockHeight } = await getLatestBlockhashRaw();
     console.log('[solanaTx] signAndSend — blockhash:', blockhash, 'height:', lastValidBlockHeight, 'in', Date.now() - bhStart, 'ms');
 
     transaction.feePayer = payer;
@@ -51,29 +52,23 @@ export async function signAndSendTransaction(
       throw err;
     }
 
-    console.log('[solanaTx] signAndSend — sending raw transaction...');
+    // Send via raw RPC (XMLHttpRequest, not fetch)
+    console.log('[solanaTx] signAndSend — sending via raw RPC...');
     const sendStart = Date.now();
     let txSig: string;
     try {
-      txSig = await connection.sendRawTransaction(signedTxs[0].serialize(), {
-        skipPreflight: false,
-        preflightCommitment: 'confirmed',
-      });
+      txSig = await sendRawTransactionRaw(signedTxs[0].serialize());
       console.log('[solanaTx] signAndSend — sent in', Date.now() - sendStart, 'ms, signature:', txSig);
     } catch (err: any) {
-      console.error('[solanaTx] signAndSend — sendRawTransaction FAILED after', Date.now() - sendStart, 'ms');
-      console.error('[solanaTx] signAndSend — error:', err.message);
-      console.error('[solanaTx] signAndSend — logs:', err.logs || '(none)');
+      console.error('[solanaTx] signAndSend — send FAILED after', Date.now() - sendStart, 'ms:', err.message);
       throw err;
     }
 
-    console.log('[solanaTx] signAndSend — confirming transaction...');
+    // Confirm via raw RPC polling
+    console.log('[solanaTx] signAndSend — confirming via raw RPC...');
     const confirmStart = Date.now();
     try {
-      await connection.confirmTransaction(
-        { signature: txSig, blockhash, lastValidBlockHeight },
-        'confirmed',
-      );
+      await confirmTransactionRaw(txSig, blockhash, lastValidBlockHeight);
       console.log('[solanaTx] signAndSend — confirmed in', Date.now() - confirmStart, 'ms');
     } catch (err: any) {
       console.error('[solanaTx] signAndSend — confirmation FAILED after', Date.now() - confirmStart, 'ms:', err.message);
@@ -101,8 +96,9 @@ export async function transferSOL(
     const payer = new PublicKey(address);
     console.log('[solanaTx] transferSOL — payer:', payer.toBase58());
 
-    console.log('[solanaTx] transferSOL — fetching blockhash...');
-    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
+    // Use raw XMLHttpRequest-based RPC (reliable on Android)
+    console.log('[solanaTx] transferSOL — fetching blockhash via raw RPC...');
+    const { blockhash, lastValidBlockHeight } = await getLatestBlockhashRaw();
     console.log('[solanaTx] transferSOL — blockhash:', blockhash);
 
     const tx = new Transaction().add(
@@ -127,28 +123,23 @@ export async function transferSOL(
       throw err;
     }
 
-    console.log('[solanaTx] transferSOL — sending...');
+    // Send via raw RPC (XMLHttpRequest, not fetch)
+    console.log('[solanaTx] transferSOL — sending via raw RPC...');
     const sendStart = Date.now();
     let txSig: string;
     try {
-      txSig = await connection.sendRawTransaction(signedTxs[0].serialize(), {
-        skipPreflight: false,
-        preflightCommitment: 'confirmed',
-      });
+      txSig = await sendRawTransactionRaw(signedTxs[0].serialize());
       console.log('[solanaTx] transferSOL — sent in', Date.now() - sendStart, 'ms, signature:', txSig);
     } catch (err: any) {
       console.error('[solanaTx] transferSOL — send FAILED:', err.message);
-      console.error('[solanaTx] transferSOL — logs:', err.logs || '(none)');
       throw err;
     }
 
-    console.log('[solanaTx] transferSOL — confirming...');
+    // Confirm via raw RPC polling
+    console.log('[solanaTx] transferSOL — confirming via raw RPC...');
     const confirmStart = Date.now();
     try {
-      await connection.confirmTransaction(
-        { signature: txSig, blockhash, lastValidBlockHeight },
-        'confirmed',
-      );
+      await confirmTransactionRaw(txSig, blockhash, lastValidBlockHeight);
       console.log('[solanaTx] transferSOL — confirmed in', Date.now() - confirmStart, 'ms');
     } catch (err: any) {
       console.error('[solanaTx] transferSOL — confirmation FAILED:', err.message);
@@ -170,14 +161,11 @@ export async function requestAirdrop(address: string, amountSOL: number = 1): Pr
 
   try {
     const pubkey = new PublicKey(address);
-    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
+    const { blockhash, lastValidBlockHeight } = await getLatestBlockhashRaw();
     console.log('[solanaTx] requestAirdrop — requesting...');
     const sig = await connection.requestAirdrop(pubkey, amountSOL * LAMPORTS_PER_SOL);
     console.log('[solanaTx] requestAirdrop — sig:', sig, '— confirming...');
-    await connection.confirmTransaction(
-      { signature: sig, blockhash, lastValidBlockHeight },
-      'confirmed',
-    );
+    await confirmTransactionRaw(sig, blockhash, lastValidBlockHeight);
     console.log('[solanaTx] requestAirdrop SUCCESS — sig:', sig);
     return sig;
   } catch (err: any) {
@@ -196,7 +184,7 @@ export async function writeMemo(authToken: string, message: string): Promise<str
     const payer = new PublicKey(address);
     console.log('[solanaTx] writeMemo — payer:', payer.toBase58());
 
-    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
+    const { blockhash, lastValidBlockHeight } = await getLatestBlockhashRaw();
     console.log('[solanaTx] writeMemo — blockhash:', blockhash);
 
     const tx = new Transaction().add(
@@ -214,16 +202,10 @@ export async function writeMemo(authToken: string, message: string): Promise<str
     const signedTxs = await wallet.signTransactions({ transactions: [tx] });
     console.log('[solanaTx] writeMemo — signed, sending...');
 
-    const txSig = await connection.sendRawTransaction(signedTxs[0].serialize(), {
-      skipPreflight: false,
-      preflightCommitment: 'confirmed',
-    });
+    const txSig = await sendRawTransactionRaw(signedTxs[0].serialize());
     console.log('[solanaTx] writeMemo — sent, signature:', txSig, '— confirming...');
 
-    await connection.confirmTransaction(
-      { signature: txSig, blockhash, lastValidBlockHeight },
-      'confirmed',
-    );
+    await confirmTransactionRaw(txSig, blockhash, lastValidBlockHeight);
 
     console.log('[solanaTx] writeMemo SUCCESS — signature:', txSig);
     return txSig;

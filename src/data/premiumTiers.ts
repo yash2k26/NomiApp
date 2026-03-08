@@ -1,4 +1,4 @@
-export type PremiumTier = 'none' | 'silver' | 'gold' | 'diamond';
+export type PremiumTier = 'none' | 'plus' | 'pro';
 
 export interface TierConfig {
   tier: PremiumTier;
@@ -38,46 +38,28 @@ export const TIER_CONFIGS: Record<PremiumTier, TierConfig> = {
     glowEffect: 'none',
     calendarXpMultiplier: 1.0,
   },
-  silver: {
-    tier: 'silver',
-    label: 'Silver',
-    price: 5,
-    emoji: '\u{1FA99}',
-    gradientColors: ['#C0C0C0', '#A8A8A8'],
-    staminaRegenPerHour: 15,
-    cooldownMultiplier: 0.75,
-    xpBonus: 0.25,
-    freeSpinsPerDay: 2,
-    lootBonus: 0,
-    allShopItemsFree: false,
-    miniGameCooldown: true,
-    exclusiveItemTags: [],
-    badgeColor: '#C0C0C0',
-    glowEffect: 'none',
-    calendarXpMultiplier: 1.25,
-  },
-  gold: {
-    tier: 'gold',
-    label: 'Gold',
-    price: 15,
-    emoji: '\u{1F451}',
-    gradientColors: ['#FFD700', '#CCA800'],
+  plus: {
+    tier: 'plus',
+    label: 'Plus',
+    price: 0.005,
+    emoji: '\u{2B50}',
+    gradientColors: ['#9381FF', '#766BD1'],
     staminaRegenPerHour: 20,
     cooldownMultiplier: 0.5,
-    xpBonus: 0.50,
+    xpBonus: 0.35,
     freeSpinsPerDay: 3,
     lootBonus: 0.10,
     allShopItemsFree: false,
     miniGameCooldown: true,
-    exclusiveItemTags: ['gold_exclusive'],
-    badgeColor: '#FFD700',
+    exclusiveItemTags: ['plus_exclusive'],
+    badgeColor: '#9381FF',
     glowEffect: 'gold_glow',
     calendarXpMultiplier: 1.5,
   },
-  diamond: {
-    tier: 'diamond',
-    label: 'Diamond',
-    price: 30,
+  pro: {
+    tier: 'pro',
+    label: 'Pro',
+    price: 0.01,
     emoji: '\u{1F48E}',
     gradientColors: ['#B9F2FF', '#7DF9FF'],
     staminaRegenPerHour: 30,
@@ -87,14 +69,14 @@ export const TIER_CONFIGS: Record<PremiumTier, TierConfig> = {
     lootBonus: 0.20,
     allShopItemsFree: true,
     miniGameCooldown: false,
-    exclusiveItemTags: ['gold_exclusive', 'diamond_exclusive'],
+    exclusiveItemTags: ['plus_exclusive', 'pro_exclusive'],
     badgeColor: '#7DF9FF',
     glowEffect: 'diamond_aura',
     calendarXpMultiplier: 1.75,
   },
 };
 
-export const TIER_ORDER: PremiumTier[] = ['none', 'silver', 'gold', 'diamond'];
+export const TIER_ORDER: PremiumTier[] = ['none', 'plus', 'pro'];
 
 export function getTierOrdinal(tier: PremiumTier): number {
   return TIER_ORDER.indexOf(tier);

@@ -9,22 +9,32 @@ import { playSfx } from '../lib/soundManager';
 
 const SPIN_DURATION_MS = 4500;
 const SEGMENT_COUNT = SPIN_SEGMENTS.length;
-const SEGMENT_ANGLE = 360 / SEGMENT_COUNT;
-const SEGMENT_COLORS = ['#1E6B92', '#2A7EA8', '#3592BD', '#41A3CC', '#4BB3D8', '#2F8AB1'];
+const SEGMENT_ANGLE_DEG = 360 / SEGMENT_COUNT;
+
+const WHEEL_SIZE = Math.min(300, Math.max(260, Dimensions.get('window').width * 0.72));
+const CENTER = WHEEL_SIZE / 2;
+const RADIUS = WHEEL_SIZE / 2;
+
+// Alternating app-blue tones
+const SEGMENT_COLORS = [
+  '#4FABC9', '#D9F0F7', '#3E8AB3', '#EAF6FB', '#67BCD6',
+  '#4FABC9', '#D9F0F7', '#3E8AB3', '#EAF6FB', '#67BCD6',
+];
 
 const RARITY_CONFIGS = {
-  epic: { bg: ['#2B6B8F', '#1A5577'] as [string, string], label: 'EPIC', glow: '#2B6B8F' },
-  rare: { bg: ['#4A9ECB', '#367EA8'] as [string, string], label: 'RARE', glow: '#4A9ECB' },
-  common: { bg: ['#6BB8D9', '#4FA3C7'] as [string, string], label: 'COMMON', glow: '#6BB8D9' },
+  epic: { bg: ['#4FABC9', '#3E8AB3'] as [string, string], label: 'EPIC', glow: '#4FABC9' },
+  rare: { bg: ['#67BCD6', '#3E8AB3'] as [string, string], label: 'RARE', glow: '#67BCD6' },
+  common: { bg: ['#86CFE2', '#4FABC9'] as [string, string], label: 'COMMON', glow: '#86CFE2' },
 };
 
+/* ── Result Modal ── */
 function SpinResultModal({ result, visible, onClaim }: { result: SpinResult | null; visible: boolean; onClaim: () => void }) {
   if (!visible || !result) return null;
   const config = RARITY_CONFIGS[result.rarity] ?? RARITY_CONFIGS.common;
 
   return (
     <Modal transparent animationType="fade" visible={visible}>
-      <View className="flex-1 bg-black/60 items-center justify-center px-7">
+      <View className="flex-1 bg-black/50 items-center justify-center px-7">
         <View
           style={{
             backgroundColor: '#fff',
@@ -33,16 +43,18 @@ function SpinResultModal({ result, visible, onClaim }: { result: SpinResult | nu
             alignItems: 'center',
             paddingHorizontal: 28,
             paddingVertical: 36,
+            borderWidth: 1,
+            borderColor: '#f3f4f6',
             shadowColor: config.glow,
             shadowOffset: { width: 0, height: 20 },
-            shadowOpacity: 0.35,
+            shadowOpacity: 0.2,
             shadowRadius: 30,
             elevation: 16,
           }}
         >
           <View
             style={{
-              backgroundColor: config.glow + '18',
+              backgroundColor: config.glow + '15',
               borderColor: config.glow + '40',
               borderWidth: 1,
               borderRadius: 20,
@@ -61,7 +73,7 @@ function SpinResultModal({ result, visible, onClaim }: { result: SpinResult | nu
               width: 96,
               height: 96,
               borderRadius: 48,
-              backgroundColor: config.glow + '10',
+              backgroundColor: config.glow + '12',
               borderWidth: 2,
               borderColor: config.glow + '25',
               alignItems: 'center',
@@ -72,45 +84,45 @@ function SpinResultModal({ result, visible, onClaim }: { result: SpinResult | nu
             <Text style={{ fontSize: 48 }}>{result.emoji}</Text>
           </View>
 
-          <Text style={{ fontSize: 22, color: '#1F3A4D', marginBottom: 6, textAlign: 'center', fontFamily: petTypography.display }}>
+          <Text style={{ fontSize: 22, color: '#1f2937', marginBottom: 6, textAlign: 'center', fontFamily: petTypography.display }}>
             {result.label}
           </Text>
 
           <View
             style={{
               width: '100%',
-              backgroundColor: '#F0F8FF',
+              backgroundColor: '#f9fafb',
               borderRadius: 18,
               paddingHorizontal: 20,
               paddingVertical: 14,
               marginTop: 10,
               marginBottom: 20,
               borderWidth: 1,
-              borderColor: '#D6ECFA',
+              borderColor: '#f3f4f6',
             }}
           >
             {result.xp > 0 && (
-              <Text style={{ fontSize: 14, textAlign: 'center', color: '#2B6B8F', marginBottom: 3, fontFamily: petTypography.strong }}>
+              <Text style={{ fontSize: 14, textAlign: 'center', color: '#3E8AB3', marginBottom: 3, fontFamily: petTypography.strong }}>
                 +{result.xp} XP
               </Text>
             )}
             {result.staminaRefill && (
-              <Text style={{ fontSize: 14, textAlign: 'center', color: '#2B6B8F', marginBottom: 3, fontFamily: petTypography.strong }}>
+              <Text style={{ fontSize: 14, textAlign: 'center', color: '#3E8AB3', marginBottom: 3, fontFamily: petTypography.strong }}>
                 {'\u26A1'} Stamina Refilled
               </Text>
             )}
             {result.doubleXpMinutes > 0 && (
-              <Text style={{ fontSize: 14, textAlign: 'center', color: '#2B6B8F', marginBottom: 3, fontFamily: petTypography.strong }}>
+              <Text style={{ fontSize: 14, textAlign: 'center', color: '#3E8AB3', marginBottom: 3, fontFamily: petTypography.strong }}>
                 {'\u2728'} 2x XP for {result.doubleXpMinutes}min
               </Text>
             )}
             {result.freeItem && (
-              <Text style={{ fontSize: 14, textAlign: 'center', color: '#2B6B8F', marginBottom: 3, fontFamily: petTypography.strong }}>
+              <Text style={{ fontSize: 14, textAlign: 'center', color: '#3E8AB3', marginBottom: 3, fontFamily: petTypography.strong }}>
                 {'\u{1F381}'} Free Item Token
               </Text>
             )}
             {result.shard && (
-              <Text style={{ fontSize: 14, textAlign: 'center', color: '#2B6B8F', fontFamily: petTypography.strong }}>
+              <Text style={{ fontSize: 14, textAlign: 'center', color: '#3E8AB3', fontFamily: petTypography.strong }}>
                 {'\u{1F48E}'} Evolution Shard
               </Text>
             )}
@@ -129,212 +141,13 @@ function SpinResultModal({ result, visible, onClaim }: { result: SpinResult | nu
   );
 }
 
-function WheelView({ size }: { size: number }) {
-  const radius = size / 2;
-  const sliceWidth = radius * Math.tan((SEGMENT_ANGLE * Math.PI) / 360) * 2;
-
-  return (
-    <View
-      style={{
-        width: size,
-        height: size,
-        borderRadius: radius,
-        overflow: 'hidden',
-        backgroundColor: SEGMENT_COLORS[0],
-      }}
-    >
-      <View
-        style={{
-          position: 'absolute',
-          width: size,
-          height: size,
-          borderRadius: radius,
-          borderWidth: 8,
-          borderColor: '#0F4868',
-          zIndex: 20,
-        }}
-        pointerEvents="none"
-      />
-      <View
-        style={{
-          position: 'absolute',
-          top: 10,
-          left: 10,
-          width: size - 20,
-          height: size - 20,
-          borderRadius: (size - 20) / 2,
-          borderWidth: 2,
-          borderColor: 'rgba(255,255,255,0.35)',
-          zIndex: 21,
-        }}
-        pointerEvents="none"
-      />
-
-      {SPIN_SEGMENTS.map((seg, i) => {
-        const rotation = i * SEGMENT_ANGLE;
-        const color = SEGMENT_COLORS[i % SEGMENT_COLORS.length];
-
-        return (
-          <View
-            key={i}
-            style={{
-              position: 'absolute',
-              width: size,
-              height: size,
-              transform: [{ rotate: `${rotation}deg` }],
-            }}
-          >
-            <View
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: radius - sliceWidth / 2,
-                width: sliceWidth,
-                height: radius,
-                backgroundColor: color,
-              }}
-            />
-            <View
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: radius - 0.5,
-                width: 1,
-                height: radius,
-                backgroundColor: 'rgba(255,255,255,0.22)',
-              }}
-            />
-            <View
-              style={{
-                position: 'absolute',
-                top: radius * 0.16,
-                left: 0,
-                width: size,
-                alignItems: 'center',
-              }}
-              pointerEvents="none"
-            >
-              <Text style={{ fontSize: 16, marginBottom: 2 }}>{seg.emoji}</Text>
-              <Text
-                style={{
-                  color: '#fff',
-                  fontSize: 8,
-                  fontFamily: petTypography.strong,
-                  textAlign: 'center',
-                  textShadowColor: 'rgba(0,0,0,0.45)',
-                  textShadowOffset: { width: 0, height: 1 },
-                  textShadowRadius: 3,
-                  letterSpacing: 0.2,
-                }}
-                numberOfLines={1}
-              >
-                {seg.label}
-              </Text>
-            </View>
-          </View>
-        );
-      })}
-
-      {Array.from({ length: SEGMENT_COUNT }).map((_, i) => {
-        const angle = (i * SEGMENT_ANGLE * Math.PI) / 180;
-        const dotRadius = radius - 14;
-        const x = radius + dotRadius * Math.sin(angle) - 2.5;
-        const y = radius - dotRadius * Math.cos(angle) - 2.5;
-        return (
-          <View
-            key={`dot-${i}`}
-            style={{
-              position: 'absolute',
-              left: x,
-              top: y,
-              width: 5,
-              height: 5,
-              borderRadius: 2.5,
-              backgroundColor: 'rgba(255,255,255,0.85)',
-              zIndex: 15,
-            }}
-            pointerEvents="none"
-          />
-        );
-      })}
-
-      <View
-        style={{
-          position: 'absolute',
-          top: radius - 36,
-          left: radius - 36,
-          width: 72,
-          height: 72,
-          borderRadius: 36,
-          backgroundColor: '#0F4868',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 25,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.3,
-          shadowRadius: 8,
-          elevation: 8,
-        }}
-      >
-        <View
-          style={{
-            width: 58,
-            height: 58,
-            borderRadius: 29,
-            backgroundColor: '#fff',
-            alignItems: 'center',
-            justifyContent: 'center',
-            borderWidth: 3,
-            borderColor: '#CCE6F5',
-          }}
-        >
-          <Text style={{ fontSize: 24 }}>{'\u{1F3B0}'}</Text>
-        </View>
-      </View>
-    </View>
-  );
-}
-
-function Pointer() {
-  return (
-    <View style={{ zIndex: 30, alignItems: 'center' }}>
-      <View
-        style={{
-          width: 0,
-          height: 0,
-          borderLeftWidth: 13,
-          borderRightWidth: 13,
-          borderTopWidth: 22,
-          borderLeftColor: 'transparent',
-          borderRightColor: 'transparent',
-          borderTopColor: '#0F4868',
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.25,
-          shadowRadius: 4,
-          elevation: 6,
-        }}
-      />
-      <View
-        style={{
-          width: 12,
-          height: 12,
-          borderRadius: 6,
-          backgroundColor: '#0F4868',
-          marginTop: -3,
-        }}
-      />
-    </View>
-  );
-}
-
+/* ── Insufficient Funds Modal ── */
 function InsufficientFundsSpinModal({ visible, required, available, onClose }: { visible: boolean; required: number; available: number; onClose: () => void }) {
   if (!visible) return null;
   const shortage = Math.max(0, required - available);
   return (
     <Modal transparent animationType="fade" visible={visible}>
-      <View className="flex-1 bg-black/60 items-center justify-center px-7">
+      <View className="flex-1 bg-black/50 items-center justify-center px-7">
         <View
           style={{
             backgroundColor: '#fff',
@@ -343,25 +156,27 @@ function InsufficientFundsSpinModal({ visible, required, available, onClose }: {
             paddingHorizontal: 24,
             paddingVertical: 28,
             alignItems: 'center',
+            borderWidth: 1,
+            borderColor: '#f3f4f6',
             shadowColor: '#000',
             shadowOffset: { width: 0, height: 12 },
-            shadowOpacity: 0.2,
+            shadowOpacity: 0.15,
             shadowRadius: 20,
             elevation: 14,
           }}
         >
-          <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#FEF2F2', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+          <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#f3f0ff', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
             <Text style={{ fontSize: 36 }}>{'\u{1F4B8}'}</Text>
           </View>
 
-          <Text style={{ fontSize: 20, color: '#1F3A4D', marginBottom: 6, fontFamily: petTypography.display }}>
+          <Text style={{ fontSize: 20, color: '#1f2937', marginBottom: 6, fontFamily: petTypography.display }}>
             Insufficient SOL
           </Text>
-          <Text style={{ fontSize: 13, color: '#7892A2', textAlign: 'center', marginBottom: 18, fontFamily: petTypography.body }}>
+          <Text style={{ fontSize: 13, color: '#9ca3af', textAlign: 'center', marginBottom: 18, fontFamily: petTypography.body }}>
             You need more SOL to spin the wheel.
           </Text>
 
-          <View style={{ width: '100%', backgroundColor: '#FEF2F2', borderRadius: 16, padding: 14, borderWidth: 1, borderColor: '#FECACA', marginBottom: 20 }}>
+          <View style={{ width: '100%', backgroundColor: '#f9fafb', borderRadius: 16, padding: 14, borderWidth: 1, borderColor: '#f3f4f6', marginBottom: 20 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
               <Text style={{ fontSize: 12, color: '#9ca3af', fontFamily: petTypography.body }}>Spin Cost</Text>
               <Text style={{ fontSize: 12, color: '#374151', fontFamily: petTypography.strong }}>{required} SOL</Text>
@@ -370,7 +185,7 @@ function InsufficientFundsSpinModal({ visible, required, available, onClose }: {
               <Text style={{ fontSize: 12, color: '#9ca3af', fontFamily: petTypography.body }}>Your Balance</Text>
               <Text style={{ fontSize: 12, color: '#374151', fontFamily: petTypography.strong }}>{available.toFixed(4)} SOL</Text>
             </View>
-            <View style={{ height: 1, backgroundColor: '#FECACA', marginVertical: 4 }} />
+            <View style={{ height: 1, backgroundColor: '#e5e7eb', marginVertical: 4 }} />
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
               <Text style={{ fontSize: 12, color: '#EF4444', fontFamily: petTypography.strong }}>Shortage</Text>
               <Text style={{ fontSize: 12, color: '#EF4444', fontFamily: petTypography.strong }}>{shortage.toFixed(4)} SOL</Text>
@@ -390,6 +205,210 @@ function InsufficientFundsSpinModal({ visible, required, available, onClose }: {
   );
 }
 
+/*
+ * ── Wheel built with pure RN Views ──
+ *
+ * Each segment is a tall rectangle (width = sliceWidth, height = RADIUS)
+ * anchored at the center and rotated to its position. The outer container
+ * clips everything into a circle via borderRadius. This is the same
+ * technique the app originally used — proven to work on Android/iOS.
+ */
+function WheelView() {
+  const sliceWidth = 2 * RADIUS * Math.tan((SEGMENT_ANGLE_DEG * Math.PI) / 360);
+
+  return (
+    <View
+      style={{
+        width: WHEEL_SIZE,
+        height: WHEEL_SIZE,
+        borderRadius: RADIUS,
+        overflow: 'hidden',
+        backgroundColor: '#F1F9FC',
+      }}
+    >
+      {/* Outer ring */}
+      <View
+        style={{
+          position: 'absolute',
+          width: WHEEL_SIZE,
+          height: WHEEL_SIZE,
+          borderRadius: RADIUS,
+          borderWidth: 5,
+          borderColor: '#4FABC9',
+          zIndex: 20,
+        }}
+        pointerEvents="none"
+      />
+
+      {/* Segments */}
+      {SPIN_SEGMENTS.map((seg, i) => {
+        const rotation = i * SEGMENT_ANGLE_DEG;
+        const color = SEGMENT_COLORS[i % SEGMENT_COLORS.length];
+        const isDark = !(color.startsWith('#D') || color.startsWith('#E') || color.startsWith('#F'));
+
+        return (
+          <View
+            key={i}
+            style={{
+              position: 'absolute',
+              width: WHEEL_SIZE,
+              height: WHEEL_SIZE,
+              transform: [{ rotate: `${rotation}deg` }],
+            }}
+          >
+            {/* Colored slice */}
+            <View
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: CENTER - sliceWidth / 2,
+                width: sliceWidth,
+                height: RADIUS,
+                backgroundColor: color,
+              }}
+            />
+            {/* Divider line */}
+            <View
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: CENTER - 0.5,
+                width: 1,
+                height: RADIUS,
+                backgroundColor: 'rgba(255,255,255,0.35)',
+              }}
+            />
+            {/* Emoji + label */}
+            <View
+              style={{
+                position: 'absolute',
+                top: RADIUS * 0.1,
+                left: 0,
+                width: WHEEL_SIZE,
+                alignItems: 'center',
+              }}
+              pointerEvents="none"
+            >
+              <View
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: 15,
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.18)' : 'rgba(79,171,201,0.12)',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: 2,
+                }}
+              >
+                <Text style={{ fontSize: 15 }}>{seg.emoji}</Text>
+              </View>
+              <Text
+                style={{
+                  color: isDark ? '#fff' : '#2D6B90',
+                  fontSize: 7,
+                  fontWeight: '800',
+                  textAlign: 'center',
+                  letterSpacing: 0.2,
+                  textShadowColor: isDark ? 'rgba(0,0,0,0.3)' : 'transparent',
+                  textShadowOffset: { width: 0, height: 1 },
+                  textShadowRadius: isDark ? 2 : 0,
+                }}
+                numberOfLines={1}
+              >
+                {seg.label}
+              </Text>
+            </View>
+          </View>
+        );
+      })}
+
+      {/* Decorative dots around the rim */}
+      {Array.from({ length: SEGMENT_COUNT * 2 }).map((_, i) => {
+        const angle = (i * (360 / (SEGMENT_COUNT * 2)) * Math.PI) / 180;
+        const dotR = RADIUS - 10;
+        const x = CENTER + dotR * Math.sin(angle) - 2.5;
+        const y = CENTER - dotR * Math.cos(angle) - 2.5;
+        return (
+          <View
+            key={`dot-${i}`}
+            style={{
+              position: 'absolute',
+              left: x,
+              top: y,
+              width: 5,
+              height: 5,
+              borderRadius: 2.5,
+              backgroundColor: i % 2 === 0 ? 'rgba(79,171,201,0.75)' : 'rgba(255,255,255,0.7)',
+              zIndex: 15,
+            }}
+            pointerEvents="none"
+          />
+        );
+      })}
+
+      {/* Center hub */}
+      <View
+        style={{
+          position: 'absolute',
+          top: CENTER - 30,
+          left: CENTER - 30,
+          width: 60,
+          height: 60,
+          borderRadius: 30,
+          backgroundColor: '#fff',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 25,
+          borderWidth: 3,
+          borderColor: '#4FABC9',
+          shadowColor: '#4FABC9',
+          shadowOffset: { width: 0, height: 0 },
+          shadowOpacity: 0.3,
+          shadowRadius: 10,
+          elevation: 6,
+        }}
+      >
+        <Text style={{ fontSize: 22 }}>{'\u{1F3B0}'}</Text>
+      </View>
+    </View>
+  );
+}
+
+/* ── Pointer ── */
+function Pointer() {
+  return (
+    <View style={{ zIndex: 30, alignItems: 'center', marginBottom: -8 }}>
+      <View
+        style={{
+          width: 0,
+          height: 0,
+          borderLeftWidth: 15,
+          borderRightWidth: 15,
+          borderTopWidth: 26,
+          borderLeftColor: 'transparent',
+          borderRightColor: 'transparent',
+          borderTopColor: '#4FABC9',
+          shadowColor: '#4FABC9',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.35,
+          shadowRadius: 8,
+          elevation: 6,
+        }}
+      />
+      <View
+        style={{
+          width: 10,
+          height: 10,
+          borderRadius: 5,
+          backgroundColor: '#A7D7E6',
+          marginTop: -5,
+        }}
+      />
+    </View>
+  );
+}
+
+/* ── Main SpinWheel ── */
 export function SpinWheel() {
   const { canSpinToday, doSpin, claimSpinReward, lastSpinDate, extraSpinsToday } = useAdventureStore();
   const balance = useWalletStore((s) => s.balance);
@@ -406,9 +425,7 @@ export function SpinWheel() {
   const isFreeSpin = lastSpinDate !== today;
   const canSpin = canSpinToday() && !spinning;
   const paidSpinsRemaining = Math.max(0, 3 - extraSpinsToday);
-  const PAID_SPIN_COST = 0.2;
-
-  const wheelSize = Math.min(292, Math.max(248, Dimensions.get('window').width * 0.67));
+  const PAID_SPIN_COST = 0.002;
 
   useEffect(() => {
     pulseLoop.current?.stop();
@@ -429,7 +446,6 @@ export function SpinWheel() {
   const handleSpin = useCallback(() => {
     if (!canSpin) return;
 
-    // Check balance for paid spins before attempting
     if (!isFreeSpin && balance < PAID_SPIN_COST) {
       setShowFundsModal(true);
       return;
@@ -444,7 +460,7 @@ export function SpinWheel() {
 
     const idx = Math.max(0, SPIN_SEGMENTS.findIndex((s) => s.label === spinResult.label));
     const fullSpins = 5 + Math.floor(Math.random() * 3);
-    const segmentOffset = idx * SEGMENT_ANGLE + SEGMENT_ANGLE / 2;
+    const segmentOffset = idx * SEGMENT_ANGLE_DEG + SEGMENT_ANGLE_DEG / 2;
     const targetDeg = currentRotation.current + fullSpins * 360 + (360 - segmentOffset);
 
     spinAnim.setValue(currentRotation.current);
@@ -474,100 +490,81 @@ export function SpinWheel() {
       ? 'No Spins Left'
       : isFreeSpin
         ? 'Free Spin!'
-        : 'Spin (0.2 SOL)';
+        : 'Spin (0.002 SOL)';
 
   return (
     <View style={{ paddingHorizontal: 24, marginTop: 16 }}>
       <View
+        className="bg-white rounded-[28px] overflow-hidden border border-gray-100"
         style={{
-          backgroundColor: '#fff',
-          borderRadius: 28,
-          borderWidth: 1,
-          borderColor: '#D8E8F3',
-          shadowColor: '#10344A',
+          shadowColor: '#2D6B90',
           shadowOffset: { width: 0, height: 8 },
           shadowOpacity: 0.08,
-          shadowRadius: 16,
-          elevation: 5,
-          paddingHorizontal: 16,
-          paddingTop: 16,
-          paddingBottom: 18,
+          shadowRadius: 14,
+          elevation: 4,
         }}
       >
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-          <View>
-            <Text style={{ color: '#194760', fontSize: 18, fontFamily: petTypography.display }}>Lucky Wheel</Text>
-            <Text style={{ color: '#6D8494', fontSize: 11, fontFamily: petTypography.body, marginTop: 1 }}>
-              Spin daily for rewards and rare drops
+        {/* Header */}
+        <LinearGradient
+          colors={['#4FABC9', '#3E8AB3']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={{ paddingHorizontal: 20, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={{ fontSize: 16, marginRight: 8 }}>{'\u{1F3B0}'}</Text>
+            <Text style={{ fontSize: 11, fontWeight: '900', color: '#fff', letterSpacing: 0.9, textTransform: 'uppercase' }}>Spin To Win</Text>
+          </View>
+          <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 10, paddingVertical: 3, borderRadius: 12 }}>
+            <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700', letterSpacing: 0.5 }}>
+              {isFreeSpin ? '\u2728 FREE SPIN' : `${paidSpinsRemaining} LEFT`}
             </Text>
           </View>
-          <View style={{ backgroundColor: isFreeSpin ? '#FFEEC1' : '#E8F2F8', borderWidth: 1, borderColor: isFreeSpin ? '#EBCB75' : '#D2E3EE', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14 }}>
-            <Text style={{ color: isFreeSpin ? '#8B6500' : '#2D5D79', fontSize: 10, fontFamily: petTypography.strong, letterSpacing: 0.8 }}>
-              {isFreeSpin ? 'FREE SPIN' : `${paidSpinsRemaining} LEFT`}
-            </Text>
-          </View>
-        </View>
+        </LinearGradient>
 
-        <View style={{ backgroundColor: '#F3FAFF', borderRadius: 22, borderWidth: 1, borderColor: '#DDECF6', paddingTop: 12, paddingBottom: 16, alignItems: 'center' }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
-            <View style={{ backgroundColor: '#E5F2FB', borderWidth: 1, borderColor: '#D1E7F5', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, marginRight: 6 }}>
-              <Text style={{ color: '#2A6686', fontSize: 10, fontFamily: petTypography.strong }}>
-                {'\u{1F3B0}'} Daily chance
-              </Text>
-            </View>
-            <View style={{ backgroundColor: '#EAF4FB', borderWidth: 1, borderColor: '#D5E7F2', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 }}>
-              <Text style={{ color: '#547286', fontSize: 10, fontFamily: petTypography.body }}>{'\u{1F48E}'} Rare drops</Text>
-            </View>
-          </View>
+        {/* Body */}
+        <View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 20, alignItems: 'center' }}>
+          <Text style={{ color: '#6D8798', fontSize: 12, fontFamily: petTypography.body, textAlign: 'center', marginBottom: 14 }}>
+            Spin the wheel for exclusive assured rewards
+          </Text>
 
-          <View style={{ alignItems: 'center', justifyContent: 'center', width: wheelSize + 24, height: wheelSize + 52 }}>
-            <Pointer />
-            <View
-              style={{
-                marginTop: 10,
-                width: wheelSize + 20,
-                height: wheelSize + 20,
-                borderRadius: (wheelSize + 20) / 2,
-                backgroundColor: '#E7F3FB',
-                borderWidth: 1,
-                borderColor: '#CFE5F3',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Animated.View style={{ transform: [{ rotate: rotateInterpolate }] }}>
-                <WheelView size={wheelSize} />
-              </Animated.View>
-            </View>
-          </View>
+          {/* Pointer */}
+          <Pointer />
 
-          <Animated.View style={{ width: '100%', paddingHorizontal: 16, marginTop: 14, transform: [{ scale: canSpin && !spinning ? pulseAnim : 1 }] }}>
+          {/* Wheel */}
+          <Animated.View style={{ transform: [{ rotate: rotateInterpolate }] }}>
+            <WheelView />
+          </Animated.View>
+
+          {/* Spin button */}
+          <Animated.View style={{ width: '100%', paddingHorizontal: 8, marginTop: 20, transform: [{ scale: canSpin && !spinning ? pulseAnim : 1 }] }}>
             <TouchableOpacity onPress={handleSpin} disabled={!canSpin} activeOpacity={0.85}>
               <LinearGradient
-                colors={canSpin ? ['#1B6389', '#2F8BB7'] : ['#C5CDD5', '#9CA3AF']}
+                colors={canSpin
+                  ? (spinning ? ['#3E8AB3', '#32779E'] : ['#4FABC9', '#3E8AB3'])
+                  : ['#d1d5db', '#9ca3af']
+                }
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={{
-                  paddingVertical: 14,
+                  paddingVertical: 16,
                   borderRadius: 18,
                   alignItems: 'center',
-                  borderWidth: canSpin ? 1 : 0,
-                  borderColor: canSpin ? '#90C9E4' : 'transparent',
-                  shadowColor: canSpin ? '#1A5A7A' : '#000',
+                  shadowColor: canSpin ? '#3E8AB3' : '#000',
                   shadowOffset: { width: 0, height: 6 },
-                  shadowOpacity: canSpin ? 0.22 : 0.08,
+                  shadowOpacity: canSpin ? 0.3 : 0.05,
                   shadowRadius: 10,
-                  elevation: canSpin ? 5 : 2,
+                  elevation: canSpin ? 5 : 1,
                 }}
               >
-                <Text style={{ color: '#fff', fontSize: 15, letterSpacing: 1.2, fontFamily: petTypography.strong, textTransform: 'uppercase' }}>
+                <Text style={{ color: '#fff', fontSize: 15, letterSpacing: 1, fontFamily: petTypography.strong, textTransform: 'uppercase' }}>
                   {buttonLabel}
                 </Text>
               </LinearGradient>
             </TouchableOpacity>
           </Animated.View>
 
-          <Text style={{ fontSize: 10, color: '#7892A2', marginTop: 10, fontFamily: petTypography.body }}>
+          <Text style={{ fontSize: 10, color: '#7A95A6', marginTop: 12, fontFamily: petTypography.body, textAlign: 'center' }}>
             {isFreeSpin ? 'Your free spin is ready today.' : `${paidSpinsRemaining} paid spin${paidSpinsRemaining !== 1 ? 's' : ''} remaining today.`}
           </Text>
         </View>

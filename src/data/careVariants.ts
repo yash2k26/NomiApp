@@ -65,7 +65,7 @@ export const FEED_VARIANTS: CareVariant[] = [
     staminaCost: 25,
     xpReward: 18,
     cooldownKey: 'feed_golden',
-    unlockCondition: { type: 'premium', tierRequired: 'gold' },
+    unlockCondition: { type: 'premium', tierRequired: 'plus' },
   },
 ];
 
@@ -114,7 +114,7 @@ export const PLAY_VARIANTS: CareVariant[] = [
     staminaCost: 25,
     xpReward: 22,
     cooldownKey: 'play_vr',
-    unlockCondition: { type: 'premium', tierRequired: 'diamond' },
+    unlockCondition: { type: 'premium', tierRequired: 'pro' },
   },
 ];
 
@@ -151,7 +151,7 @@ export const REST_VARIANTS: CareVariant[] = [
     staminaCost: 15,
     xpReward: 12,
     cooldownKey: 'rest_spa',
-    unlockCondition: { type: 'premium', tierRequired: 'silver' },
+    unlockCondition: { type: 'premium', tierRequired: 'plus' },
   },
   {
     id: 'rest_cloud',
@@ -163,7 +163,7 @@ export const REST_VARIANTS: CareVariant[] = [
     staminaCost: 15,
     xpReward: 15,
     cooldownKey: 'rest_cloud',
-    unlockCondition: { type: 'premium', tierRequired: 'diamond' },
+    unlockCondition: { type: 'premium', tierRequired: 'pro' },
   },
 ];
 

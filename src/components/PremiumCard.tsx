@@ -8,28 +8,22 @@ import { type PremiumTier, TIER_CONFIGS, TIER_ORDER, getTierOrdinal, getUpgradeC
 import { getSolscanTxUrl } from '../lib/solanaClient';
 
 const TIER_PERKS: Record<Exclude<PremiumTier, 'none'>, { emoji: string; text: string }[]> = {
-  silver: [
-    { emoji: '\u26A1', text: '1.5x stamina regen speed' },
-    { emoji: '\u{23F1}', text: '25% faster cooldowns' },
-    { emoji: '\u{2B50}', text: '+25% XP bonus' },
-    { emoji: '\u{1F3B0}', text: '2 free spins/day' },
-  ],
-  gold: [
+  plus: [
     { emoji: '\u26A1', text: '2x stamina regen speed' },
     { emoji: '\u{23F1}', text: '50% faster cooldowns' },
-    { emoji: '\u{2B50}', text: '+50% XP bonus' },
+    { emoji: '\u{2B50}', text: '+35% XP bonus' },
     { emoji: '\u{1F3B0}', text: '3 free spins/day' },
     { emoji: '\u{1F4E6}', text: '+10% rare & legendary loot' },
-    { emoji: '\u{1F31F}', text: 'Exclusive gold items' },
+    { emoji: '\u{1F31F}', text: 'Exclusive Plus items' },
   ],
-  diamond: [
+  pro: [
     { emoji: '\u26A1', text: '3x stamina regen speed' },
     { emoji: '\u{23F1}', text: '75% faster cooldowns' },
     { emoji: '\u{2B50}', text: '+75% XP bonus' },
     { emoji: '\u{1F3B0}', text: '5 free spins/day' },
     { emoji: '\u{1F4E6}', text: '+20% rare & legendary loot' },
     { emoji: '\u{1F451}', text: 'All accessories free' },
-    { emoji: '\u{1F48E}', text: 'Diamond-exclusive items' },
+    { emoji: '\u{1F48E}', text: 'Pro-exclusive items' },
     { emoji: '\u{1F3AE}', text: 'No mini-game cooldowns' },
   ],
 };
@@ -47,7 +41,7 @@ function TierOption({ tier, currentTier, onPurchase, purchasing }: TierOptionPro
   const isBelow = getTierOrdinal(currentTier) > getTierOrdinal(tier);
   const cost = getUpgradeCost(currentTier, tier);
   const perks = TIER_PERKS[tier];
-  const isPopular = tier === 'gold';
+  const isPopular = tier === 'plus';
 
   return (
     <View
@@ -214,10 +208,10 @@ export function PremiumCard() {
       </LinearGradient>
 
       <View className="px-4 py-4">
-        {tier === 'diamond' ? (
+        {tier === 'pro' ? (
           <View className="items-center mb-2">
             <Text className="text-[18px] font-black text-gray-800">
-              {'\u{1F48E}'} Diamond Member
+              {'\u{1F48E}'} Pro Member
             </Text>
             <Text className="text-[12px] text-gray-500 font-semibold mt-1">
               All perks active. You're legendary!
