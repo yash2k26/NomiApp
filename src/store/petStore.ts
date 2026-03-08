@@ -160,6 +160,8 @@ interface PetActions {
   startCooldown: (action: string) => void;
   // Variant-based care action
   performCareAction: (variantId: string) => boolean;
+  // On-chain restore
+  restoreFromChain: (data: { streak: number; name: string; lastActive: string }) => void;
 }
 
 type PetStore = PetState & PetActions;
@@ -715,5 +717,16 @@ export const usePetStore = create<PetStore>((set, get) => ({
     } catch {}
 
     savePetState(get());
+  },
+
+  restoreFromChain: (data: { streak: number; name: string; lastActive: string }) => {
+    set({
+      streakDays: data.streak,
+      name: data.name,
+      lastActiveDate: data.lastActive,
+      hasPet: true,
+    });
+    savePetState(get());
+    console.log('[petStore] restoreFromChain — restored:', data);
   },
 }));

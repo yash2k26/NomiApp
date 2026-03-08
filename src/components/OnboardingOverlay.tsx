@@ -25,16 +25,22 @@ export function OnboardingOverlay({ onDone }: { onDone: () => void }) {
   const [step, setStep] = useState(0);
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
+  const [animating, setAnimating] = useState(false);
+
   const goNext = () => {
+    if (animating) return;
     if (step >= STEPS.length - 1) {
       AsyncStorage.setItem(ONBOARDING_KEY, 'true').catch(() => {});
       playSfx('reward').catch(() => {});
       onDone();
       return;
     }
+    setAnimating(true);
     Animated.timing(fadeAnim, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => {
-      setStep((s) => s + 1);
-      Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+      setStep((s) => Math.min(s + 1, STEPS.length - 1));
+      Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true }).start(() => {
+        setAnimating(false);
+      });
     });
   };
 

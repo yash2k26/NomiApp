@@ -11,6 +11,7 @@ import { getPerksForLevel } from '../store/xpStore';
 import { useXpStore } from '../store/xpStore';
 import { ScreenHeader } from '../components/ui/ScreenHeader';
 import { petTypography } from '../theme/typography';
+import { playSfx } from '../lib/soundManager';
 
 const BUTTON_RADIUS = 10;
 const PILL_RADIUS = 12;
@@ -81,13 +82,24 @@ const RARITY_BORDER: Record<ItemRarity, string> = {
 };
 
 function CardPrice({ item, isPremium }: { item: ShopItem; isPremium: boolean }) {
+  // Show "Owned" badge once purchased
+  if (item.owned) {
+    return (
+      <View className="items-center mt-3 mb-4">
+        <View className="flex-row items-center bg-green-50 rounded-full px-3 py-1 border border-green-200">
+          <Text className="text-[10px] font-black text-green-600 uppercase tracking-wider">{'\u2713'} Owned</Text>
+        </View>
+      </View>
+    );
+  }
+
   const level = useXpStore((s) => s.level);
   const discount = getPerksForLevel(level).shopDiscount;
   const discountPercent = Math.round(discount * 100);
   const finalPrice = Math.round(item.price * (1 - discount) * 1000000) / 1000000;
-  const hasDiscount = discount > 0 && item.price > 0 && !item.owned;
+  const hasDiscount = discount > 0 && item.price > 0;
 
-  if (isPremium && !item.owned) {
+  if (isPremium) {
     return (
       <View className="items-center mt-3 mb-4">
         <Text className="text-[14px] font-black text-pet-blue-dark">FREE</Text>
@@ -113,7 +125,7 @@ function CardPrice({ item, isPremium }: { item: ShopItem; isPremium: boolean }) 
           <Text className="text-[9px] font-black text-green-700">-{discountPercent}% LVL {level}</Text>
         </View>
       )}
-      {item.skrPrice && !item.owned && (
+      {item.skrPrice && (
         <View className="flex-row items-center justify-center mt-1">
           <Text className="text-[11px] font-black text-purple-600">{item.skrPrice}</Text>
           <Text className="text-[9px] font-bold text-purple-400 ml-1">SKR</Text>
@@ -228,9 +240,8 @@ function ShopCard({
           </Text>
         </View>
       ) : purchasing ? (
-        <View className="py-3 items-center bg-pet-blue-light/30 border border-pet-blue-light/70 flex-row justify-center" style={{ borderRadius: BUTTON_RADIUS }}>
+        <View className="py-3 items-center bg-pet-blue-light/20 border border-pet-blue-light/50" style={{ borderRadius: BUTTON_RADIUS }}>
           <ActivityIndicator size="small" color="#3792A6" />
-          <Text className="text-pet-blue-dark text-[10px] font-black tracking-wider uppercase ml-2">Confirm in Phantom...</Text>
         </View>
       ) : (
         <TouchableOpacity onPress={handlePress} activeOpacity={0.85} style={{ borderRadius: BUTTON_RADIUS }} className="overflow-hidden">
@@ -656,6 +667,70 @@ function InsufficientFundsModal({
   );
 }
 
+function WalletConfirmModal({
+  visible,
+  item,
+}: {
+  visible: boolean;
+  item: ShopItem | null;
+}) {
+  if (!item) return null;
+
+  return (
+    <Modal transparent animationType="fade" visible={visible}>
+      <View className="flex-1 bg-black/60 items-center justify-center px-8">
+        <View
+          className="bg-white w-full px-7 py-10 items-center"
+          style={{
+            borderRadius: 32,
+            shadowColor: '#4FB0C6',
+            shadowOffset: { width: 0, height: 16 },
+            shadowOpacity: 0.25,
+            shadowRadius: 28,
+            elevation: 20,
+          }}
+        >
+          {/* Pulsing wallet icon */}
+          <View
+            className="w-20 h-20 rounded-full items-center justify-center bg-pet-blue-light/30 border-2 border-pet-blue-light/60 mb-5"
+          >
+            <MaterialCommunityIcons name="wallet" size={36} color="#3792A6" />
+          </View>
+
+          <Text
+            className="text-[20px] font-black text-gray-800 text-center mb-2"
+            style={{ fontFamily: petTypography.heading }}
+          >
+            Confirm in Wallet
+          </Text>
+          <Text className="text-[13px] text-gray-400 font-semibold text-center mb-6">
+            Approve the transaction in your wallet app
+          </Text>
+
+          {/* Item being purchased */}
+          <View className="flex-row items-center bg-gray-50 rounded-2xl px-5 py-4 w-full border border-gray-100 mb-6">
+            <View className="w-12 h-12 rounded-xl items-center justify-center bg-white border border-gray-100 mr-3">
+              <Text className="text-2xl">{item.image}</Text>
+            </View>
+            <View className="flex-1">
+              <Text className="text-[15px] font-black text-gray-800" style={{ fontFamily: petTypography.heading }}>
+                {item.name}
+              </Text>
+              <Text className="text-[11px] font-semibold text-gray-400 uppercase">{item.category}</Text>
+            </View>
+          </View>
+
+          <ActivityIndicator size="large" color="#3792A6" />
+
+          <Text className="text-[11px] text-gray-300 font-semibold mt-4">
+            Do not close this screen
+          </Text>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 function ReceiptModal({
   visible,
   success,
@@ -797,7 +872,7 @@ function ReceiptModal({
           {success && (
             <View className="flex-row items-center justify-center mb-5 bg-green-50 rounded-xl py-2.5 px-3 border border-green-100">
               <MaterialCommunityIcons name="check-circle" size={16} color="#15803D" />
-              <Text className="text-[12px] font-bold text-green-700 ml-2">Item equipped automatically</Text>
+              <Text className="text-[12px] font-bold text-green-700 ml-2">Item added to your collection</Text>
             </View>
           )}
           {!success && !isCancelled && (
@@ -905,8 +980,10 @@ export function ShopScreen() {
         withSkr,
         elapsedMs: Date.now() - start,
       });
-      equipItem(item.id);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // Play money sounds: Money.mp3 immediately, then HappyMoney.mp3 after a short delay
+      playSfx('money').catch(() => {});
+      setTimeout(() => playSfx('happymoney').catch(() => {}), 800);
       setReceiptItem(item);
       setReceiptSuccess(true);
       setReceiptSkr(withSkr);
@@ -1188,6 +1265,11 @@ export function ShopScreen() {
         paidWithSkr={receiptSkr}
         errorMsg={receiptError}
         onClose={() => setReceiptItem(null)}
+      />
+
+      <WalletConfirmModal
+        visible={!!purchasingId}
+        item={items.find((i) => i.id === purchasingId) ?? null}
       />
 
       <InsufficientFundsModal

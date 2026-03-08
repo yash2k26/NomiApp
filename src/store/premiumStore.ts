@@ -13,6 +13,7 @@ export interface PremiumState {
 interface PremiumActions {
   purchaseTier: (targetTier: PremiumTier) => Promise<string>;
   hydratePremium: () => Promise<void>;
+  restoreFromChain: (tier: PremiumTier) => void;
 }
 
 type PremiumStore = PremiumState & PremiumActions;
@@ -41,7 +42,7 @@ export const usePremiumStore = create<PremiumStore>((set, get) => ({
     // On-chain SOL transfer to treasury
     const { transferSOL } = require('../lib/solanaTransactions');
     const { SHOP_TREASURY } = require('../lib/solanaClient');
-    const txSig = await transferSOL(walletStore.authToken, SHOP_TREASURY, cost);
+    const txSig = await transferSOL(walletStore.authToken, SHOP_TREASURY, cost, `oracle-pet:premium|${targetTier}`);
 
     // Label the transaction
     try {
@@ -80,6 +81,29 @@ export const usePremiumStore = create<PremiumStore>((set, get) => ({
     } catch {}
 
     return txSig;
+  },
+
+  restoreFromChain: (tier: PremiumTier) => {
+    set({ tier, isPremium: true, purchaseDate: null });
+    savePremiumState(get());
+    console.log('[premiumStore] restoreFromChain — restored tier:', tier);
+
+    // Pro tier unlocks all shop items
+    const config = TIER_CONFIGS[tier];
+    if (config.allShopItemsFree) {
+      try {
+        const shopStore = require('./shopStore').useShopStore;
+        const { items } = shopStore.getState();
+        const updated = items.map((i: any) => ({ ...i, owned: true }));
+        shopStore.setState({ items: updated });
+        const ownedIds = updated.map((i: any) => i.id);
+        AsyncStorage.setItem('oracle-pet-shop', JSON.stringify({
+          ownedIds,
+          equippedItemId: shopStore.getState().equippedItemId,
+          equippedAnimationId: shopStore.getState().equippedAnimationId,
+        })).catch(() => {});
+      } catch {}
+    }
   },
 
   hydratePremium: async () => {

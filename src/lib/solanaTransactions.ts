@@ -116,10 +116,11 @@ export async function transferSOL(
   authToken: string,
   recipientAddress: string,
   amountSOL: number,
+  memo?: string,
 ): Promise<string> {
   const startedAt = Date.now();
   const lamports = Math.round(amountSOL * LAMPORTS_PER_SOL);
-  console.log('[solanaTx] transferSOL start', { recipientAddress, amountSOL, lamports });
+  console.log('[solanaTx] transferSOL start', { recipientAddress, amountSOL, lamports, memo: memo ?? null });
 
   try {
     // Phase 1: Get blockhash OUTSIDE wallet session
@@ -137,6 +138,18 @@ export async function transferSOL(
           lamports,
         }),
       );
+
+      // Attach memo instruction in the same tx (single wallet popup, single fee)
+      if (memo) {
+        tx.add(
+          new TransactionInstruction({
+            keys: [{ pubkey: payer, isSigner: true, isWritable: false }],
+            programId: MEMO_PROGRAM_ID,
+            data: Buffer.from(memo),
+          }),
+        );
+      }
+
       tx.feePayer = payer;
       tx.recentBlockhash = blockhash;
 

@@ -175,7 +175,29 @@ export default function App() {
     Promise.all([hydratePetStore(), hydrateShop(), hydrateXp(), hydrateAdventure(), hydratePremium(), hydratePersonality(), hydrateEvents(), hydrateNotifications(), hydrateTxLabels(), initSounds()])
       .finally(() => setHydrated(true));
     // Wallet reauth runs in parallel but doesn't block the UI
-    hydrateWallet().then(() => refreshSkrBalance()).catch(() => {});
+    hydrateWallet()
+      .then(async () => {
+        try { await refreshSkrBalance(); } catch {}
+        // Auto-restore from chain if local data is empty (fresh install / cleared data)
+        const wallet = require('./src/store/walletStore').useWalletStore.getState();
+        const pet = require('./src/store/petStore').usePetStore.getState();
+        const shop = require('./src/store/shopStore').useShopStore.getState();
+        if (wallet.connected && wallet.address) {
+          const hasLocalData = pet.hasPet || shop.items.some((i: any) => i.owned);
+          if (!hasLocalData) {
+            try {
+              const { restorePurchases } = require('./src/lib/purchaseRestore');
+              const result = await restorePurchases(wallet.address);
+              if (result.totalFound > 0) {
+                console.log('[App] Restored from chain:', result);
+              }
+            } catch (err: any) {
+              console.warn('[App] Chain restore failed:', err?.message ?? err);
+            }
+          }
+        }
+      })
+      .catch(() => {});
   }, [hydrateWallet, hydrateShop, hydrateXp, hydrateAdventure, hydratePremium, hydratePersonality, hydrateEvents, hydrateNotifications, hydrateTxLabels, refreshSkrBalance]);
 
   // Android system back gesture/button behavior for custom, non-stack navigation flow.

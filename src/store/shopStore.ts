@@ -47,6 +47,7 @@ interface ShopActions {
   equipItem: (id: string) => void;
   unequipItem: (id?: string) => void;
   hydrateShop: () => Promise<void>;
+  restoreFromChain: (itemIds: string[]) => void;
 }
 
 type ShopStore = ShopState & ShopActions;
@@ -260,7 +261,7 @@ export const useShopStore = create<ShopStore>((set, get) => ({
             itemId: item.id,
             itemName: item.name,
           });
-          const txSig = await transferSOL(authToken, SHOP_TREASURY, finalPrice);
+          const txSig = await transferSOL(authToken, SHOP_TREASURY, finalPrice, `oracle-pet:shop|${item.id}`);
           console.log(`${SHOP_LOG} SOL tx sent`, { txSig, itemId: item.id });
 
           try {
@@ -352,6 +353,15 @@ export const useShopStore = create<ShopStore>((set, get) => ({
     }
     set({ equippedItemId: null });
     saveShopState(items.filter((i) => i.owned).map((i) => i.id), null, equippedAnimationId);
+  },
+
+  restoreFromChain: (itemIds: string[]) => {
+    const { items } = get();
+    const updated = items.map((i) => (itemIds.includes(i.id) ? { ...i, owned: true } : i));
+    set({ items: updated });
+    const ownedIds = updated.filter((i) => i.owned).map((i) => i.id);
+    saveShopState(ownedIds, get().equippedItemId, get().equippedAnimationId);
+    console.log('[shopStore] restoreFromChain — restored:', itemIds);
   },
 
   hydrateShop: async () => {

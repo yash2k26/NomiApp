@@ -398,14 +398,13 @@ export function ProfileScreen() {
     if (!authToken || memoLoading) return;
     setMemoLoading(true);
     try {
-      const petState = JSON.stringify({
-        pet: name,
-        hunger: Math.round(hunger),
-        happiness: Math.round(happiness),
-        energy: Math.round(energy),
-        ts: Date.now(),
+      const syncPayload = JSON.stringify({
+        streak: streakDays,
+        name,
+        lastActive: new Date().toISOString().slice(0, 10),
       });
-      const txSig = await writeMemo(authToken, petState);
+      const memo = `oracle-pet:sync|${syncPayload}`;
+      const txSig = await writeMemo(authToken, memo);
       try {
         const { labelTransaction } = require('../store/txHistoryStore');
         labelTransaction(txSig, 'Pet State Sync');
@@ -418,7 +417,32 @@ export function ProfileScreen() {
     } finally {
       setMemoLoading(false);
     }
-  }, [authToken, memoLoading, name, hunger, happiness, energy, refreshBalance]);
+  }, [authToken, memoLoading, name, streakDays, refreshBalance]);
+
+  const [restoreLoading, setRestoreLoading] = useState(false);
+  const handleRestorePurchases = useCallback(async () => {
+    if (!address || restoreLoading) return;
+    setRestoreLoading(true);
+    try {
+      const { restorePurchases } = require('../lib/purchaseRestore');
+      const result = await restorePurchases(address);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      const parts: string[] = [];
+      if (result.shopItemsRestored.length > 0) parts.push(`${result.shopItemsRestored.length} shop item(s)`);
+      if (result.premiumTierRestored) parts.push(`${result.premiumTierRestored} tier`);
+      if (result.streakRestored !== null) parts.push(`${result.streakRestored}-day streak`);
+      Alert.alert(
+        'Restore Complete',
+        parts.length > 0
+          ? `Restored: ${parts.join(', ')}`
+          : 'No purchases found on-chain to restore.',
+      );
+    } catch (err: any) {
+      Alert.alert('Restore Failed', err?.message || 'Could not restore purchases from chain.');
+    } finally {
+      setRestoreLoading(false);
+    }
+  }, [address, restoreLoading]);
 
   const skinDisplayName = skin === 'default' ? 'Default' : skin.charAt(0).toUpperCase() + skin.slice(1);
 
@@ -582,6 +606,22 @@ export function ProfileScreen() {
             {lastMemoTime && (
               <Text className="text-[10px] text-gray-400 font-semibold text-center mt-1.5">Last sync: {lastMemoTime}</Text>
             )}
+            <View style={{ height: 8 }} />
+            <TouchableOpacity onPress={handleRestorePurchases} disabled={restoreLoading} activeOpacity={0.85}>
+              <View style={{ paddingVertical: 12, borderRadius: 18, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', backgroundColor: 'rgba(200,167,230,0.3)', borderWidth: 1, borderColor: 'rgba(200,167,230,0.7)' }}>
+                {restoreLoading ? (
+                  <>
+                    <ActivityIndicator size="small" color="#7C3AED" />
+                    <Text className="text-purple-700 text-[11px] font-black ml-2">Restoring...</Text>
+                  </>
+                ) : (
+                  <>
+                    <MaterialCommunityIcons name="cloud-download-outline" size={14} color="#7C3AED" />
+                    <Text className="text-purple-700 text-[11px] font-black ml-1.5 uppercase tracking-[0.5px]">Restore Purchases From Chain</Text>
+                  </>
+                )}
+              </View>
+            </TouchableOpacity>
           </View>
         </InfoCard>
 

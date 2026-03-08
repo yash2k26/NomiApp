@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { View, Text, TouchableOpacity, Alert, ActivityIndicator, Linking } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, ActivityIndicator, Linking, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { usePremiumStore } from '../store/premiumStore';
 import { useWalletStore } from '../store/walletStore';
 import { type PremiumTier, TIER_CONFIGS, TIER_ORDER, getTierOrdinal, getUpgradeCost } from '../data/premiumTiers';
 import { getSolscanTxUrl } from '../lib/solanaClient';
+import { playSfx } from '../lib/soundManager';
 
 const TIER_PERKS: Record<Exclude<PremiumTier, 'none'>, { emoji: string; text: string }[]> = {
   plus: [
@@ -93,9 +94,8 @@ function TierOption({ tier, currentTier, onPurchase, purchasing }: TierOptionPro
         {/* Purchase/upgrade button */}
         {!isActive && !isBelow && (
           purchasing ? (
-            <View style={{ marginTop: 8, paddingVertical: 14, borderRadius: 18, alignItems: 'center', backgroundColor: '#f3f4f6', borderWidth: 1, borderColor: '#e5e7eb', flexDirection: 'row', justifyContent: 'center' }}>
+            <View style={{ marginTop: 8, paddingVertical: 14, borderRadius: 18, alignItems: 'center', backgroundColor: '#f3f4f6', borderWidth: 1, borderColor: '#e5e7eb' }}>
               <ActivityIndicator size="small" color="#3792A6" />
-              <Text className="text-gray-600 font-black text-[11px] uppercase tracking-[0.5px] ml-2">Confirm in Phantom...</Text>
             </View>
           ) : (
             <TouchableOpacity
@@ -151,6 +151,8 @@ export function PremiumCard() {
             try {
               const txSig = await purchaseTier(targetTier);
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              playSfx('money').catch(() => {});
+              setTimeout(() => playSfx('happymoney').catch(() => {}), 800);
               Alert.alert(
                 'Upgrade Complete!',
                 `Welcome to ${config.label} tier!`,
@@ -241,6 +243,56 @@ export function PremiumCard() {
           />
         ))}
       </View>
+
+      {/* Full-screen wallet confirmation overlay */}
+      <Modal transparent animationType="fade" visible={purchasing}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 }}>
+          <View
+            style={{
+              backgroundColor: '#fff',
+              width: '100%',
+              paddingHorizontal: 28,
+              paddingVertical: 40,
+              borderRadius: 32,
+              alignItems: 'center',
+              shadowColor: '#9381FF',
+              shadowOffset: { width: 0, height: 16 },
+              shadowOpacity: 0.25,
+              shadowRadius: 28,
+              elevation: 20,
+            }}
+          >
+            <View
+              style={{
+                width: 80,
+                height: 80,
+                borderRadius: 40,
+                backgroundColor: '#9381FF20',
+                borderWidth: 2,
+                borderColor: '#9381FF40',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: 20,
+              }}
+            >
+              <Text style={{ fontSize: 36 }}>{'\u{1F48E}'}</Text>
+            </View>
+
+            <Text className="text-[20px] font-black text-gray-800 text-center mb-2">
+              Confirm in Wallet
+            </Text>
+            <Text className="text-[13px] text-gray-400 font-semibold text-center mb-8">
+              Approve the transaction in your wallet app
+            </Text>
+
+            <ActivityIndicator size="large" color="#9381FF" />
+
+            <Text className="text-[11px] text-gray-300 font-semibold mt-5">
+              Do not close this screen
+            </Text>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
