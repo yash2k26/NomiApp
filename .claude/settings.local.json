@@ -8,7 +8,12 @@
       "Bash(npx @gltf-transform/cli prune assets/pets/nomi-combined.glb assets/pets/nomi-combined.glb)",
       "Bash(npx @gltf-transform/cli simplify assets/pets/nomi-combined.glb assets/pets/nomi-combined.glb --ratio 0.5 --error 0.01)",
       "Bash(npx @gltf-transform/cli simplify assets/pets/nomi-combined.glb assets/pets/nomi-combined.glb --ratio 0.35 --error 0.02)",
-      "Bash(npx @gltf-transform/cli simplify assets/pets/nomi-combined.glb assets/pets/nomi-combined.glb --ratio 0.25 --error 0.03)"
+      "Bash(npx @gltf-transform/cli simplify assets/pets/nomi-combined.glb assets/pets/nomi-combined.glb --ratio 0.25 --error 0.03)",
+      "Bash(wc -l /c/Users/Yash/yash-dev/oracle-pet/src/components/games/*.tsx)",
+      "Bash(npx skills:*)",
+      "Bash(keytool -genkeypair -v -storetype PKCS12 -keystore release.keystore -alias nomi-key -keyalg RSA -keysize 2048 -validity 10000 -storepass NomiApp2026! -keypass NomiApp2026! -dname \"CN=Yash, OU=OraclePet, O=OraclePet, L=Unknown, ST=Unknown, C=IN\")",
+      "Bash(./gradlew assembleRelease)",
+      "Bash(xargs wc:*)"
     ]
   }
 }

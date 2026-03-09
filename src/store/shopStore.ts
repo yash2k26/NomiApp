@@ -66,7 +66,7 @@ const SHOP_ITEMS: ShopItem[] = [
   { id: 'boots', name: 'Boots', category: 'Shoes', price: 0.004, image: '\u{1F462}', owned: false, skinKey: 'boots', rarity: 'rare', comingSoon: true },
   // Epic items
   { id: 'tuxedo', name: 'Tuxedo', category: 'Shirts', price: 0.005, image: '\u{1F3BD}', owned: false, skinKey: 'tuxedo', rarity: 'epic', comingSoon: true },
-  { id: 'crown', name: 'Crown', category: 'Hats', price: 0.001, image: '\u{1F451}', owned: false, skinKey: 'crown', rarity: 'epic' },
+  { id: 'crown', name: 'Crown', category: 'Hats', price: 0.001, image: '\u{1F451}', owned: false, skinKey: 'crown', rarity: 'epic', comingSoon: true },
   { id: 'gold-chain', name: 'Gold Chain', category: 'Accessories', price: 0.005, skrPrice: 25, image: '\u{1F4FF}', owned: false, skinKey: 'gold-chain', rarity: 'epic', comingSoon: true },
   // Tier-exclusive items
   { id: 'neon-jacket', name: 'Neon Jacket', category: 'Shirts', price: 0.006, skrPrice: 30, image: '\u{1F31F}', owned: false, skinKey: 'neon-jacket', rarity: 'epic', tierTag: 'plus_exclusive', comingSoon: true },
@@ -74,8 +74,8 @@ const SHOP_ITEMS: ShopItem[] = [
   { id: 'diamond-halo', name: 'Diamond Halo', category: 'Accessories', price: 0.01, skrPrice: 80, image: '\u{1F48E}', owned: false, skinKey: 'diamond-halo', rarity: 'legendary', tierTag: 'pro_exclusive', comingSoon: true },
   // Animations
   { id: 'anim-backflip', name: 'Backflip', category: 'Animations', price: 0.002, image: '\u{1F938}', owned: false, skinKey: 'anim-backflip', rarity: 'rare', comingSoon: true },
-  { id: 'anim-excited', name: 'Excited', category: 'Animations', price: 0.001, image: '\u{1F929}', owned: false, skinKey: 'anim-excited', rarity: 'common' },
-  { id: 'anim-dance', name: 'Dance', category: 'Animations', price: 0.001, image: '\u{1F57A}', owned: false, skinKey: 'anim-dance', rarity: 'common' },
+  { id: 'anim-excited', name: 'Excited', category: 'Animations', price: 0.001, image: '\u{1F929}', owned: false, skinKey: 'anim-excited', rarity: 'common', comingSoon: true },
+  { id: 'anim-dance', name: 'Dance', category: 'Animations', price: 0.001, image: '\u{1F57A}', owned: false, skinKey: 'anim-dance', rarity: 'common', comingSoon: true },
   { id: 'anim-punch', name: 'Punch', category: 'Animations', price: 0.002, image: '\u{1F4A5}', owned: false, skinKey: 'anim-punch', rarity: 'rare', comingSoon: true },
   { id: 'anim-fallover', name: 'Fall Over', category: 'Animations', price: 0.001, image: '\u{1F92A}', owned: false, skinKey: 'anim-fallover', rarity: 'common', comingSoon: true },
 ];

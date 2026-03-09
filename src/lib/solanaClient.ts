@@ -67,7 +67,7 @@ export async function getBalance(address: string): Promise<number> {
   }
 }
 
-export const SHOP_TREASURY = '3rfAFvCcotvc5YADAazHKizJYoddBGZx3AZqB41z5yGd';
+export const SHOP_TREASURY = 'uP7ZfsuXEcUq7LM9jSPeEZi74YJeaGuy3cbodknXhQz';
 export const SKR_MINT_ADDRESS = 'SKRbvo6Gf7GondiT3BbTfuRDPqLWei4j2Qy2NPGZhW3';
 
 export function getSolscanTxUrl(signature: string): string {
