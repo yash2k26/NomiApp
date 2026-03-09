@@ -347,9 +347,9 @@ function saveXpState(state: XpState) {
 }
 
 export const useXpStore = create<XpStore>((set, get) => ({
-  totalXp: 1050,
-  level: 5,
-  xpInCurrentLevel: 200,
+  totalXp: 0,
+  level: 1,
+  xpInCurrentLevel: 0,
   dailyQuests: [],
   questDate: '',
   weeklyQuests: [],
