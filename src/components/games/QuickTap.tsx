@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, TouchableOpacity, Animated, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, Pressable, Animated, Dimensions } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { playMusic, stopMusic } from '../../lib/soundManager';
+import { playMusic, stopMusic, playSfx } from '../../lib/soundManager';
 
 const GAME_TIME = 30;
 const BASE_SPAWN_INTERVAL = 800;
@@ -137,15 +137,22 @@ export function QuickTap({ onComplete, onCancel }: QuickTapProps) {
     return () => clearInterval(interval);
   }, [gameOver, frenzy, spawnInterval]);
 
+  // Final results state
+  const [finalResult, setFinalResult] = useState<{ score: number; xp: number } | null>(null);
+
   // End game
   useEffect(() => {
     if (!gameOver) return;
     const finalScore = Math.max(0, score);
     const streakBonus = bestStreak * 2;
     const xp = Math.round(15 + finalScore * 0.75 + streakBonus * 0.5);
-    const timer = setTimeout(() => onComplete(finalScore + streakBonus, Math.min(xp, 60)), 1500);
-    return () => clearTimeout(timer);
-  }, [gameOver, score, bestStreak, onComplete]);
+    setFinalResult({ score: finalScore + streakBonus, xp: Math.min(xp, 60) });
+    playSfx('gamevictory').catch(() => {});
+  }, [gameOver, score, bestStreak]);
+
+  const handleDismiss = () => {
+    if (finalResult) onComplete(finalResult.score, finalResult.xp);
+  };
 
   // Activate frenzy mode
   const triggerFrenzy = useCallback(() => {
@@ -317,18 +324,23 @@ export function QuickTap({ onComplete, onCancel }: QuickTapProps) {
 
         {/* Game over overlay */}
         {gameOver && (
-          <View className="absolute inset-0 bg-black/30 items-center justify-center">
-            <View className="bg-white rounded-3xl p-8 items-center">
-              <Text className="text-[48px] mb-2">{score > 20 ? '\u{1F389}' : '\u{1F44D}'}</Text>
-              <Text className="text-[24px] font-black text-gray-800 mb-1">Time's Up!</Text>
-              <Text className="text-[16px] text-gray-500 font-semibold">Score: {score}</Text>
-              {bestStreak >= 3 && (
-                <Text className="text-[13px] text-pet-orange-dark font-black mt-1">
-                  {'\u{1F525}'} Best Streak: {bestStreak}
-                </Text>
-              )}
-            </View>
-          </View>
+          <Pressable className="absolute inset-0 bg-black/30 items-center justify-center" onPress={handleDismiss}>
+            <Pressable>
+              <View className="bg-white rounded-3xl p-8 items-center">
+                <Text className="text-[48px] mb-2">{score > 20 ? '\u{1F389}' : '\u{1F44D}'}</Text>
+                <Text className="text-[24px] font-black text-gray-800 mb-1">Time's Up!</Text>
+                <Text className="text-[16px] text-gray-500 font-semibold">Score: {score}</Text>
+                {bestStreak >= 3 && (
+                  <Text className="text-[13px] text-pet-orange-dark font-black mt-1">
+                    {'\u{1F525}'} Best Streak: {bestStreak}
+                  </Text>
+                )}
+                <TouchableOpacity onPress={handleDismiss} activeOpacity={0.85} className="mt-4 bg-pet-purple px-8 py-3 rounded-full">
+                  <Text className="text-white font-black text-[14px]">Done</Text>
+                </TouchableOpacity>
+              </View>
+            </Pressable>
+          </Pressable>
         )}
       </View>
     </View>

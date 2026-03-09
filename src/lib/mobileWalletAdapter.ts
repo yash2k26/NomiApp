@@ -99,9 +99,10 @@ export async function reauthorizeMobileWallet(authToken: string): Promise<Wallet
     console.log('[MWA] reauthorizeMobileWallet SUCCESS in', Date.now() - startTime, 'ms — address:', result.address);
     return result;
   } catch (err: any) {
-    console.error('[MWA] reauthorizeMobileWallet FAILED after', Date.now() - startTime, 'ms');
-    console.error('[MWA] Error:', err.message);
-    console.error('[MWA] Stack:', err.stack);
+    // Use warn instead of error — reauth failure is expected when token expires
+    // console.error triggers the red screen in dev mode
+    console.warn('[MWA] reauthorizeMobileWallet FAILED after', Date.now() - startTime, 'ms');
+    console.warn('[MWA] Error:', err.message);
     throw err;
   }
 }

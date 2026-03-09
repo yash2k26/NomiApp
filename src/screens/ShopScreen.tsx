@@ -12,6 +12,7 @@ import { useXpStore } from '../store/xpStore';
 import { ScreenHeader } from '../components/ui/ScreenHeader';
 import { petTypography } from '../theme/typography';
 import { playSfx } from '../lib/soundManager';
+import { friendlyTxError } from '../lib/transactionErrors';
 
 const BUTTON_RADIUS = 10;
 const PILL_RADIUS = 12;
@@ -989,19 +990,17 @@ export function ShopScreen() {
       setReceiptSkr(withSkr);
       setReceiptError('');
     } catch (err: any) {
-      const msg = err?.message || 'Purchase failed';
       console.error('[ShopScreen] doPurchase failed', {
         itemId: item.id,
         withSkr,
         elapsedMs: Date.now() - start,
-        error: msg,
-        stack: err?.stack,
+        error: err?.message,
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setReceiptItem(item);
       setReceiptSuccess(false);
       setReceiptSkr(withSkr);
-      setReceiptError(msg);
+      setReceiptError(friendlyTxError(err));
     } finally {
       setPurchasingId(null);
     }

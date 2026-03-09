@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, TouchableOpacity, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, Pressable, Animated } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { playMusic, stopMusic } from '../../lib/soundManager';
+import { playMusic, stopMusic, playSfx } from '../../lib/soundManager';
 
 const GAME_TIME = 30;
 
@@ -95,15 +95,22 @@ export function ColorMatch({ onComplete, onCancel }: ColorMatchProps) {
     return () => clearInterval(interval);
   }, [gameOver]);
 
+  // Final results state
+  const [finalResult, setFinalResult] = useState<{ score: number; xp: number } | null>(null);
+
   // End game
   useEffect(() => {
     if (!gameOver) return;
     const streakBonus = bestStreak * 3;
     const finalScore = Math.max(0, score + streakBonus);
     const xp = Math.round(15 + correct * 2 + bestStreak * 2);
-    const timer = setTimeout(() => onComplete(finalScore, Math.min(xp, 60)), 1800);
-    return () => clearTimeout(timer);
-  }, [gameOver, score, bestStreak, correct, onComplete]);
+    setFinalResult({ score: finalScore, xp: Math.min(xp, 60) });
+    playSfx('gamevictory').catch(() => {});
+  }, [gameOver, score, bestStreak, correct]);
+
+  const handleDismiss = () => {
+    if (finalResult) onComplete(finalResult.score, finalResult.xp);
+  };
 
   const showFloat = (text: string, color: string) => {
     setFloatText(text);
@@ -211,21 +218,26 @@ export function ColorMatch({ onComplete, onCancel }: ColorMatchProps) {
 
       {/* Game over overlay */}
       {gameOver && (
-        <View className="absolute inset-0 bg-black/30 items-center justify-center">
-          <View className="bg-white rounded-3xl p-8 items-center mx-8">
-            <Text className="text-[48px] mb-2">{'\u{1F3A8}'}</Text>
-            <Text className="text-[24px] font-black text-gray-800 mb-1">Time's Up!</Text>
-            <Text className="text-[14px] text-gray-500 font-semibold">
-              {correct} correct {'\u2022'} {wrong} wrong
-            </Text>
-            <Text className="text-[18px] font-black text-blue-600 mt-2">{score} pts</Text>
-            {bestStreak > 1 && (
-              <Text className="text-[13px] text-orange-500 font-black mt-1">
-                {'\u{1F525}'} Best Streak: {bestStreak}x
+        <Pressable className="absolute inset-0 bg-black/30 items-center justify-center" onPress={handleDismiss}>
+          <Pressable>
+            <View className="bg-white rounded-3xl p-8 items-center mx-8">
+              <Text className="text-[48px] mb-2">{'\u{1F3A8}'}</Text>
+              <Text className="text-[24px] font-black text-gray-800 mb-1">Time's Up!</Text>
+              <Text className="text-[14px] text-gray-500 font-semibold">
+                {correct} correct {'\u2022'} {wrong} wrong
               </Text>
-            )}
-          </View>
-        </View>
+              <Text className="text-[18px] font-black text-blue-600 mt-2">{score} pts</Text>
+              {bestStreak > 1 && (
+                <Text className="text-[13px] text-orange-500 font-black mt-1">
+                  {'\u{1F525}'} Best Streak: {bestStreak}x
+                </Text>
+              )}
+              <TouchableOpacity onPress={handleDismiss} activeOpacity={0.85} className="mt-4 bg-pet-purple px-8 py-3 rounded-full">
+                <Text className="text-white font-black text-[14px]">Done</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
       )}
     </View>
   );

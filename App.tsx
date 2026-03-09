@@ -55,6 +55,7 @@ LogBox.ignoreLogs([
   'EXGL: gl.pixelStorei()',
   'THREE.Clock',
   'THREE.WARNING',
+  'authorization request failed',
 ]);
 
 const originalLog = console.log;

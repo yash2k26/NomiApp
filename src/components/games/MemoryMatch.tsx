@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, TouchableOpacity, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, Pressable, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import { playMusic, stopMusic } from '../../lib/soundManager';
+import { playMusic, stopMusic, playSfx } from '../../lib/soundManager';
 
 const EMOJIS = ['\u{1F436}', '\u{1F431}', '\u{1F430}', '\u{1F43C}', '\u{1F438}', '\u{1F427}',
                 '\u{1F981}', '\u{1F422}', '\u{1F98A}', '\u{1F40D}', '\u{1F419}', '\u{1F41D}'];
@@ -147,6 +147,9 @@ export function MemoryMatch({ onComplete, onCancel }: MemoryMatchProps) {
     }
   }, [matchedCount, gameOver]);
 
+  // Final results state
+  const [finalResult, setFinalResult] = useState<{ score: number; xp: number } | null>(null);
+
   // End game
   useEffect(() => {
     if (!gameOver) return;
@@ -159,9 +162,13 @@ export function MemoryMatch({ onComplete, onCancel }: MemoryMatchProps) {
       : Math.round(matchedCount * 8 + comboBonus);
     const xp = won ? Math.round(20 + timeBonus + comboBonus * 0.5) : Math.round(10 + matchedCount * 3);
 
-    const timer = setTimeout(() => onComplete(score, Math.min(xp, 50)), 1800);
-    return () => clearTimeout(timer);
-  }, [gameOver, matchedCount, timeLeft, mistakes, bestCombo, onComplete]);
+    setFinalResult({ score, xp: Math.min(xp, 50) });
+    playSfx(won ? 'gamevictory' : 'gameloss').catch(() => {});
+  }, [gameOver, matchedCount, timeLeft, mistakes, bestCombo]);
+
+  const handleDismiss = () => {
+    if (finalResult) onComplete(finalResult.score, finalResult.xp);
+  };
 
   const addFloat = (text: string, color: string) => {
     const id = floatId.current++;
@@ -297,22 +304,27 @@ export function MemoryMatch({ onComplete, onCancel }: MemoryMatchProps) {
 
       {/* Game over overlay */}
       {gameOver && (
-        <View className="absolute inset-0 bg-black/30 items-center justify-center">
-          <View className="bg-white rounded-3xl p-8 items-center mx-8">
-            <Text className="text-[48px] mb-2">{matchedCount >= PAIRS ? '\u{1F389}' : '\u{23F0}'}</Text>
-            <Text className="text-[24px] font-black text-gray-800 mb-1">
-              {matchedCount >= PAIRS ? 'You Won!' : 'Time\'s Up!'}
-            </Text>
-            <Text className="text-[14px] text-gray-500 font-semibold">
-              {matchedCount}/{PAIRS} pairs {'\u2022'} {mistakes} mistakes
-            </Text>
-            {bestCombo > 1 && (
-              <Text className="text-[13px] text-pet-purple font-black mt-1">
-                {'\u{1F525}'} Best Combo: {bestCombo}x
+        <Pressable className="absolute inset-0 bg-black/30 items-center justify-center" onPress={handleDismiss}>
+          <Pressable>
+            <View className="bg-white rounded-3xl p-8 items-center mx-8">
+              <Text className="text-[48px] mb-2">{matchedCount >= PAIRS ? '\u{1F389}' : '\u{23F0}'}</Text>
+              <Text className="text-[24px] font-black text-gray-800 mb-1">
+                {matchedCount >= PAIRS ? 'You Won!' : 'Time\'s Up!'}
               </Text>
-            )}
-          </View>
-        </View>
+              <Text className="text-[14px] text-gray-500 font-semibold">
+                {matchedCount}/{PAIRS} pairs {'\u2022'} {mistakes} mistakes
+              </Text>
+              {bestCombo > 1 && (
+                <Text className="text-[13px] text-pet-purple font-black mt-1">
+                  {'\u{1F525}'} Best Combo: {bestCombo}x
+                </Text>
+              )}
+              <TouchableOpacity onPress={handleDismiss} activeOpacity={0.85} className="mt-4 bg-pet-purple px-8 py-3 rounded-full">
+                <Text className="text-white font-black text-[14px]">Done</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
       )}
     </View>
   );

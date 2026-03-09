@@ -1,0 +1,37 @@
+Everyone in the Solana community... joked about building a Tolygotchi.
+
+We actually did it.
+
+In 1996, 82 million Tamagotchis were sold. Because humans will bond with anything that needs them. But you never owned that pet. When the battery died? It was gone. Meet NOMI. The companion pet that lives on Solana... and actually remembers your name.
+
+
+Look at every app on your Solana phone right now. Wallets. DEXs. Trading apps. They're all transactional. Open, check a number, close. 77 percent of mobile apps are abandoned within three days. And Solana Mobile has zero companion apps. Nothing that makes you want to come back tomorrow. The hardware is incredible. But the app ecosystem? It has no soul.
+
+
+NOMI is your on-chain companion. A digital pet that lives on Solana, minted as an NFT you truly own, with a personality shaped by how you treat it.
+
+
+Connect your wallet. Mint your NOMI for 0.01 SOL. That's a real NFT on mainnet. Then care for it daily. Feed it, play with it, let it rest, talk to it. Your choices matter. Feed it often, and it becomes a foodie. Send it on adventures, and it gets brave. Level up through 50 levels. Evolve through 5 stages. Collect over 20 accessories.
+
+
+Let me show you what it looks like.
+
+
+Finch proved this model works in web2. 10 million downloads for a companion app. But no one has brought it to web3. Our market is every Solana Mobile device owner. 140,000 and growing with Seeker. And here's the thing about companion apps. They don't just retain users. They create culture. When two NOMI owners meet at a Solana meetup, they don't compare portfolios. They compare pets. "What level is your NOMI? Did yours evolve yet?" That's not an app. That's a community.
+
+
+Revenue comes from two streams. An accessory shop priced in SOL, and premium tiers for power users. But here's what's architecturally unique. We have zero backend costs. Every purchase is stored as a transaction memo on Solana. The blockchain IS our database. Users can reinstall the app and restore everything from the chain. No server. No account system. Just wallet and chain.
+
+
+NOMI is not a concept. It's a shipped product. Submitted to the Solana dApp Store, pending review right now. Real mainnet transactions. Six mini-games. Five adventure zones. Fifty levels. Five evolution stages. A personality engine that generates unique diary entries. All built and tested on Seeker hardware. By one developer.
+
+
+We're live now. Q2: AI-powered conversations. Your NOMI talks to you with a personality shaped by your history together. Personalized NFT artwork that reflects your pet's unique evolution and traits. Q3: Social features. Visit friends' pets, leaderboards, and themed accessory drops with other Solana projects. The foundation is built. Now we scale the soul.
+
+
+I'm a solo developer. I built every piece of this. The 3D renderer, the animation system, six games, and a blockchain layer that uses Solana as a serverless backend. No server. No database. Just code and chain. I didn't build a demo for a hackathon. I built a product for users.
+
+
+Scan to try NOMI. Your companion is waiting.
+
+Thank you.

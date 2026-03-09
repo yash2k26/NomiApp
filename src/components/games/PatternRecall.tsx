@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, TouchableOpacity, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, Pressable, Animated } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { playMusic, stopMusic } from '../../lib/soundManager';
+import { playMusic, stopMusic, playSfx } from '../../lib/soundManager';
 
 const BASE_COLORS = [
   { bg: 'bg-pet-pink', active: 'bg-pet-pink-dark', hex: '#FF6B8A', activeHex: '#D94F6A', label: 'Pink' },
@@ -115,6 +115,9 @@ export function PatternRecall({ onComplete, onCancel }: PatternRecallProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Final results state
+  const [finalResult, setFinalResult] = useState<{ score: number; xp: number } | null>(null);
+
   // End game
   useEffect(() => {
     if (!gameOver) return;
@@ -122,9 +125,13 @@ export function PatternRecall({ onComplete, onCancel }: PatternRecallProps) {
     const perfectBonus = perfectRounds * 5;
     const score = completedRounds * 10 + perfectBonus;
     const xp = Math.min(10 + completedRounds * 8 + perfectBonus, 80);
-    const timer = setTimeout(() => onComplete(score, xp), 1800);
-    return () => clearTimeout(timer);
-  }, [gameOver, round, perfectRounds, onComplete]);
+    setFinalResult({ score, xp });
+    playSfx(completedRounds >= 5 ? 'gamevictory' : 'gameloss').catch(() => {});
+  }, [gameOver, round, perfectRounds]);
+
+  const handleDismiss = () => {
+    if (finalResult) onComplete(finalResult.score, finalResult.xp);
+  };
 
   const handleButtonPress = useCallback(async (index: number) => {
     if (phase !== 'input') return;
@@ -286,20 +293,25 @@ export function PatternRecall({ onComplete, onCancel }: PatternRecallProps) {
 
       {/* Game over overlay */}
       {gameOver && (
-        <View className="absolute inset-0 bg-black/30 items-center justify-center" style={{ top: 0 }}>
-          <View className="bg-white rounded-3xl p-8 items-center mx-8">
-            <Text className="text-[48px] mb-2">{round > 5 ? '\u{1F389}' : '\u{1F914}'}</Text>
-            <Text className="text-[24px] font-black text-gray-800 mb-1">Game Over!</Text>
-            <Text className="text-[16px] text-gray-500 font-semibold">
-              Reached Round {round - 1}
-            </Text>
-            {perfectRounds > 0 && (
-              <Text className="text-[13px] text-pet-purple font-black mt-1">
-                {'\u2728'} {perfectRounds} Perfect Round{perfectRounds > 1 ? 's' : ''}
+        <Pressable className="absolute inset-0 bg-black/30 items-center justify-center" style={{ top: 0 }} onPress={handleDismiss}>
+          <Pressable>
+            <View className="bg-white rounded-3xl p-8 items-center mx-8">
+              <Text className="text-[48px] mb-2">{round > 5 ? '\u{1F389}' : '\u{1F914}'}</Text>
+              <Text className="text-[24px] font-black text-gray-800 mb-1">Game Over!</Text>
+              <Text className="text-[16px] text-gray-500 font-semibold">
+                Reached Round {round - 1}
               </Text>
-            )}
-          </View>
-        </View>
+              {perfectRounds > 0 && (
+                <Text className="text-[13px] text-pet-purple font-black mt-1">
+                  {'\u2728'} {perfectRounds} Perfect Round{perfectRounds > 1 ? 's' : ''}
+                </Text>
+              )}
+              <TouchableOpacity onPress={handleDismiss} activeOpacity={0.85} className="mt-4 bg-pet-purple px-8 py-3 rounded-full">
+                <Text className="text-white font-black text-[14px]">Done</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
       )}
     </Animated.View>
   );

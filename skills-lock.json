@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "skills": {
+    "frontend-design": {
+      "source": "anthropics/skills",
+      "sourceType": "github",
+      "computedHash": "063a0e6448123cd359ad0044cc46b0e490cc7964d45ef4bb9fd842bd2ffbca67"
+    },
+    "frontend-slides": {
+      "source": "zarazhangrui/frontend-slides",
+      "sourceType": "github",
+      "computedHash": "8525851ba95a4ad69345164d322aad4c8dd2eebfd85267428f9ed948e21051b2"
+    }
+  }
+}

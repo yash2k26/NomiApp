@@ -14,7 +14,9 @@ type SoundName =
   | 'equip'
   | 'fall'
   | 'money'
-  | 'happymoney';
+  | 'happymoney'
+  | 'gamevictory'
+  | 'gameloss';
 
 type MusicName = 'headphones' | 'game1';
 
@@ -38,6 +40,8 @@ const SFX_ASSETS: Partial<Record<SoundName, any>> = {
   fall: require('../../assets/Audio/Fall.mp3'),
   money: require('../../assets/Audio/Money.mp3'),
   happymoney: require('../../assets/Audio/HappyMoney.mp3'),
+  gamevictory: require('../../assets/Audio/Game-Victory.mp3'),
+  gameloss: require('../../assets/Audio/Game-Loss.mp3'),
 };
 
 // Sad ambient sounds — played randomly when pet is sad

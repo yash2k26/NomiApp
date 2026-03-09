@@ -28,3 +28,11 @@ android
 
 # Discarded/unused GLB files
 discard/
+
+# Agents & Claude
+.agent/
+.agents/
+.claude/
+
+# Release signing (NEVER commit keystore or passwords)
+*.keystore

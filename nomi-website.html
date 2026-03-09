@@ -1,0 +1,1293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NOMI — Your On-Chain Companion</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --primary: #73BBD1;
+    --primary-dark: #4A8FA3;
+    --primary-darker: #2D6275;
+    --primary-darkest: #1A3D4A;
+    --bg-dark: #0B1D24;
+    --bg-dark2: #132F3A;
+    --glow: #8FD4E8;
+    --text-white: #E8F7FC;
+    --text-muted: #7BAEBB;
+    --gold: #FFD966;
+    --green: #5EEAA0;
+    --purple: #A78BFA;
+    --pink: #F472B6;
+    --orange: #FB923C;
+    --red: #F87171;
+    --card-bg: rgba(115, 187, 209, 0.06);
+    --card-border: rgba(115, 187, 209, 0.15);
+    --card-glow: rgba(115, 187, 209, 0.4);
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg-dark);
+    color: var(--text-white);
+    overflow-x: hidden;
+    line-height: 1.6;
+  }
+
+  /* ===== SCROLLBAR ===== */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg-dark); }
+  ::-webkit-scrollbar-thumb { background: var(--primary-darker); border-radius: 3px; }
+
+  /* ===== NAV ===== */
+  nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 1000;
+    padding: 16px 40px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(11,29,36,0.85);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--card-border);
+  }
+
+  .nav-logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+
+  .nav-logo img { height: 36px; border-radius: 50%; }
+
+  .nav-links { display: flex; gap: 32px; }
+  .nav-links a {
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 600;
+    transition: color 0.2s;
+  }
+  .nav-links a:hover { color: var(--primary); }
+
+  .nav-btn {
+    padding: 10px 24px;
+    background: linear-gradient(135deg, var(--primary), var(--glow));
+    border: none;
+    border-radius: 12px;
+    color: var(--bg-dark);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .nav-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 24px rgba(115,187,209,0.3);
+  }
+
+  /* ===== SECTIONS ===== */
+  section {
+    padding: 100px 40px;
+    max-width: 1200px;
+    margin: 0 auto;
+    position: relative;
+  }
+
+  .section-tag {
+    display: inline-block;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 16px;
+  }
+
+  .tag-primary { background: rgba(115,187,209,0.12); color: var(--primary); border: 1px solid rgba(115,187,209,0.2); }
+  .tag-gold { background: rgba(255,217,102,0.1); color: var(--gold); border: 1px solid rgba(255,217,102,0.15); }
+  .tag-green { background: rgba(94,234,160,0.1); color: var(--green); border: 1px solid rgba(94,234,160,0.15); }
+  .tag-purple { background: rgba(167,139,250,0.1); color: var(--purple); border: 1px solid rgba(167,139,250,0.15); }
+
+  .section-title {
+    font-size: 48px;
+    font-weight: 800;
+    line-height: 1.15;
+    letter-spacing: -1.5px;
+    margin-bottom: 16px;
+  }
+
+  .section-subtitle {
+    font-size: 20px;
+    color: var(--text-muted);
+    max-width: 600px;
+    font-weight: 400;
+  }
+
+  .gradient-text {
+    background: linear-gradient(90deg, var(--primary), var(--glow));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  /* ===== HERO ===== */
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    padding-top: 80px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero-content { flex: 1.1; z-index: 2; }
+  .hero-visual { flex: 0.9; display: flex; justify-content: center; align-items: center; z-index: 2; }
+
+  .hero-eyebrow {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--primary);
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    margin-bottom: 20px;
+  }
+
+  .hero h1 {
+    font-size: 62px;
+    font-weight: 900;
+    line-height: 1.08;
+    letter-spacing: -2.5px;
+    margin-bottom: 24px;
+  }
+
+  .hero p {
+    font-size: 20px;
+    color: var(--text-muted);
+    max-width: 500px;
+    line-height: 1.7;
+    margin-bottom: 36px;
+  }
+
+  .hero-buttons { display: flex; gap: 16px; }
+
+  .btn-primary {
+    padding: 16px 32px;
+    background: linear-gradient(135deg, var(--primary), var(--glow));
+    border: none;
+    border-radius: 14px;
+    color: var(--bg-dark);
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+  }
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px rgba(115,187,209,0.35);
+  }
+
+  .btn-outline {
+    padding: 16px 32px;
+    background: transparent;
+    border: 2px solid var(--card-border);
+    border-radius: 14px;
+    color: var(--text-white);
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+  }
+  .btn-outline:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+
+  .hero-pet {
+    position: relative;
+  }
+
+  .hero-pet img {
+    width: 380px;
+    filter: drop-shadow(0 30px 60px rgba(115,187,209,0.35));
+    animation: heroFloat 5s ease-in-out infinite;
+  }
+
+  .hero-pet-glow {
+    position: absolute;
+    inset: -40px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(115,187,209,0.2) 0%, transparent 70%);
+    animation: glowPulse 4s ease-in-out infinite;
+  }
+
+  /* Hero bg elements */
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: 10%;
+    right: -5%;
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(115,187,209,0.08) 0%, transparent 65%);
+    border-radius: 50%;
+  }
+
+  .hero::after {
+    content: '';
+    position: absolute;
+    bottom: 10%;
+    left: -10%;
+    width: 400px;
+    height: 400px;
+    background: radial-gradient(circle, rgba(167,139,250,0.05) 0%, transparent 65%);
+    border-radius: 50%;
+  }
+
+  /* Hero stat badges floating */
+  .hero-badge {
+    position: absolute;
+    padding: 12px 20px;
+    background: rgba(115,187,209,0.08);
+    border: 1px solid var(--card-border);
+    border-radius: 14px;
+    backdrop-filter: blur(12px);
+    font-size: 13px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    animation: badgeFloat 6s ease-in-out infinite;
+  }
+
+  .hero-badge:nth-child(1) { top: 15%; right: 5%; animation-delay: 0s; }
+  .hero-badge:nth-child(2) { bottom: 25%; right: 0%; animation-delay: 2s; }
+  .hero-badge:nth-child(3) { top: 35%; left: 55%; animation-delay: 4s; }
+
+  @keyframes heroFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-16px); }
+  }
+
+  @keyframes glowPulse {
+    0%, 100% { transform: scale(1); opacity: 0.6; }
+    50% { transform: scale(1.08); opacity: 1; }
+  }
+
+  @keyframes badgeFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+
+  /* ===== STATS BANNER ===== */
+  .stats-banner {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    padding: 60px 40px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .stat-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 18px;
+    padding: 28px;
+    text-align: center;
+    backdrop-filter: blur(12px);
+    transition: border-color 0.3s, transform 0.3s;
+  }
+  .stat-card:hover {
+    border-color: var(--card-glow);
+    transform: translateY(-4px);
+  }
+
+  .stat-number {
+    font-size: 42px;
+    font-weight: 900;
+    color: var(--primary);
+    letter-spacing: -1px;
+  }
+
+  .stat-label {
+    font-size: 13px;
+    color: var(--text-muted);
+    font-weight: 500;
+    margin-top: 4px;
+  }
+
+  /* ===== APP PREVIEW (stat bars, care actions) ===== */
+  .app-preview {
+    display: flex;
+    gap: 48px;
+    align-items: center;
+  }
+
+  .app-preview-left { flex: 1; }
+  .app-preview-right { flex: 1; }
+
+  .phone-frame {
+    width: 320px;
+    margin: 0 auto;
+    background: linear-gradient(160deg, #132F3A, #0B1D24);
+    border-radius: 36px;
+    border: 2px solid rgba(115,187,209,0.2);
+    padding: 20px;
+    box-shadow: 0 40px 80px rgba(0,0,0,0.4), 0 0 60px rgba(115,187,209,0.1);
+  }
+
+  .phone-inner {
+    background: linear-gradient(180deg, #1A4A5A, #0E2A35);
+    border-radius: 24px;
+    overflow: hidden;
+    padding: 20px 16px;
+  }
+
+  .phone-pet-area {
+    text-align: center;
+    padding: 20px 0;
+    position: relative;
+  }
+
+  .phone-pet-area img {
+    height: 160px;
+    object-fit: contain;
+    filter: drop-shadow(0 16px 32px rgba(115,187,209,0.3));
+  }
+
+  .phone-pet-name {
+    font-size: 22px;
+    font-weight: 800;
+    margin-top: 12px;
+    letter-spacing: -0.5px;
+  }
+
+  .phone-mood-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    background: rgba(94,234,160,0.15);
+    color: var(--green);
+    margin-top: 6px;
+  }
+
+  /* Stat bars (mimicking the app) */
+  .stat-bars { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; }
+
+  .stat-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .stat-bar-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(115,187,209,0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+
+  .stat-bar-info { flex: 1; }
+
+  .stat-bar-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .stat-bar-track {
+    height: 10px;
+    background: rgba(115,187,209,0.1);
+    border-radius: 5px;
+    overflow: hidden;
+    border: 1px solid rgba(115,187,209,0.15);
+  }
+
+  .stat-bar-fill {
+    height: 100%;
+    border-radius: 5px;
+    transition: width 1.5s ease;
+  }
+
+  .fill-hunger { background: linear-gradient(90deg, var(--primary), var(--glow)); width: 78%; }
+  .fill-happy { background: linear-gradient(90deg, var(--gold), #FFE699); width: 92%; }
+  .fill-energy { background: linear-gradient(90deg, var(--green), #A7F3D0); width: 65%; }
+
+  /* Care action buttons (mimicking the app) */
+  .care-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+    justify-content: center;
+  }
+
+  .care-btn {
+    width: 72px;
+    padding: 12px 0;
+    border-radius: 18px;
+    text-align: center;
+    border: 1px solid var(--card-border);
+    background: var(--card-bg);
+    transition: all 0.2s;
+    cursor: pointer;
+  }
+  .care-btn:hover { border-color: var(--card-glow); transform: scale(1.05); }
+
+  .care-btn img { height: 32px; margin-bottom: 4px; }
+  .care-btn span { display: block; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); }
+
+  /* ===== FEATURES GRID ===== */
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    margin-top: 48px;
+  }
+
+  .feature-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 20px;
+    padding: 32px 28px;
+    backdrop-filter: blur(12px);
+    transition: border-color 0.3s, transform 0.3s;
+    position: relative;
+    overflow: hidden;
+  }
+  .feature-card:hover {
+    border-color: var(--card-glow);
+    transform: translateY(-4px);
+  }
+
+  .feature-card::before {
+    content: '';
+    position: absolute;
+    top: -30%;
+    right: -30%;
+    width: 60%;
+    height: 60%;
+    border-radius: 50%;
+    opacity: 0.4;
+    pointer-events: none;
+  }
+
+  .feature-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    margin-bottom: 16px;
+  }
+
+  .feature-card h3 {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: var(--text-white);
+  }
+
+  .feature-card p {
+    font-size: 14px;
+    color: var(--text-muted);
+    line-height: 1.6;
+  }
+
+  /* ===== GAME CARDS ===== */
+  .games-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+    margin-top: 40px;
+  }
+
+  .game-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 20px;
+    padding: 24px;
+    backdrop-filter: blur(12px);
+    transition: all 0.3s;
+  }
+  .game-card:hover {
+    border-color: var(--card-glow);
+    transform: translateY(-3px);
+  }
+
+  .game-header { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
+
+  .game-emoji {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    background: rgba(115,187,209,0.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+  }
+
+  .game-title { font-size: 16px; font-weight: 700; }
+  .game-desc { font-size: 13px; color: var(--text-muted); }
+
+  .game-badges {
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+    flex-wrap: wrap;
+  }
+
+  .game-badge {
+    padding: 4px 10px;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 600;
+    background: rgba(115,187,209,0.1);
+    color: var(--primary);
+    border: 1px solid rgba(115,187,209,0.15);
+  }
+
+  /* ===== HOW IT WORKS ===== */
+  .steps-row {
+    display: flex;
+    gap: 24px;
+    margin-top: 48px;
+    position: relative;
+  }
+
+  .step-card {
+    flex: 1;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 20px;
+    padding: 36px 28px;
+    text-align: center;
+    position: relative;
+    backdrop-filter: blur(12px);
+    transition: all 0.3s;
+  }
+  .step-card:hover { border-color: var(--card-glow); transform: translateY(-4px); }
+
+  .step-num {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary), var(--glow));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    font-weight: 900;
+    color: var(--bg-dark);
+    margin: 0 auto 18px;
+  }
+
+  .step-card h3 { font-size: 20px; font-weight: 700; margin-bottom: 10px; color: var(--text-white); }
+  .step-card p { font-size: 15px; color: var(--text-muted); }
+
+  .step-connector {
+    position: absolute;
+    top: 60px;
+    width: calc(100% - 100px);
+    left: 50px;
+    height: 2px;
+    background: linear-gradient(90deg, var(--primary), var(--glow), var(--gold));
+    opacity: 0.2;
+    z-index: 0;
+  }
+
+  /* ===== BLOCKCHAIN / ON-CHAIN ===== */
+  .chain-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+    margin-top: 40px;
+  }
+
+  .chain-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 20px;
+    padding: 32px;
+    backdrop-filter: blur(12px);
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+    transition: all 0.3s;
+  }
+  .chain-card:hover { border-color: var(--card-glow); }
+
+  .chain-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+  }
+
+  .chain-card h4 { font-size: 17px; font-weight: 700; color: var(--text-white); margin-bottom: 6px; }
+  .chain-card p { font-size: 14px; color: var(--text-muted); line-height: 1.5; }
+
+  /* ===== PREMIUM TIERS ===== */
+  .tiers-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    margin-top: 48px;
+  }
+
+  .tier-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 24px;
+    padding: 36px 28px;
+    text-align: center;
+    backdrop-filter: blur(12px);
+    transition: all 0.3s;
+    position: relative;
+  }
+
+  .tier-card.featured {
+    border-color: var(--gold);
+    background: rgba(255,217,102,0.04);
+    box-shadow: 0 0 40px rgba(255,217,102,0.08);
+  }
+
+  .tier-card:hover { transform: translateY(-6px); }
+
+  .tier-badge {
+    font-size: 36px;
+    margin-bottom: 12px;
+  }
+
+  .tier-name {
+    font-size: 22px;
+    font-weight: 800;
+    margin-bottom: 4px;
+  }
+
+  .tier-price {
+    font-size: 32px;
+    font-weight: 900;
+    margin: 12px 0;
+  }
+
+  .tier-price small {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-muted);
+  }
+
+  .tier-perks {
+    list-style: none;
+    text-align: left;
+    margin-top: 20px;
+  }
+
+  .tier-perks li {
+    padding: 8px 0;
+    font-size: 14px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .tier-perks li::before {
+    content: '✓';
+    color: var(--green);
+    font-weight: 800;
+    font-size: 14px;
+  }
+
+  .tier-btn {
+    margin-top: 24px;
+    width: 100%;
+    padding: 14px;
+    border-radius: 14px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+  }
+
+  .tier-btn-free { background: rgba(115,187,209,0.1); color: var(--primary); border: 1px solid var(--card-border); }
+  .tier-btn-plus { background: linear-gradient(135deg, var(--primary), var(--glow)); color: var(--bg-dark); }
+  .tier-btn-pro { background: linear-gradient(135deg, var(--gold), #FFE699); color: var(--bg-dark); }
+
+  /* ===== EVOLUTION ===== */
+  .evo-row {
+    display: flex;
+    justify-content: center;
+    align-items: end;
+    gap: 16px;
+    margin-top: 48px;
+    padding: 40px 0;
+  }
+
+  .evo-stage {
+    text-align: center;
+    padding: 24px 20px;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 18px;
+    width: 140px;
+    transition: all 0.3s;
+  }
+  .evo-stage:hover { border-color: var(--card-glow); transform: translateY(-4px); }
+
+  .evo-emoji { font-size: 40px; margin-bottom: 8px; display: block; }
+  .evo-name { font-size: 14px; font-weight: 700; color: var(--text-white); }
+  .evo-level { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+  .evo-arrow { font-size: 24px; color: var(--primary); margin-bottom: 40px; opacity: 0.4; }
+
+  /* ===== CTA ===== */
+  .cta-section {
+    text-align: center;
+    padding: 120px 40px;
+    position: relative;
+  }
+
+  .cta-section::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(115,187,209,0.1) 0%, transparent 65%);
+    border-radius: 50%;
+  }
+
+  .cta-pet {
+    height: 260px;
+    object-fit: contain;
+    filter: drop-shadow(0 30px 60px rgba(115,187,209,0.3));
+    animation: heroFloat 5s ease-in-out infinite;
+    margin-bottom: 32px;
+  }
+
+  /* ===== FOOTER ===== */
+  footer {
+    padding: 40px;
+    text-align: center;
+    border-top: 1px solid var(--card-border);
+  }
+
+  footer p {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  /* ===== DIVIDER ===== */
+  .divider {
+    width: 80px;
+    height: 3px;
+    background: linear-gradient(90deg, var(--primary), var(--glow));
+    border-radius: 2px;
+    margin: 16px 0;
+    opacity: 0.6;
+  }
+
+  /* ===== RESPONSIVE ===== */
+  @media (max-width: 900px) {
+    .hero { flex-direction: column; text-align: center; }
+    .hero h1 { font-size: 40px; }
+    .hero p { max-width: 100%; }
+    .hero-buttons { justify-content: center; }
+    .hero-visual { margin-top: 40px; }
+    .hero-pet img { width: 260px; }
+    .stats-banner { grid-template-columns: repeat(2, 1fr); }
+    .features-grid, .games-row, .tiers-row { grid-template-columns: 1fr; }
+    .steps-row { flex-direction: column; }
+    .app-preview { flex-direction: column; }
+    .chain-grid { grid-template-columns: 1fr; }
+    .evo-row { flex-wrap: wrap; }
+    .nav-links { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">
+    <img src="assets/App-icon.png" alt="NOMI">
+    <span>NOMI</span>
+  </div>
+  <div class="nav-links">
+    <a href="#features">Features</a>
+    <a href="#games">Games</a>
+    <a href="#how">How It Works</a>
+    <a href="#chain">On-Chain</a>
+    <a href="#premium">Premium</a>
+  </div>
+  <button class="nav-btn">Get NOMI</button>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-content">
+    <div class="hero-eyebrow">Solana Mobile Companion</div>
+    <h1>
+      Everyone joked about<br>a <span class="gradient-text">Tolygotchi</span>.<br>
+      We built it.
+    </h1>
+    <p>
+      Meet NOMI &mdash; your on-chain companion pet that develops a unique personality,
+      misses you when you're gone, and actually belongs to you.
+      Minted as an NFT on Solana.
+    </p>
+    <div class="hero-buttons">
+      <a class="btn-primary" href="#how">Start Your Journey</a>
+      <a class="btn-outline" href="#features">See Features</a>
+    </div>
+  </div>
+  <div class="hero-visual">
+    <div class="hero-pet">
+      <div class="hero-pet-glow"></div>
+      <img src="assets/Photos/Exploring-removebg-preview.png" alt="NOMI">
+      <div class="hero-badge" style="top: 10%; right: -20px;">
+        <span style="color: var(--green);">&#9889;</span> Level 23 &mdash; Guardian
+      </div>
+      <div class="hero-badge" style="bottom: 20%; right: -40px; animation-delay: 1.5s;">
+        <span style="color: var(--gold);">&#128293;</span> 14-day streak
+      </div>
+      <div class="hero-badge" style="top: 55%; left: -30px; animation-delay: 3s;">
+        <span style="color: var(--pink);">&#128150;</span> Happiness 92%
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- STATS BANNER -->
+<div class="stats-banner">
+  <div class="stat-card">
+    <div class="stat-number">50</div>
+    <div class="stat-label">Levels to Master</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-number" style="color: var(--gold);">5</div>
+    <div class="stat-label">Evolution Stages</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-number" style="color: var(--green);">6</div>
+    <div class="stat-label">Mini-Games</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-number" style="color: var(--purple);">20+</div>
+    <div class="stat-label">Collectible Items</div>
+  </div>
+</div>
+
+<!-- APP PREVIEW + FEATURES -->
+<section id="features">
+  <div class="app-preview">
+    <div class="app-preview-left">
+      <span class="section-tag tag-primary">Your Companion Awaits</span>
+      <h2 class="section-title">
+        A pet that <span class="gradient-text">feels alive</span>.
+      </h2>
+      <div class="divider"></div>
+      <p class="section-subtitle" style="margin-bottom: 32px;">
+        NOMI isn't just pixels. It gets hungry, happy, tired. It develops personality traits
+        based on your choices. It writes diary entries when you're away. It literally misses you.
+      </p>
+      <div class="features-grid" style="grid-template-columns: repeat(2, 1fr);">
+        <div class="feature-card">
+          <div class="feature-icon" style="background: rgba(115,187,209,0.12);">&#127860;</div>
+          <h3>Care System</h3>
+          <p>Feed, play, rest, reflect. 15 care variants shape personality.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon" style="background: rgba(255,217,102,0.1);">&#128173;</div>
+          <h3>Personality Engine</h3>
+          <p>Foodie, adventurer, sleepy &mdash; traits evolve from your actions.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon" style="background: rgba(167,139,250,0.1);">&#128214;</div>
+          <h3>Pet Diary</h3>
+          <p>Auto-generated entries about what NOMI did while you were gone.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon" style="background: rgba(94,234,160,0.1);">&#127793;</div>
+          <h3>Random Events</h3>
+          <p>Butterflies, treasures, visitors &mdash; 20+ surprise encounters.</p>
+        </div>
+      </div>
+    </div>
+    <div class="app-preview-right">
+      <div class="phone-frame">
+        <div class="phone-inner">
+          <div class="phone-pet-area">
+            <img src="assets/Photos/headphoneguy.png" alt="NOMI with headphones">
+            <div class="phone-pet-name">NOMI</div>
+            <div class="phone-mood-badge">&#128522; Happy &mdash; Dancing</div>
+          </div>
+          <div class="stat-bars">
+            <div class="stat-bar-row">
+              <div class="stat-bar-icon">&#127828;</div>
+              <div class="stat-bar-info">
+                <div class="stat-bar-header">
+                  <span style="color: var(--primary);">Hunger</span>
+                  <span style="color: var(--primary);">78%</span>
+                </div>
+                <div class="stat-bar-track">
+                  <div class="stat-bar-fill fill-hunger"></div>
+                </div>
+              </div>
+            </div>
+            <div class="stat-bar-row">
+              <div class="stat-bar-icon">&#128150;</div>
+              <div class="stat-bar-info">
+                <div class="stat-bar-header">
+                  <span style="color: var(--gold);">Happiness</span>
+                  <span style="color: var(--gold);">92%</span>
+                </div>
+                <div class="stat-bar-track">
+                  <div class="stat-bar-fill fill-happy"></div>
+                </div>
+              </div>
+            </div>
+            <div class="stat-bar-row">
+              <div class="stat-bar-icon">&#9889;</div>
+              <div class="stat-bar-info">
+                <div class="stat-bar-header">
+                  <span style="color: var(--green);">Energy</span>
+                  <span style="color: var(--green);">65%</span>
+                </div>
+                <div class="stat-bar-track">
+                  <div class="stat-bar-fill fill-energy"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="care-actions">
+            <div class="care-btn">
+              <img src="assets/Icons/Feed.png" alt="Feed">
+              <span>Feed</span>
+            </div>
+            <div class="care-btn">
+              <img src="assets/Icons/Play.png" alt="Play">
+              <span>Play</span>
+            </div>
+            <div class="care-btn">
+              <img src="assets/Icons/Rest.png" alt="Rest">
+              <span>Rest</span>
+            </div>
+            <div class="care-btn">
+              <img src="assets/Icons/Me.png" alt="Reflect">
+              <span>Talk</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- MINI GAMES -->
+<section id="games">
+  <span class="section-tag tag-gold">Play Together</span>
+  <h2 class="section-title">6 mini-games. Earn XP. <span class="gradient-text">Level up.</span></h2>
+  <div class="divider"></div>
+  <p class="section-subtitle">Every game costs stamina and rewards XP. Unlock new games as you level up.</p>
+
+  <div class="games-row">
+    <div class="game-card">
+      <div class="game-header">
+        <div class="game-emoji">&#129504;</div>
+        <div>
+          <div class="game-title">Memory Match</div>
+          <div class="game-desc">Flip cards, find pairs</div>
+        </div>
+      </div>
+      <div class="game-badges">
+        <span class="game-badge">20-50 XP</span>
+        <span class="game-badge">Lvl 1</span>
+      </div>
+    </div>
+    <div class="game-card">
+      <div class="game-header">
+        <div class="game-emoji">&#128064;</div>
+        <div>
+          <div class="game-title">Quick Tap</div>
+          <div class="game-desc">Tap fast, dodge bombs</div>
+        </div>
+      </div>
+      <div class="game-badges">
+        <span class="game-badge">15-60 XP</span>
+        <span class="game-badge">Lvl 3</span>
+      </div>
+    </div>
+    <div class="game-card">
+      <div class="game-header">
+        <div class="game-emoji">&#127912;</div>
+        <div>
+          <div class="game-title">Color Match</div>
+          <div class="game-desc">Match the color, not the word</div>
+        </div>
+      </div>
+      <div class="game-badges">
+        <span class="game-badge">15-60 XP</span>
+        <span class="game-badge">Lvl 2</span>
+      </div>
+    </div>
+    <div class="game-card">
+      <div class="game-header">
+        <div class="game-emoji">&#129518;</div>
+        <div>
+          <div class="game-title">Pattern Recall</div>
+          <div class="game-desc">Remember the sequence</div>
+        </div>
+      </div>
+      <div class="game-badges">
+        <span class="game-badge">10-80 XP</span>
+        <span class="game-badge">Lvl 7</span>
+      </div>
+    </div>
+    <div class="game-card">
+      <div class="game-header">
+        <div class="game-emoji">&#129697;</div>
+        <div>
+          <div class="game-title">Math Rush</div>
+          <div class="game-desc">Solve fast math problems</div>
+        </div>
+      </div>
+      <div class="game-badges">
+        <span class="game-badge">15-55 XP</span>
+        <span class="game-badge">Lvl 4</span>
+      </div>
+    </div>
+    <div class="game-card">
+      <div class="game-header">
+        <div class="game-emoji">&#127919;</div>
+        <div>
+          <div class="game-title">Emoji Catch</div>
+          <div class="game-desc">Catch falling emojis</div>
+        </div>
+      </div>
+      <div class="game-badges">
+        <span class="game-badge">10-50 XP</span>
+        <span class="game-badge">Lvl 5</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section id="how">
+  <div style="text-align: center;">
+    <span class="section-tag tag-primary">How It Works</span>
+    <h2 class="section-title" style="margin: 0 auto;">Three steps. <span class="gradient-text">That's it.</span></h2>
+    <div class="divider" style="margin: 16px auto;"></div>
+  </div>
+
+  <div class="steps-row">
+    <div class="step-connector"></div>
+    <div class="step-card">
+      <div class="step-num">1</div>
+      <h3>Connect & Mint</h3>
+      <p>Connect your Solana wallet. Mint your NOMI as a real NFT on mainnet for just 0.01 SOL.</p>
+    </div>
+    <div class="step-card">
+      <div class="step-num">2</div>
+      <h3>Care Daily</h3>
+      <p>Feed, play, rest, reflect. Your daily choices shape NOMI's unique personality traits.</p>
+    </div>
+    <div class="step-card">
+      <div class="step-num">3</div>
+      <h3>Grow & Evolve</h3>
+      <p>Level up through 50 levels. Evolve through 5 stages. Collect accessories from the shop.</p>
+    </div>
+  </div>
+</section>
+
+<!-- EVOLUTION -->
+<section>
+  <div style="text-align: center;">
+    <span class="section-tag tag-gold">Evolution</span>
+    <h2 class="section-title">Watch your NOMI <span class="gradient-text">grow</span>.</h2>
+    <div class="divider" style="margin: 16px auto;"></div>
+    <p class="section-subtitle" style="margin: 0 auto;">5 stages of evolution. Earn shards through adventures, quests, and the spin wheel.</p>
+  </div>
+
+  <div class="evo-row">
+    <div class="evo-stage">
+      <span class="evo-emoji">&#129370;</span>
+      <div class="evo-name">Baby Nomi</div>
+      <div class="evo-level">Level 1</div>
+    </div>
+    <div class="evo-arrow">&#8594;</div>
+    <div class="evo-stage">
+      <span class="evo-emoji">&#128049;</span>
+      <div class="evo-name">Teen Nomi</div>
+      <div class="evo-level">Level 10</div>
+    </div>
+    <div class="evo-arrow">&#8594;</div>
+    <div class="evo-stage">
+      <span class="evo-emoji">&#129409;</span>
+      <div class="evo-name">Adult Nomi</div>
+      <div class="evo-level">Level 20</div>
+    </div>
+    <div class="evo-arrow">&#8594;</div>
+    <div class="evo-stage">
+      <span class="evo-emoji">&#128009;</span>
+      <div class="evo-name">Elder Nomi</div>
+      <div class="evo-level">Level 35</div>
+    </div>
+    <div class="evo-arrow">&#8594;</div>
+    <div class="evo-stage" style="border-color: var(--gold); background: rgba(255,217,102,0.04);">
+      <span class="evo-emoji">&#128081;</span>
+      <div class="evo-name" style="color: var(--gold);">Oracle Nomi</div>
+      <div class="evo-level">Level 50</div>
+    </div>
+  </div>
+</section>
+
+<!-- ON-CHAIN -->
+<section id="chain">
+  <span class="section-tag tag-green">Powered by Solana</span>
+  <h2 class="section-title">Everything <span class="gradient-text">on-chain</span>. Zero backend.</h2>
+  <div class="divider"></div>
+  <p class="section-subtitle">No servers. No databases. No accounts. Just your wallet and the blockchain.</p>
+
+  <div class="chain-grid">
+    <div class="chain-card">
+      <div class="chain-icon" style="background: rgba(115,187,209,0.12);">&#127912;</div>
+      <div>
+        <h4>Real NFT Minting</h4>
+        <p>Your NOMI is minted as a Metaplex NFT on Solana mainnet. You truly own it.</p>
+      </div>
+    </div>
+    <div class="chain-card">
+      <div class="chain-icon" style="background: rgba(94,234,160,0.1);">&#128230;</div>
+      <div>
+        <h4>Memo-Based Receipts</h4>
+        <p>Every purchase stored as a transaction memo. Reinstall? Everything restores from chain.</p>
+      </div>
+    </div>
+    <div class="chain-card">
+      <div class="chain-icon" style="background: rgba(167,139,250,0.1);">&#128241;</div>
+      <div>
+        <h4>Mobile Wallet Adapter</h4>
+        <p>Native Phantom & Solflare integration. One-tap signing on Seeker hardware.</p>
+      </div>
+    </div>
+    <div class="chain-card">
+      <div class="chain-icon" style="background: rgba(255,217,102,0.1);">&#128176;</div>
+      <div>
+        <h4>Dual Currency</h4>
+        <p>SOL for shop items and Plus tier. SKR tokens for Pro tier. Real value flowing on-chain.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PREMIUM -->
+<section id="premium">
+  <div style="text-align: center;">
+    <span class="section-tag tag-purple">Premium Tiers</span>
+    <h2 class="section-title">Level up your <span class="gradient-text">experience</span>.</h2>
+    <div class="divider" style="margin: 16px auto;"></div>
+  </div>
+
+  <div class="tiers-row">
+    <div class="tier-card">
+      <div class="tier-badge">&#127381;</div>
+      <div class="tier-name">Free</div>
+      <div class="tier-price" style="color: var(--text-muted);">$0 <small>forever</small></div>
+      <ul class="tier-perks">
+        <li>10 stamina/hr regen</li>
+        <li>1 free spin per day</li>
+        <li>All 6 mini-games</li>
+        <li>Full care system</li>
+        <li>50 levels of progression</li>
+      </ul>
+      <button class="tier-btn tier-btn-free">Current Plan</button>
+    </div>
+    <div class="tier-card featured">
+      <div class="tier-badge">&#11088;</div>
+      <div class="tier-name" style="color: var(--primary);">Plus</div>
+      <div class="tier-price" style="color: var(--primary);">0.49 <small>SOL</small></div>
+      <ul class="tier-perks">
+        <li>20 stamina/hr (2x regen)</li>
+        <li>3 free spins per day</li>
+        <li>50% cooldown reduction</li>
+        <li>+35% XP bonus</li>
+        <li>Exclusive Plus items</li>
+      </ul>
+      <button class="tier-btn tier-btn-plus">Upgrade to Plus</button>
+    </div>
+    <div class="tier-card">
+      <div class="tier-badge">&#128142;</div>
+      <div class="tier-name" style="color: var(--gold);">Pro</div>
+      <div class="tier-price" style="color: var(--gold);">1,499 <small>SKR</small></div>
+      <ul class="tier-perks">
+        <li>30 stamina/hr (3x regen)</li>
+        <li>5 free spins per day</li>
+        <li>No cooldowns at all</li>
+        <li>+75% XP bonus</li>
+        <li>ALL shop items free</li>
+      </ul>
+      <button class="tier-btn tier-btn-pro">Go Pro</button>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <img src="assets/Photos/exploreEarth-removebg-preview.png" class="cta-pet" alt="NOMI on globe">
+  <h2 class="section-title" style="text-align: center; font-size: 52px;">
+    Your companion is <span class="gradient-text">waiting</span>.
+  </h2>
+  <p class="section-subtitle" style="text-align: center; margin: 16px auto 36px;">
+    Mint your NOMI. Name it. Care for it. Watch it grow.
+    It already misses you.
+  </p>
+  <div style="display: flex; gap: 16px; justify-content: center;">
+    <a class="btn-primary" href="#" style="font-size: 18px; padding: 18px 40px;">Get NOMI on dApp Store</a>
+  </div>
+  <p style="font-size: 13px; color: var(--text-muted); margin-top: 24px; text-align: center;">
+    Built with &#128153; by <strong style="color: var(--text-white);">Yash Bharadwaj</strong> &mdash; Solo Developer
+    <br>
+    <span style="font-size: 11px; opacity: 0.5;">Solana Mobile Monolith Hackathon 2026</span>
+  </p>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <p>NOMI &mdash; A companion that lives on Solana. Built for the Monolith Hackathon.</p>
+</footer>
+
+</body>
+</html>

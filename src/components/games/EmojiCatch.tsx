@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, TouchableOpacity, Animated, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, Pressable, Animated, Dimensions } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { playMusic, stopMusic } from '../../lib/soundManager';
+import { playMusic, stopMusic, playSfx } from '../../lib/soundManager';
 
 const GAME_TIME = 25;
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
@@ -116,14 +116,21 @@ export function EmojiCatch({ onComplete, onCancel }: EmojiCatchProps) {
     return () => clearTimeout(timeout);
   }, [gameOver, targetEmoji]);
 
+  // Final results state
+  const [finalResult, setFinalResult] = useState<{ score: number; xp: number } | null>(null);
+
   // End game
   useEffect(() => {
     if (!gameOver) return;
     const finalScore = Math.max(0, score);
     const xp = Math.round(10 + caught * 3);
-    const timer = setTimeout(() => onComplete(finalScore, Math.min(xp, 50)), 1800);
-    return () => clearTimeout(timer);
-  }, [gameOver, score, caught, onComplete]);
+    setFinalResult({ score: finalScore, xp: Math.min(xp, 50) });
+    playSfx('gamevictory').catch(() => {});
+  }, [gameOver, score, caught]);
+
+  const handleDismiss = () => {
+    if (finalResult) onComplete(finalResult.score, finalResult.xp);
+  };
 
   const addFloat = useCallback((text: string, color: string, x: number, y: number) => {
     const id = floatId.current++;
@@ -221,16 +228,21 @@ export function EmojiCatch({ onComplete, onCancel }: EmojiCatchProps) {
 
       {/* Game over overlay */}
       {gameOver && (
-        <View className="absolute inset-0 bg-black/30 items-center justify-center">
-          <View className="bg-white rounded-3xl p-8 items-center mx-8">
-            <Text className="text-[48px] mb-2">{targetEmoji}</Text>
-            <Text className="text-[24px] font-black text-gray-800 mb-1">Time's Up!</Text>
-            <Text className="text-[14px] text-gray-500 font-semibold">
-              {caught} caught {'\u2022'} {missed} wrong
-            </Text>
-            <Text className="text-[18px] font-black text-green-600 mt-2">{score} pts</Text>
-          </View>
-        </View>
+        <Pressable className="absolute inset-0 bg-black/30 items-center justify-center" onPress={handleDismiss}>
+          <Pressable>
+            <View className="bg-white rounded-3xl p-8 items-center mx-8">
+              <Text className="text-[48px] mb-2">{targetEmoji}</Text>
+              <Text className="text-[24px] font-black text-gray-800 mb-1">Time's Up!</Text>
+              <Text className="text-[14px] text-gray-500 font-semibold">
+                {caught} caught {'\u2022'} {missed} wrong
+              </Text>
+              <Text className="text-[18px] font-black text-green-600 mt-2">{score} pts</Text>
+              <TouchableOpacity onPress={handleDismiss} activeOpacity={0.85} className="mt-4 bg-pet-purple px-8 py-3 rounded-full">
+                <Text className="text-white font-black text-[14px]">Done</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
       )}
     </View>
   );

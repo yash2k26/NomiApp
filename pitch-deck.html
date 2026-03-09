@@ -1,0 +1,1172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NOMI — Pitch Deck</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --primary: #4FABC9;
+    --primary-dark: #3E8AB3;
+    --primary-darker: #1a3a5c;
+    --accent: #6BC6D9;
+    --bg-dark: #0a1628;
+    --bg-card: rgba(79, 171, 201, 0.08);
+    --text-white: #f0f6ff;
+    --text-muted: #8ba4c4;
+    --gold: #FFD700;
+    --green: #34D399;
+    --orange: #F97316;
+    --pink: #EC4899;
+    --purple: #9381FF;
+    --cyan: #7DF9FF;
+  }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg-dark);
+    color: var(--text-white);
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  .deck {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+  }
+
+  .slide {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 60px 80px;
+    opacity: 0;
+    transform: translateX(60px);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+    pointer-events: none;
+    background: linear-gradient(135deg, #0a1628 0%, #0f2140 40%, #112a4a 100%);
+    overflow: hidden;
+  }
+
+  .slide.active {
+    opacity: 1;
+    transform: translateX(0);
+    pointer-events: all;
+  }
+
+  .slide::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -30%;
+    width: 80%;
+    height: 80%;
+    background: radial-gradient(circle, rgba(79,171,201,0.08) 0%, transparent 70%);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+
+  /* Slide counter */
+  .slide-counter {
+    position: fixed;
+    bottom: 24px;
+    right: 40px;
+    font-size: 14px;
+    color: var(--text-muted);
+    z-index: 100;
+    font-weight: 500;
+    letter-spacing: 1px;
+  }
+
+  /* Progress bar */
+  .progress-bar {
+    position: fixed;
+    top: 0; left: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--primary), var(--accent));
+    transition: width 0.4s ease;
+    z-index: 100;
+  }
+
+  /* Nav hint */
+  .nav-hint {
+    position: fixed;
+    bottom: 24px;
+    left: 40px;
+    font-size: 12px;
+    color: rgba(139,164,196,0.4);
+    z-index: 100;
+  }
+
+  /* Typography */
+  h1 {
+    font-size: 56px;
+    font-weight: 800;
+    line-height: 1.15;
+    margin-bottom: 24px;
+    letter-spacing: -1.5px;
+  }
+
+  h2 {
+    font-size: 42px;
+    font-weight: 700;
+    line-height: 1.2;
+    margin-bottom: 20px;
+    letter-spacing: -1px;
+  }
+
+  h3 {
+    font-size: 28px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    color: var(--accent);
+    letter-spacing: -0.5px;
+  }
+
+  p, li {
+    font-size: 22px;
+    line-height: 1.6;
+    color: var(--text-muted);
+    font-weight: 400;
+  }
+
+  .highlight {
+    color: var(--primary);
+    font-weight: 600;
+  }
+
+  .highlight-gold {
+    color: var(--gold);
+    font-weight: 600;
+  }
+
+  .highlight-green {
+    color: var(--green);
+    font-weight: 600;
+  }
+
+  .big-quote {
+    font-size: 36px;
+    font-weight: 300;
+    line-height: 1.5;
+    color: var(--text-white);
+    font-style: italic;
+    max-width: 900px;
+    text-align: center;
+  }
+
+  .big-quote strong {
+    color: var(--primary);
+    font-weight: 700;
+    font-style: normal;
+  }
+
+  .tag {
+    display: inline-block;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 20px;
+  }
+
+  .tag-blue { background: rgba(79,171,201,0.15); color: var(--primary); }
+  .tag-gold { background: rgba(255,215,0,0.12); color: var(--gold); }
+  .tag-green { background: rgba(52,211,153,0.12); color: var(--green); }
+  .tag-purple { background: rgba(147,129,255,0.12); color: var(--purple); }
+  .tag-pink { background: rgba(236,72,153,0.12); color: var(--pink); }
+
+  /* Cards */
+  .card {
+    background: rgba(79,171,201,0.06);
+    border: 1px solid rgba(79,171,201,0.12);
+    border-radius: 16px;
+    padding: 28px 32px;
+    backdrop-filter: blur(8px);
+  }
+
+  .card-row {
+    display: flex;
+    gap: 24px;
+    width: 100%;
+    max-width: 1100px;
+  }
+
+  .card-row .card {
+    flex: 1;
+  }
+
+  /* Stats */
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    width: 100%;
+    max-width: 900px;
+  }
+
+  .stat-box {
+    background: rgba(79,171,201,0.06);
+    border: 1px solid rgba(79,171,201,0.12);
+    border-radius: 14px;
+    padding: 24px;
+    text-align: center;
+  }
+
+  .stat-number {
+    font-size: 40px;
+    font-weight: 800;
+    color: var(--primary);
+    letter-spacing: -1px;
+  }
+
+  .stat-label {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin-top: 6px;
+    font-weight: 500;
+  }
+
+  /* Lists */
+  .feature-list {
+    list-style: none;
+    max-width: 800px;
+  }
+
+  .feature-list li {
+    padding: 10px 0;
+    padding-left: 32px;
+    position: relative;
+    font-size: 21px;
+  }
+
+  .feature-list li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 18px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--primary);
+  }
+
+  /* Images */
+  .pet-img {
+    max-height: 300px;
+    object-fit: contain;
+    filter: drop-shadow(0 20px 40px rgba(79,171,201,0.3));
+  }
+
+  .pet-img-small {
+    max-height: 180px;
+    object-fit: contain;
+    filter: drop-shadow(0 10px 20px rgba(79,171,201,0.2));
+  }
+
+  .pet-img-large {
+    max-height: 380px;
+    object-fit: contain;
+    filter: drop-shadow(0 30px 60px rgba(79,171,201,0.35));
+  }
+
+  /* Glow effect */
+  .glow-ring {
+    position: relative;
+    display: inline-block;
+  }
+
+  .glow-ring::after {
+    content: '';
+    position: absolute;
+    inset: -20px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(79,171,201,0.2) 0%, transparent 70%);
+    z-index: -1;
+    animation: pulse 3s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); opacity: 0.5; }
+    50% { transform: scale(1.1); opacity: 1; }
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-12px); }
+  }
+
+  .float { animation: float 4s ease-in-out infinite; }
+
+  /* Steps */
+  .steps {
+    display: flex;
+    gap: 32px;
+    max-width: 1100px;
+    width: 100%;
+  }
+
+  .step {
+    flex: 1;
+    background: rgba(79,171,201,0.06);
+    border: 1px solid rgba(79,171,201,0.12);
+    border-radius: 16px;
+    padding: 32px 28px;
+    text-align: center;
+    position: relative;
+  }
+
+  .step-num {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary), var(--accent));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    font-weight: 800;
+    color: white;
+    margin: 0 auto 16px;
+  }
+
+  .step h4 {
+    font-size: 19px;
+    font-weight: 700;
+    color: var(--text-white);
+    margin-bottom: 10px;
+  }
+
+  .step p {
+    font-size: 16px;
+    line-height: 1.5;
+  }
+
+  /* Connector arrows between steps */
+  .step:not(:last-child)::after {
+    content: '\2192';
+    position: absolute;
+    right: -24px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 24px;
+    color: var(--primary);
+    z-index: 1;
+  }
+
+  /* Business model */
+  .biz-row {
+    display: flex;
+    gap: 24px;
+    max-width: 1100px;
+    width: 100%;
+  }
+
+  .biz-card {
+    flex: 1;
+    background: rgba(79,171,201,0.06);
+    border: 1px solid rgba(79,171,201,0.12);
+    border-radius: 16px;
+    padding: 28px 24px;
+    text-align: center;
+  }
+
+  .biz-icon {
+    font-size: 36px;
+    margin-bottom: 12px;
+  }
+
+  .biz-card h4 {
+    font-size: 19px;
+    font-weight: 700;
+    color: var(--text-white);
+    margin-bottom: 8px;
+  }
+
+  .biz-card p {
+    font-size: 16px;
+  }
+
+  .biz-card .price {
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--primary);
+    margin-top: 8px;
+  }
+
+  /* Roadmap */
+  .roadmap {
+    display: flex;
+    gap: 28px;
+    max-width: 1100px;
+    width: 100%;
+  }
+
+  .roadmap-item {
+    flex: 1;
+    background: rgba(79,171,201,0.06);
+    border: 1px solid rgba(79,171,201,0.12);
+    border-radius: 16px;
+    padding: 28px 24px;
+    position: relative;
+  }
+
+  .roadmap-item.active-quarter {
+    border-color: var(--primary);
+    background: rgba(79,171,201,0.1);
+    box-shadow: 0 0 30px rgba(79,171,201,0.1);
+  }
+
+  .quarter-tag {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 14px;
+  }
+
+  .roadmap-item ul {
+    list-style: none;
+    padding: 0;
+  }
+
+  .roadmap-item li {
+    font-size: 16px;
+    padding: 5px 0;
+    padding-left: 20px;
+    position: relative;
+  }
+
+  .roadmap-item li::before {
+    content: '\2022';
+    position: absolute;
+    left: 0;
+    color: var(--primary);
+    font-weight: bold;
+  }
+
+  /* Team */
+  .team-card {
+    display: flex;
+    gap: 48px;
+    align-items: center;
+    max-width: 1000px;
+    background: rgba(79,171,201,0.06);
+    border: 1px solid rgba(79,171,201,0.12);
+    border-radius: 20px;
+    padding: 48px 56px;
+  }
+
+  .team-photo {
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid var(--primary);
+    box-shadow: 0 0 40px rgba(79,171,201,0.3);
+    flex-shrink: 0;
+  }
+
+  .team-info h3 {
+    font-size: 32px;
+    color: var(--text-white);
+    margin-bottom: 4px;
+  }
+
+  .team-role {
+    font-size: 16px;
+    color: var(--primary);
+    font-weight: 600;
+    margin-bottom: 20px;
+  }
+
+  .team-info li {
+    font-size: 18px;
+    padding: 4px 0;
+  }
+
+  .team-quote {
+    margin-top: 20px;
+    font-size: 22px;
+    font-style: italic;
+    color: var(--text-white);
+    font-weight: 500;
+  }
+
+  /* Traction */
+  .traction-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 18px;
+    max-width: 900px;
+    width: 100%;
+  }
+
+  .traction-item {
+    background: rgba(79,171,201,0.06);
+    border: 1px solid rgba(79,171,201,0.12);
+    border-radius: 14px;
+    padding: 22px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .traction-icon {
+    font-size: 28px;
+    flex-shrink: 0;
+  }
+
+  .traction-text {
+    font-size: 17px;
+    color: var(--text-muted);
+    line-height: 1.4;
+  }
+
+  .traction-text strong {
+    color: var(--text-white);
+    font-weight: 600;
+  }
+
+  /* CTA */
+  .cta-box {
+    text-align: center;
+  }
+
+  .cta-qr {
+    width: 180px;
+    height: 180px;
+    background: white;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 24px;
+    font-size: 14px;
+    color: #333;
+    font-weight: 600;
+  }
+
+  .cta-links {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    margin-top: 20px;
+  }
+
+  .cta-btn {
+    padding: 14px 32px;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: transform 0.2s;
+    cursor: pointer;
+    border: none;
+  }
+
+  .cta-btn:hover { transform: translateY(-2px); }
+
+  .cta-btn-primary {
+    background: linear-gradient(135deg, var(--primary), var(--accent));
+    color: white;
+  }
+
+  .cta-btn-outline {
+    background: transparent;
+    border: 2px solid var(--primary);
+    color: var(--primary);
+  }
+
+  /* Slide-specific layouts */
+  .split-layout {
+    display: flex;
+    gap: 60px;
+    align-items: center;
+    width: 100%;
+    max-width: 1200px;
+  }
+
+  .split-layout .left { flex: 1.2; }
+  .split-layout .right { flex: 0.8; display: flex; justify-content: center; }
+
+  .center-layout {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    max-width: 1000px;
+  }
+
+  /* Venn diagram */
+  .venn {
+    position: relative;
+    width: 400px;
+    height: 260px;
+    margin: 0 auto;
+  }
+
+  .venn-circle {
+    position: absolute;
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 20px;
+    line-height: 1.3;
+  }
+
+  .venn-circle.left-c {
+    left: 20px;
+    top: 30px;
+    background: rgba(79,171,201,0.15);
+    border: 2px solid rgba(79,171,201,0.3);
+    color: var(--accent);
+  }
+
+  .venn-circle.right-c {
+    right: 20px;
+    top: 30px;
+    background: rgba(147,129,255,0.15);
+    border: 2px solid rgba(147,129,255,0.3);
+    color: var(--purple);
+  }
+
+  .venn-center {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(79,171,201,0.25);
+    border: 2px solid var(--primary);
+    border-radius: 12px;
+    padding: 10px 18px;
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--text-white);
+    z-index: 2;
+    white-space: nowrap;
+  }
+
+  /* Banner line */
+  .banner-stat {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 28px;
+    background: rgba(79,171,201,0.1);
+    border: 1px solid rgba(79,171,201,0.2);
+    border-radius: 12px;
+    margin-top: 16px;
+    font-size: 18px;
+    font-weight: 500;
+  }
+
+  .banner-stat .num {
+    font-weight: 800;
+    font-size: 22px;
+    color: var(--primary);
+  }
+
+  /* Solana badge */
+  .solana-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 18px;
+    border-radius: 20px;
+    background: rgba(79,171,201,0.1);
+    border: 1px solid rgba(79,171,201,0.2);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: 24px;
+  }
+
+  /* Watermark */
+  .watermark {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    color: rgba(139,164,196,0.2);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  /* Demo placeholder */
+  .demo-placeholder {
+    width: 100%;
+    max-width: 700px;
+    aspect-ratio: 16/9;
+    background: rgba(79,171,201,0.06);
+    border: 2px dashed rgba(79,171,201,0.2);
+    border-radius: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin-top: 20px;
+  }
+
+  .demo-placeholder .play-icon {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary), var(--accent));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    box-shadow: 0 8px 30px rgba(79,171,201,0.3);
+  }
+
+  /* Keyword animation for hook */
+  .typed-line {
+    overflow: hidden;
+    white-space: nowrap;
+    border-right: 3px solid var(--primary);
+    animation: typing 3s steps(50) 0.5s forwards, blink 0.8s step-end infinite;
+    width: 0;
+    max-width: 100%;
+  }
+
+  @keyframes typing {
+    to { width: 100%; }
+  }
+
+  @keyframes blink {
+    50% { border-color: transparent; }
+  }
+
+  /* Responsive for smaller screens */
+  @media (max-width: 1024px) {
+    .slide { padding: 40px; }
+    h1 { font-size: 42px; }
+    h2 { font-size: 34px; }
+    .steps { flex-direction: column; gap: 16px; }
+    .split-layout { flex-direction: column; gap: 30px; }
+    .biz-row { flex-direction: column; }
+    .roadmap { flex-direction: column; }
+    .team-card { flex-direction: column; text-align: center; }
+  }
+</style>
+</head>
+<body>
+
+<div class="progress-bar" id="progress"></div>
+<div class="slide-counter" id="counter"></div>
+<div class="nav-hint">Arrow keys or click to navigate</div>
+
+<div class="deck" id="deck">
+
+  <!-- ========== SLIDE 1: HOOK ========== -->
+  <div class="slide active" id="slide-1">
+    <div class="center-layout">
+      <div class="glow-ring float">
+        <img src="assets/App-icon.png" class="pet-img" alt="NOMI" style="border-radius: 50%;">
+      </div>
+      <div style="margin-top: 36px;">
+        <p style="font-size: 30px; color: var(--text-muted); font-weight: 400; line-height: 1.7;">
+          Everyone joked about building a <span style="color: var(--text-white); font-weight: 600;">Tolygotchi</span>.
+        </p>
+        <p style="font-size: 34px; color: var(--text-white); font-weight: 600; margin-top: 12px;">
+          We actually did it.
+        </p>
+        <div style="margin-top: 32px; padding: 20px 0; border-top: 1px solid rgba(79,171,201,0.15);">
+          <p style="font-size: 22px; color: var(--text-muted); font-weight: 300; line-height: 1.6;">
+            In 1996, <span class="highlight" style="font-size: 26px;">82 million</span> people fell in love with a plastic egg.
+            It died when the battery ran out.
+          </p>
+          <h1 style="margin-top: 24px; font-size: 42px;">
+            Meet <span style="background: linear-gradient(90deg, var(--primary), var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">NOMI</span> &mdash; the pet that lives on Solana,<br>
+            <span style="font-size: 36px; color: var(--text-muted); font-weight: 400;">and actually remembers your name.</span>
+          </h1>
+        </div>
+      </div>
+    </div>
+    <div class="watermark">NOMI &mdash; Solana Mobile Monolith Hackathon 2026</div>
+  </div>
+
+  <!-- ========== SLIDE 2: PROBLEM ========== -->
+  <div class="slide" id="slide-2">
+    <div class="center-layout">
+      <span class="tag tag-pink">The Problem</span>
+      <h2>Every app on Solana wants your money.<br>
+      <span style="color: var(--text-muted); font-weight: 400;">None of them want you to come back.</span></h2>
+
+      <div class="stat-grid" style="margin-top: 32px;">
+        <div class="stat-box">
+          <div class="stat-number">77%</div>
+          <div class="stat-label">of mobile apps abandoned<br>within 3 days</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-number" style="color: var(--orange);">0</div>
+          <div class="stat-label">companion / lifestyle apps<br>on Solana Mobile</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-number" style="color: var(--text-muted);">2.3 min</div>
+          <div class="stat-label">avg crypto app session<br>check price &rarr; leave</div>
+        </div>
+      </div>
+
+      <p style="margin-top: 32px; font-size: 24px; color: var(--text-white); font-weight: 500;">
+        The hardware is incredible. But the ecosystem has <span class="highlight">no soul</span>.
+      </p>
+    </div>
+  </div>
+
+  <!-- ========== SLIDE 3: VALUE PROPOSITION ========== -->
+  <div class="slide" id="slide-3">
+    <div class="center-layout">
+      <div class="glow-ring float">
+        <img src="assets/Photos/hanging.png" class="pet-img-large" alt="NOMI hanging" style="max-height: 320px;">
+      </div>
+      <div style="margin-top: 36px;">
+        <span class="tag tag-blue">Value Proposition</span>
+        <h1 style="font-size: 48px; max-width: 800px;">
+          NOMI &mdash; Your on-chain companion that
+          <span style="background: linear-gradient(90deg, var(--primary), var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">misses you when you're gone.</span>
+        </h1>
+        <p style="margin-top: 16px; font-size: 22px; max-width: 700px;">
+          A digital pet that lives on Solana, minted as an NFT you truly own,
+          with a personality shaped by how you treat it.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== SLIDE 4: HOW IT WORKS ========== -->
+  <div class="slide" id="slide-4">
+    <div class="center-layout">
+      <span class="tag tag-blue">How It Works</span>
+      <h2 style="margin-bottom: 40px;">Three steps. That's it.</h2>
+
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <h4>Connect & Mint</h4>
+          <p>Connect your Solana wallet. Mint your NOMI as a <strong style="color: var(--text-white);">real NFT</strong> on mainnet for 0.01 SOL.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <h4>Care Daily</h4>
+          <p><strong style="color: var(--text-white);">Feed, Play, Rest, Reflect.</strong> Your choices shape its personality &mdash; foodie, adventurer, sleepy.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <h4>Grow & Evolve</h4>
+          <p><strong style="color: var(--text-white);">50 levels. 5 evolution stages.</strong> Collect 20+ accessories. All recorded on-chain.</p>
+        </div>
+      </div>
+
+      <div style="margin-top: 36px; display: flex; gap: 24px;">
+        <img src="assets/Icons/Feed.png" class="pet-img-small" style="max-height: 52px; opacity: 0.7;" alt="Feed">
+        <img src="assets/Icons/Play.png" class="pet-img-small" style="max-height: 52px; opacity: 0.7;" alt="Play">
+        <img src="assets/Icons/Rest.png" class="pet-img-small" style="max-height: 52px; opacity: 0.7;" alt="Rest">
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== SLIDE 5: DEMO ========== -->
+  <div class="slide" id="slide-5">
+    <div class="center-layout">
+      <span class="tag tag-gold">Live Demo</span>
+      <h2>Let me show you what it looks like.</h2>
+
+      <div class="demo-placeholder">
+        <div class="play-icon">&#9654;</div>
+        <p style="font-size: 16px; color: var(--text-muted);">
+          Embed your 28-second screen recording here<br>
+          <span style="font-size: 13px; opacity: 0.6;">Replace this with an &lt;video&gt; tag or screenshot montage</span>
+        </p>
+      </div>
+
+      <div style="display: flex; gap: 40px; margin-top: 28px;">
+        <div style="text-align: center;">
+          <img src="assets/Photos/headphoneguy.png" style="height: 120px; object-fit: contain; filter: drop-shadow(0 8px 16px rgba(79,171,201,0.3));" alt="Headphones">
+          <p style="font-size: 14px; margin-top: 8px; color: var(--primary); font-weight: 600;">Equip &rarr; Dance</p>
+        </div>
+        <div style="text-align: center;">
+          <img src="assets/Photos/Exploring-removebg-preview.png" style="height: 120px; object-fit: contain; filter: drop-shadow(0 8px 16px rgba(79,171,201,0.3));" alt="Adventure">
+          <p style="font-size: 14px; margin-top: 8px; color: var(--primary); font-weight: 600;">Adventures</p>
+        </div>
+        <div style="text-align: center;">
+          <img src="assets/Photos/exploreEarth-removebg-preview.png" style="height: 120px; object-fit: contain; filter: drop-shadow(0 8px 16px rgba(79,171,201,0.3));" alt="World">
+          <p style="font-size: 14px; margin-top: 8px; color: var(--primary); font-weight: 600;">Explore Worlds</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== SLIDE 6: MARKET ========== -->
+  <div class="slide" id="slide-6">
+    <div class="center-layout">
+      <span class="tag tag-purple">Market Opportunity</span>
+      <h2>Who uses NOMI?</h2>
+
+      <div class="venn" style="margin: 24px auto;">
+        <div class="venn-circle left-c">Solana Mobile<br>Device Owners<br><strong>140K+</strong></div>
+        <div class="venn-circle right-c">Companion App<br>Lovers<br><strong>$1.2B market</strong></div>
+        <div class="venn-center">NOMI</div>
+      </div>
+
+      <div class="banner-stat" style="margin-top: 32px;">
+        <span>Finch (web2 comp):</span>
+        <span class="num">10M+</span>
+        <span>downloads &mdash; proof this model works. Nobody brought it to web3.</span>
+      </div>
+
+      <p style="margin-top: 28px; font-size: 22px; color: var(--text-white); font-weight: 500; max-width: 800px;">
+        <em>"What level is your NOMI? Did yours evolve yet?"</em><br>
+        <span style="color: var(--text-muted); font-weight: 400; font-size: 18px;">That's not an app. That's a <span class="highlight">community</span>.</span>
+      </p>
+    </div>
+  </div>
+
+  <!-- ========== SLIDE 7: BUSINESS MODEL ========== -->
+  <div class="slide" id="slide-7">
+    <div class="center-layout">
+      <span class="tag tag-green">Business Model</span>
+      <h2>How NOMI captures value</h2>
+
+      <div class="biz-row" style="margin-top: 32px;">
+        <div class="biz-card">
+          <div class="biz-icon">&#128722;</div>
+          <h4>Accessory Shop</h4>
+          <p>20+ items &mdash; hats, outfits, animations. All SOL goes to treasury.</p>
+          <div class="price">0.001 &ndash; 0.01 SOL</div>
+        </div>
+        <div class="biz-card">
+          <div class="biz-icon">&#11088;</div>
+          <h4>Premium Plus</h4>
+          <p>2x stamina regen, 35% XP boost, halved cooldowns, exclusive items.</p>
+          <div class="price">0.49 SOL</div>
+        </div>
+        <div class="biz-card">
+          <div class="biz-icon">&#128142;</div>
+          <h4>Premium Pro</h4>
+          <p>3x regen, 75% XP boost, all items free, no cooldowns.</p>
+          <div class="price">1,499 SKR</div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top: 28px; max-width: 700px; text-align: center; border-color: rgba(52,211,153,0.3); background: rgba(52,211,153,0.05);">
+        <p style="font-size: 20px; color: var(--green); font-weight: 600;">
+          Zero backend costs. Purchases stored as on-chain memos.
+        </p>
+        <p style="font-size: 16px; margin-top: 6px;">
+          The blockchain IS the database. Revenue scales. Costs don't.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== SLIDE 8: TRACTION ========== -->
+  <div class="slide" id="slide-8">
+    <div class="split-layout">
+      <div class="left">
+        <span class="tag tag-gold">Traction</span>
+        <h2>Shipped, not pitched.</h2>
+
+        <div class="traction-grid" style="margin-top: 28px;">
+          <div class="traction-item">
+            <div class="traction-icon">&#9989;</div>
+            <div class="traction-text"><strong>Fully built & submitted</strong> to Solana dApp Store</div>
+          </div>
+          <div class="traction-item">
+            <div class="traction-icon">&#9939;</div>
+            <div class="traction-text"><strong>Real Solana mainnet</strong> &mdash; not devnet, not a mockup</div>
+          </div>
+          <div class="traction-item">
+            <div class="traction-icon">&#128293;</div>
+            <div class="traction-text"><strong>Organic buzz</strong> from Solana Mobile dev community on X</div>
+          </div>
+          <div class="traction-item">
+            <div class="traction-icon">&#127918;</div>
+            <div class="traction-text"><strong>6 mini-games</strong> | 5 adventure zones | 50 levels</div>
+          </div>
+          <div class="traction-item">
+            <div class="traction-icon">&#128241;</div>
+            <div class="traction-text"><strong>Tested on Seeker</strong> hardware</div>
+          </div>
+          <div class="traction-item">
+            <div class="traction-icon">&#128170;</div>
+            <div class="traction-text"><strong>Built by one developer.</strong> End to end.</div>
+          </div>
+        </div>
+      </div>
+      <div class="right">
+        <div class="float">
+          <img src="assets/Photos/Exploring-removebg-preview.png" class="pet-img-large" alt="NOMI exploring">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== SLIDE 9: ROADMAP ========== -->
+  <div class="slide" id="slide-9">
+    <div class="center-layout">
+      <span class="tag tag-blue">Roadmap</span>
+      <h2>The foundation is built. Now we scale the soul.</h2>
+
+      <div class="roadmap" style="margin-top: 36px;">
+        <div class="roadmap-item active-quarter">
+          <div class="quarter-tag" style="color: var(--primary);">Q1 2026 &mdash; NOW</div>
+          <ul>
+            <li>dApp Store launch</li>
+            <li>Monolith hackathon</li>
+            <li>Community seeding</li>
+            <li>Core gameplay live</li>
+          </ul>
+        </div>
+        <div class="roadmap-item">
+          <div class="quarter-tag" style="color: var(--purple);">Q2 2026</div>
+          <ul>
+            <li>AI-powered pet conversations (LLM)</li>
+            <li>Personalized NFT artwork per pet</li>
+            <li>Community leaderboards</li>
+            <li>Push notification nudges</li>
+          </ul>
+        </div>
+        <div class="roadmap-item">
+          <div class="quarter-tag" style="color: var(--gold);">Q3 2026</div>
+          <ul>
+            <li>Social features (visit friends' pets)</li>
+            <li>Themed accessory collabs</li>
+            <li>Expanded evolution tree</li>
+            <li>Multi-pet support</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== SLIDE 10: TEAM ========== -->
+  <div class="slide" id="slide-10">
+    <div class="center-layout">
+      <span class="tag tag-blue">Team</span>
+
+      <div class="team-card">
+        <img src="assets/App-icon.png" class="team-photo" alt="Yash Bharadwaj" style="object-fit: contain; background: linear-gradient(135deg, #1a3a5c, #0f2140);">
+        <div class="team-info" style="text-align: left;">
+          <h3>Yash Bharadwaj</h3>
+          <div class="team-role">Solo Developer & Creator</div>
+          <ul class="feature-list" style="max-width: 600px;">
+            <li>Shipped a <strong style="color: var(--text-white);">production app</strong> with real Solana mainnet integration &mdash; alone</li>
+            <li><strong style="color: var(--text-white);">3D rendering pipeline</strong> &mdash; React Three Fiber + compressed GLB models</li>
+            <li><strong style="color: var(--text-white);">Novel architecture</strong> &mdash; on-chain purchase restoration via memo parsing. No backend.</li>
+            <li><strong style="color: var(--text-white);">Zero funding. Fully functional.</strong></li>
+          </ul>
+          <div class="team-quote">"I didn't build a demo. I built a product."</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== SLIDE 11: CTA ========== -->
+  <div class="slide" id="slide-11">
+    <div class="center-layout">
+      <div class="glow-ring float">
+        <img src="assets/Photos/exploreEarth-removebg-preview.png" class="pet-img-large" alt="NOMI world" style="max-height: 240px;">
+      </div>
+
+      <h1 style="margin-top: 32px; font-size: 52px;">
+        Try <span style="background: linear-gradient(90deg, var(--primary), var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">NOMI</span>
+      </h1>
+
+      <div class="cta-qr">
+        [ Your QR Code ]
+      </div>
+
+      <p style="font-size: 20px; color: var(--text-muted);">Scan to download from Solana dApp Store</p>
+
+      <div class="cta-links">
+        <div class="cta-btn cta-btn-primary">&#127760; dApp Store</div>
+        <div class="cta-btn cta-btn-outline">&#120143; @YourHandle</div>
+      </div>
+
+      <h2 style="margin-top: 40px; font-weight: 400; color: var(--text-muted); font-size: 28px;">
+        Your companion is <span style="color: var(--text-white); font-weight: 600;">waiting</span>.
+      </h2>
+    </div>
+    <div class="watermark">NOMI &mdash; Built on Solana</div>
+  </div>
+
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const counter = document.getElementById('counter');
+  const progress = document.getElementById('progress');
+  let current = 0;
+  const total = slides.length;
+
+  function updateSlide(index) {
+    slides.forEach((s, i) => {
+      s.classList.remove('active');
+      if (i < index) {
+        s.style.transform = 'translateX(-60px)';
+      } else if (i > index) {
+        s.style.transform = 'translateX(60px)';
+      }
+    });
+    slides[index].classList.add('active');
+    slides[index].style.transform = 'translateX(0)';
+    counter.textContent = `${index + 1} / ${total}`;
+    progress.style.width = `${((index + 1) / total) * 100}%`;
+  }
+
+  function next() {
+    if (current < total - 1) { current++; updateSlide(current); }
+  }
+
+  function prev() {
+    if (current > 0) { current--; updateSlide(current); }
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); next(); }
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); prev(); }
+    if (e.key === 'Home') { current = 0; updateSlide(0); }
+    if (e.key === 'End') { current = total - 1; updateSlide(current); }
+  });
+
+  // Click navigation - left third goes back, right two-thirds goes forward
+  document.addEventListener('click', (e) => {
+    if (e.clientX < window.innerWidth / 3) prev();
+    else next();
+  });
+
+  // Touch support
+  let touchStartX = 0;
+  document.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; });
+  document.addEventListener('touchend', (e) => {
+    const diff = touchStartX - e.changedTouches[0].clientX;
+    if (Math.abs(diff) > 50) { diff > 0 ? next() : prev(); }
+  });
+
+  updateSlide(0);
+</script>
+
+</body>
+</html>

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { type PremiumTier, TIER_CONFIGS, TIER_ORDER, getTierOrdinal, getUpgradeCost } from '../data/premiumTiers';
+import { type PremiumTier, TIER_CONFIGS, TIER_ORDER, getTierOrdinal } from '../data/premiumTiers';
 
 const PREMIUM_STORAGE_KEY = 'oracle-pet-premium';
 
@@ -34,15 +34,35 @@ export const usePremiumStore = create<PremiumStore>((set, get) => ({
     const current = get().tier;
     if (getTierOrdinal(targetTier) <= getTierOrdinal(current)) return ''; // already at or above
 
-    const cost = getUpgradeCost(current, targetTier);
+    const config = TIER_CONFIGS[targetTier];
+    const cost = config.price;
     const walletStore = require('./walletStore').useWalletStore.getState();
-    if (walletStore.balance < cost) throw new Error(`Not enough SOL. Need ${cost} but have ${walletStore.balance.toFixed(2)}.`);
     if (!walletStore.authToken) throw new Error('Wallet not connected');
 
-    // On-chain SOL transfer to treasury
-    const { transferSOL } = require('../lib/solanaTransactions');
-    const { SHOP_TREASURY } = require('../lib/solanaClient');
-    const txSig = await transferSOL(walletStore.authToken, SHOP_TREASURY, cost, `oracle-pet:premium|${targetTier}`);
+    let txSig: string;
+    const memo = `oracle-pet:premium|${targetTier}`;
+
+    if (config.currency === 'SKR') {
+      // SKR token transfer
+      if (walletStore.skrBalance < cost) {
+        throw new Error(`Not enough SKR. Need ${cost} but have ${walletStore.skrBalance.toFixed(2)}.`);
+      }
+      const { transferSkr } = require('../lib/skrToken');
+      const { SHOP_TREASURY } = require('../lib/solanaClient');
+      txSig = await transferSkr(walletStore.authToken, SHOP_TREASURY, cost, memo);
+      walletStore.deductSkr(cost);
+      await walletStore.refreshSkrBalance();
+    } else {
+      // SOL transfer
+      if (walletStore.balance < cost) {
+        throw new Error(`Not enough SOL. Need ${cost} but have ${walletStore.balance.toFixed(2)}.`);
+      }
+      const { transferSOL } = require('../lib/solanaTransactions');
+      const { SHOP_TREASURY } = require('../lib/solanaClient');
+      txSig = await transferSOL(walletStore.authToken, SHOP_TREASURY, cost, memo);
+      walletStore.deductBalance(cost);
+      await walletStore.refreshBalance();
+    }
 
     // Label the transaction
     try {
@@ -50,17 +70,13 @@ export const usePremiumStore = create<PremiumStore>((set, get) => ({
       labelTransaction(txSig, `Premium ${targetTier.charAt(0).toUpperCase() + targetTier.slice(1)} Upgrade`);
     } catch {}
 
-    // Optimistic balance deduction + refresh
-    walletStore.deductBalance(cost);
-    await walletStore.refreshBalance();
-
     const now = new Date().toISOString();
     set({ tier: targetTier, isPremium: true, purchaseDate: now });
     savePremiumState(get());
 
     // Diamond unlocks all shop items
-    const config = TIER_CONFIGS[targetTier];
-    if (config.allShopItemsFree) {
+    const tierConfig = TIER_CONFIGS[targetTier];
+    if (tierConfig.allShopItemsFree) {
       const shopStore = require('./shopStore').useShopStore;
       const { items } = shopStore.getState();
       const updated = items.map((i: any) => ({ ...i, owned: true }));

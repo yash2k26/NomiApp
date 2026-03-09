@@ -9,6 +9,7 @@ import { useAdventureStore } from '../store/adventureStore';
 import { ScreenHeader } from '../components/ui/ScreenHeader';
 import { mintPetNFT } from '../lib/nftMint';
 import { getSolscanTxUrl } from '../lib/solanaClient';
+import { parseTxError, type ParsedTxError } from '../lib/transactionErrors';
 
 type MintState = 'idle' | 'confirming' | 'minting' | 'success' | 'error';
 
@@ -24,7 +25,7 @@ export function MintScreen() {
   const evolutionStage = useAdventureStore((s) => s.evolutionStage);
 
   const [mintState, setMintState] = useState<MintState>('idle');
-  const [mintError, setMintError] = useState<string | null>(null);
+  const [mintError, setMintError] = useState<ParsedTxError | null>(null);
   const [txSignature, setTxSignature] = useState<string | null>(null);
 
   const handleMint = async () => {
@@ -36,7 +37,18 @@ export function MintScreen() {
 
     if (!authToken) {
       console.error('[MintScreen] No authToken — wallet not connected');
-      setMintError('Wallet not connected. Please reconnect.');
+      setMintError({ title: 'Wallet Not Connected', message: 'Please reconnect your wallet and try again.', type: 'generic' });
+      setMintState('error');
+      return;
+    }
+
+    // Pre-check balance before opening Phantom
+    if (balance < 0.02) {
+      setMintError({
+        title: 'Not Enough SOL',
+        message: `Minting costs ~0.015 SOL (rent + fees) but you only have ${balance.toFixed(4)} SOL. Please add more SOL to your wallet.`,
+        type: 'insufficient_funds',
+      });
       setMintState('error');
       return;
     }
@@ -69,14 +81,10 @@ export function MintScreen() {
       console.log('[MintScreen] Balance refreshed');
     } catch (error: any) {
       const elapsed = Date.now() - mintStart;
-      const msg = error?.message || 'Minting failed';
-      console.error('[MintScreen] ========== MINT FAILED ==========');
-      console.error('[MintScreen] Error after', elapsed, 'ms:', msg);
-      console.error('[MintScreen] Error type:', error?.constructor?.name);
-      console.error('[MintScreen] Error stack:', error?.stack);
-      console.error('[MintScreen] Full error object:', JSON.stringify(error, Object.getOwnPropertyNames(error || {})));
-      setMintError(msg);
-      setMintState('error');
+      console.error('[MintScreen] Mint failed after', elapsed, 'ms:', error?.message);
+      const parsed = parseTxError(error);
+      setMintError(parsed);
+      setMintState(parsed.type === 'cancelled' ? 'idle' : 'error');
     }
   };
 
@@ -198,10 +206,39 @@ export function MintScreen() {
 
           {/* Error message */}
           {mintState === 'error' && mintError && (
-            <View className="mt-4 bg-red-50 rounded-2xl p-4 border border-red-200">
-              <Text className="text-red-600 text-[12px] font-bold text-center">{mintError}</Text>
-              <TouchableOpacity onPress={() => { setMintState('idle'); setMintError(null); }} className="mt-2">
-                <Text className="text-red-400 text-[11px] font-bold text-center underline">Try Again</Text>
+            <View
+              className="mt-4 rounded-2xl p-5 border"
+              style={{
+                backgroundColor: mintError.type === 'insufficient_funds' ? '#FFF7ED' : '#FEF2F2',
+                borderColor: mintError.type === 'insufficient_funds' ? '#FDBA74' : '#FECACA',
+              }}
+            >
+              <View className="items-center mb-2">
+                <MaterialCommunityIcons
+                  name={
+                    mintError.type === 'insufficient_funds' ? 'wallet-outline' :
+                    mintError.type === 'network' ? 'wifi-off' :
+                    mintError.type === 'timeout' ? 'clock-alert-outline' :
+                    'alert-circle-outline'
+                  }
+                  size={28}
+                  color={mintError.type === 'insufficient_funds' ? '#EA580C' : '#DC2626'}
+                />
+              </View>
+              <Text
+                className="text-[14px] font-black text-center mb-1"
+                style={{ color: mintError.type === 'insufficient_funds' ? '#C2410C' : '#DC2626' }}
+              >
+                {mintError.title}
+              </Text>
+              <Text className="text-[12px] font-medium text-gray-600 text-center leading-[18px]">
+                {mintError.message}
+              </Text>
+              <TouchableOpacity
+                onPress={() => { setMintState('idle'); setMintError(null); }}
+                className="mt-3 bg-white/80 rounded-xl py-2.5 items-center border border-gray-200"
+              >
+                <Text className="text-[12px] font-black text-gray-700">Try Again</Text>
               </TouchableOpacity>
             </View>
           )}

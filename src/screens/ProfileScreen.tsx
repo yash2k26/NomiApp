@@ -18,10 +18,8 @@ import { useNotificationStore } from '../store/notificationStore';
 import { ScreenHeader } from '../components/ui/ScreenHeader';
 import { SharePetCard } from '../components/SharePetCard';
 import { TransactionHistoryScreen } from './TransactionHistoryScreen';
-import { requestAirdrop } from '../lib/solanaTransactions';
 import { getSolscanTxUrl, getSolscanNftUrl, getSolscanAddressUrl } from '../lib/solanaClient';
 import { writeMemo } from '../lib/solanaTransactions';
-import { claimTestSkr } from '../lib/skrToken';
 
 interface InfoCardProps {
   title: string;
@@ -339,8 +337,6 @@ export function ProfileScreen() {
   const { name, ownerName, mintAddress, mintTxSignature, skin, clearPet, streakDays, hunger, happiness, energy } = usePetStore();
   const premium = usePremiumStore((s) => s.isPremium);
   const tier = usePremiumStore((s) => s.tier);
-  const [airdropLoading, setAirdropLoading] = useState(false);
-  const [skrClaimLoading, setSkrClaimLoading] = useState(false);
   const [memoLoading, setMemoLoading] = useState(false);
   const [lastMemoTime, setLastMemoTime] = useState<string | null>(null);
   const [showTxHistory, setShowTxHistory] = useState(false);
@@ -356,43 +352,6 @@ export function ProfileScreen() {
     clearPet();
     disconnectWallet();
   };
-
-  const handleAirdrop = useCallback(async () => {
-    if (!address || airdropLoading) return;
-    setAirdropLoading(true);
-    try {
-      await requestAirdrop(address, 1);
-      await refreshBalance();
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('Airdrop Received', '1 SOL has been airdropped to your wallet!');
-    } catch (err: any) {
-      Alert.alert('Airdrop Failed', err?.message || 'Devnet airdrop failed. Try again later.');
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    } finally {
-      setAirdropLoading(false);
-    }
-  }, [address, airdropLoading, refreshBalance]);
-
-  const handleClaimSkr = useCallback(async () => {
-    if (!authToken || skrClaimLoading) return;
-    setSkrClaimLoading(true);
-    try {
-      const txSig = await claimTestSkr(authToken);
-      try {
-        const { labelTransaction } = require('../store/txHistoryStore');
-        labelTransaction(txSig, 'Claimed SKR Tokens');
-      } catch {}
-      await refreshSkrBalance();
-      await refreshBalance();
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('SKR Claimed!', '100 SKR tokens have been minted to your wallet.');
-    } catch (err: any) {
-      Alert.alert('Claim Failed', err?.message || 'Failed to claim SKR tokens.');
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    } finally {
-      setSkrClaimLoading(false);
-    }
-  }, [authToken, skrClaimLoading, refreshSkrBalance, refreshBalance]);
 
   const handleSyncPetState = useCallback(async () => {
     if (!authToken || memoLoading) return;
@@ -515,48 +474,7 @@ export function ProfileScreen() {
               </TouchableOpacity>
             </View>
           </View>
-          <InfoRow label="Network" value="Solana Devnet" valueColor="text-pet-blue-dark" />
-          <View className="py-3" style={{ gap: 8 }}>
-            <TouchableOpacity onPress={handleClaimSkr} disabled={skrClaimLoading} activeOpacity={0.85}>
-              <LinearGradient
-                colors={['#9333ea', '#7c3aed']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={{ paddingVertical: 12, borderRadius: 18, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' }}
-              >
-                {skrClaimLoading ? (
-                  <>
-                    <ActivityIndicator size="small" color="#fff" />
-                    <Text className="text-white text-[11px] font-black ml-2">Minting SKR...</Text>
-                  </>
-                ) : (
-                  <>
-                    <Text className="text-white text-[11px] font-black uppercase tracking-[0.5px]">{'\u{1F48E}'} Claim 100 Test SKR</Text>
-                  </>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={handleAirdrop} disabled={airdropLoading} activeOpacity={0.85}>
-              <LinearGradient
-                colors={['#4FABC9', '#3E8AB3']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={{ paddingVertical: 12, borderRadius: 18, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' }}
-              >
-                {airdropLoading ? (
-                  <>
-                    <ActivityIndicator size="small" color="#fff" />
-                    <Text className="text-white text-[11px] font-black ml-2">Requesting...</Text>
-                  </>
-                ) : (
-                  <>
-                    <MaterialCommunityIcons name="water" size={14} color="#fff" />
-                    <Text className="text-white text-[11px] font-black ml-1.5 uppercase tracking-[0.5px]">Request 1 SOL Airdrop</Text>
-                  </>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
+          <InfoRow label="Network" value="Solana Mainnet" valueColor="text-pet-blue-dark" />
         </InfoCard>
 
         <InfoCard title="Companion" icon={'\u{1F43E}'} accent="bg-pet-blue">

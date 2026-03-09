@@ -1,9 +1,12 @@
 export type PremiumTier = 'none' | 'plus' | 'pro';
 
+export type TierCurrency = 'SOL' | 'SKR';
+
 export interface TierConfig {
   tier: PremiumTier;
   label: string;
   price: number;
+  currency: TierCurrency;
   emoji: string;
   gradientColors: [string, string];
   staminaRegenPerHour: number;
@@ -24,6 +27,7 @@ export const TIER_CONFIGS: Record<PremiumTier, TierConfig> = {
     tier: 'none',
     label: 'Free',
     price: 0,
+    currency: 'SOL',
     emoji: '',
     gradientColors: ['#9CA3AF', '#6B7280'],
     staminaRegenPerHour: 10,
@@ -41,7 +45,8 @@ export const TIER_CONFIGS: Record<PremiumTier, TierConfig> = {
   plus: {
     tier: 'plus',
     label: 'Plus',
-    price: 0.005,
+    price: 0.49,
+    currency: 'SOL',
     emoji: '\u{2B50}',
     gradientColors: ['#9381FF', '#766BD1'],
     staminaRegenPerHour: 20,
@@ -59,7 +64,8 @@ export const TIER_CONFIGS: Record<PremiumTier, TierConfig> = {
   pro: {
     tier: 'pro',
     label: 'Pro',
-    price: 0.01,
+    price: 1499,
+    currency: 'SKR',
     emoji: '\u{1F48E}',
     gradientColors: ['#B9F2FF', '#7DF9FF'],
     staminaRegenPerHour: 30,
@@ -86,6 +92,7 @@ export function isAtLeastTier(current: PremiumTier, required: PremiumTier): bool
   return getTierOrdinal(current) >= getTierOrdinal(required);
 }
 
-export function getUpgradeCost(current: PremiumTier, target: PremiumTier): number {
-  return Math.max(0, TIER_CONFIGS[target].price - TIER_CONFIGS[current].price);
+export function getUpgradeCost(_current: PremiumTier, target: PremiumTier): number {
+  // Different tiers may use different currencies, so always return full price
+  return TIER_CONFIGS[target].price;
 }

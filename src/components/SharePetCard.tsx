@@ -1,5 +1,5 @@
 import React, { useCallback, useRef } from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import ViewShot, { captureRef } from 'react-native-view-shot';
@@ -78,9 +78,10 @@ function StatGauge({
             backgroundColor: 'rgba(0,0,0,0.3)',
             alignItems: 'center',
             justifyContent: 'center',
+            overflow: 'hidden',
           }}
         >
-          <Text style={{ fontSize: 20 }}>{emoji}</Text>
+          <Text style={{ fontSize: 18, textAlign: 'center', lineHeight: 22, includeFontPadding: false }}>{emoji}</Text>
         </View>
       </View>
       <Text
@@ -132,11 +133,6 @@ export function SharePetCard() {
 
   const title = getTitleForLevel(level);
   const stage = EVOLUTION_STAGES[evolutionStage - 1];
-  const stageEmoji =
-    evolutionStage === 1 ? '\u{1F423}'
-      : evolutionStage === 2 ? '\u{1F431}'
-        : evolutionStage === 3 ? '\u{1F981}'
-          : evolutionStage === 4 ? '\u{1F409}' : '\u{1F451}';
   const shortMint = mintAddress
     ? `${mintAddress.slice(0, 4)}...${mintAddress.slice(-4)}`
     : 'Not minted';
@@ -235,7 +231,11 @@ export function SharePetCard() {
                     elevation: 3,
                   }}
                 >
-                  <Text style={{ fontSize: 30 }}>{stageEmoji}</Text>
+                  <Image
+                    source={require('../../assets/Icons/Rest.png')}
+                    style={{ width: 80, height: 80 }}
+                    resizeMode="contain"
+                  />
                   <Text
                     style={{
                       fontSize: 9,

@@ -2,6 +2,7 @@ import {
   Keypair,
   PublicKey,
   Transaction,
+  TransactionInstruction,
   SystemProgram,
 } from '@solana/web3.js';
 import {
@@ -60,12 +61,8 @@ async function getDevnetMint(): Promise<{ mintPubkey: PublicKey; mintKeypair: Ke
  * On devnet: returns test mint (or null if not created yet).
  * On mainnet: returns the real SKR mint.
  */
-export async function getActiveSkrMint(): Promise<PublicKey | null> {
-  // For devnet, use our test mint
-  const devnet = await getDevnetMint();
-  if (devnet) return devnet.mintPubkey;
-  return null;
-  // On mainnet: return new PublicKey(SKR_MINT_MAINNET);
+export async function getActiveSkrMint(): Promise<PublicKey> {
+  return new PublicKey(SKR_MINT_MAINNET);
 }
 
 // ── Balance ──
@@ -76,8 +73,6 @@ export async function getActiveSkrMint(): Promise<PublicKey | null> {
 export async function getSkrBalance(address: string): Promise<number> {
   try {
     const mint = await getActiveSkrMint();
-    if (!mint) return 0;
-
     const owner = new PublicKey(address);
     const ata = findAssociatedTokenAddress(owner, mint);
 
@@ -197,13 +192,15 @@ export async function claimTestSkr(authToken: string): Promise<string> {
 /**
  * Transfer SKR tokens from connected wallet to a recipient.
  */
+const MEMO_PROGRAM_ID = new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
+
 export async function transferSkr(
   authToken: string,
   recipientAddress: string,
   amount: number,
+  memo?: string,
 ): Promise<string> {
   const mint = await getActiveSkrMint();
-  if (!mint) throw new Error('SKR mint not available');
 
   return withWallet(authToken, async (wallet, address) => {
     const payer = new PublicKey(address);
@@ -224,6 +221,17 @@ export async function transferSkr(
 
     // SPL Token Transfer
     tx.add(createTransferInstruction(senderAta, recipientAta, payer, rawAmount));
+
+    // Attach memo for on-chain purchase tracking
+    if (memo) {
+      tx.add(
+        new TransactionInstruction({
+          keys: [{ pubkey: payer, isSigner: true, isWritable: false }],
+          programId: MEMO_PROGRAM_ID,
+          data: Buffer.from(memo, 'utf-8'),
+        }),
+      );
+    }
 
     tx.feePayer = payer;
     tx.recentBlockhash = blockhash;

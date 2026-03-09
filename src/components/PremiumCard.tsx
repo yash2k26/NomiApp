@@ -4,9 +4,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { usePremiumStore } from '../store/premiumStore';
 import { useWalletStore } from '../store/walletStore';
-import { type PremiumTier, TIER_CONFIGS, TIER_ORDER, getTierOrdinal, getUpgradeCost } from '../data/premiumTiers';
+import { type PremiumTier, TIER_CONFIGS, TIER_ORDER, getTierOrdinal } from '../data/premiumTiers';
 import { getSolscanTxUrl } from '../lib/solanaClient';
 import { playSfx } from '../lib/soundManager';
+import { parseTxError } from '../lib/transactionErrors';
 
 const TIER_PERKS: Record<Exclude<PremiumTier, 'none'>, { emoji: string; text: string }[]> = {
   plus: [
@@ -40,7 +41,7 @@ function TierOption({ tier, currentTier, onPurchase, purchasing }: TierOptionPro
   const config = TIER_CONFIGS[tier];
   const isActive = currentTier === tier;
   const isBelow = getTierOrdinal(currentTier) > getTierOrdinal(tier);
-  const cost = getUpgradeCost(currentTier, tier);
+  const cost = config.price;
   const perks = TIER_PERKS[tier];
   const isPopular = tier === 'plus';
 
@@ -75,7 +76,7 @@ function TierOption({ tier, currentTier, onPurchase, purchasing }: TierOptionPro
             </View>
           ) : (
             <View className="bg-white/20 px-2.5 py-0.5 rounded-full">
-              <Text className="text-white text-[10px] font-bold">{config.price} SOL</Text>
+              <Text className="text-white text-[10px] font-bold">{config.price} {config.currency}</Text>
             </View>
           )}
         </View>
@@ -109,8 +110,8 @@ function TierOption({ tier, currentTier, onPurchase, purchasing }: TierOptionPro
               >
                 <Text className="text-white font-black text-[13px] uppercase tracking-[0.5px]">
                   {currentTier === 'none'
-                    ? `Get ${config.label} for ${config.price} SOL`
-                    : `Upgrade for ${cost} SOL`}
+                    ? `Get ${config.label} for ${cost} ${config.currency}`
+                    : `Upgrade for ${cost} ${config.currency}`}
                 </Text>
               </LinearGradient>
             </TouchableOpacity>
@@ -125,23 +126,26 @@ export function PremiumCard() {
   const tier = usePremiumStore((s) => s.tier);
   const purchaseTier = usePremiumStore((s) => s.purchaseTier);
   const balance = useWalletStore((s) => s.balance);
+  const skrBalance = useWalletStore((s) => s.skrBalance);
   const [purchasing, setPurchasing] = useState(false);
 
   const handlePurchase = (targetTier: PremiumTier) => {
     if (purchasing) return;
     const config = TIER_CONFIGS[targetTier];
-    const cost = getUpgradeCost(tier, targetTier);
+    const cost = config.price;
+    const currency = config.currency;
+    const userBalance = currency === 'SKR' ? skrBalance : balance;
 
-    if (balance < cost) {
+    if (userBalance < cost) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Not Enough SOL', `You need ${cost} SOL but only have ${balance.toFixed(2)} SOL.`);
+      Alert.alert(`Not Enough ${currency}`, `You need ${cost} ${currency} but only have ${userBalance.toFixed(2)} ${currency}.`);
       return;
     }
 
     const action = tier === 'none' ? 'Get' : 'Upgrade to';
     Alert.alert(
       `${action} ${config.label}`,
-      `${action} ${config.label} tier for ${cost} SOL?\nThis will open Phantom for approval.`,
+      `${action} ${config.label} tier for ${cost} ${currency}?\nThis will open Phantom for approval.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -162,12 +166,8 @@ export function PremiumCard() {
                 ],
               );
             } catch (err: any) {
-              const msg = err?.message || 'Purchase failed';
-              if (msg.includes('User rejected') || msg.includes('declined')) {
-                Alert.alert('Cancelled', 'Transaction cancelled in wallet.');
-              } else {
-                Alert.alert('Purchase Failed', msg);
-              }
+              const parsed = parseTxError(err);
+              Alert.alert(parsed.title, parsed.message);
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
             } finally {
               setPurchasing(false);
