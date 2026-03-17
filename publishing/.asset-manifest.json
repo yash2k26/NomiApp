@@ -1,0 +1,40 @@
+{
+  "schema_version": "0.1",
+  "assets": {
+    "media/icon-correct.jpg": {
+      "path": "media/icon-correct.jpg",
+      "sha256": "NTRv5BGRGy10Kawd2Ir4SAe+5vca2khsjhfe6XubQdk=",
+      "uri": "https://dappstorecontent.com/MxxkBYssessHpjC_M_y11afZnngPBLwV7xZMqRmbFJw"
+    },
+    "files/nomi-release.apk": {
+      "path": "files/nomi-release.apk",
+      "sha256": "UfC1ro5leZaJIUwjvBJgWqG263K1JmXh/NVQzaF/pfI=",
+      "uri": "https://dappstorecontent.com/XRjv0WC89Jvc6p3a8aUUml0eFa9_g8ddjMv9Wb3j7YY"
+    },
+    "media/banner.png": {
+      "path": "media/banner.png",
+      "sha256": "/rpYSvNrItI08Z1MbYHv4sJk1kOVFpLuphxW5rJ7/1E=",
+      "uri": "https://dappstorecontent.com/7kmbMgCjvO8HIRYJsl_8c992XbtZCw9ngvi8ugEDUdM"
+    },
+    "media/ss-one.png": {
+      "path": "media/ss-one.png",
+      "sha256": "C1k+fSrxeYW1jYInHBNL+yX9YvTiBwO8cgk3RxI2XqQ=",
+      "uri": "https://dappstorecontent.com/IVDYZaD2uSwX8Ti5M6GauJgT_sLexS5cs407maibCzQ"
+    },
+    "media/ss-second.png": {
+      "path": "media/ss-second.png",
+      "sha256": "bk+uAHE3YMjGTgImpTrp2QpexodbP9NnINMNcqKqdl0=",
+      "uri": "https://dappstorecontent.com/RCPfi-EAE2EV6t5MASAm2mojE6KzseaT71AbWS_fsME"
+    },
+    "media/ss-third.png": {
+      "path": "media/ss-third.png",
+      "sha256": "9xc7w+ZA8omQgCov5yscI/8yRmOmIyuFt0fE0DgfZYc=",
+      "uri": "https://dappstorecontent.com/DWZnge8FasaLvw8L1kb7Kd7S16hvJPuPjn2peJDbleg"
+    },
+    "media/ss-fourth.png": {
+      "path": "media/ss-fourth.png",
+      "sha256": "VKZ4B56U3KIxZJeWCW7GDeiMQvl5DgJFrse0zS9ay4s=",
+      "uri": "https://dappstorecontent.com/sLrRBrLwBF2x7Vg97K4OcU8RmcHMLFTfAc_BYzy9ZZY"
+    }
+  }
+}
