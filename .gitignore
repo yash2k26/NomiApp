@@ -36,3 +36,5 @@ discard/
 
 # Release signing (NEVER commit keystore or passwords)
 *.keystore
+publishing/publisher-keypair.json
+publishing/files/*.apk

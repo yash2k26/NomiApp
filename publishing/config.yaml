@@ -1,0 +1,57 @@
+publisher:
+  name: Yash Bharadwaj
+  website: https://github.com/yash2k26
+  email: bharadwaj465@gmail.com
+  support_email: nomin8543427@gmail.com
+app:
+  name: NOMI
+  address: ''
+  android_package: com.anonymous.oraclepet
+  urls:
+    license_url: https://github.com/yash2k26/NomiApp/blob/main/LEGAL/terms-and-conditions.md
+    copyright_url: https://github.com/yash2k26/NomiApp/blob/main/LEGAL/copyright.md
+    privacy_policy_url: https://github.com/yash2k26/NomiApp/blob/main/LEGAL/privacy-policy.md
+    website: https://github.com/yash2k26/NomiApp
+  media:
+    - purpose: icon
+      uri: media/icon-correct.jpg
+release:
+  address: ''
+  media:
+    - purpose: icon
+      uri: media/icon-correct.jpg
+    - purpose: banner
+      uri: media/banner.png
+    - purpose: screenshot
+      uri: media/ss-one.jpg
+    - purpose: screenshot
+      uri: media/ss-second.png
+    - purpose: screenshot
+      uri: media/ss-third.png
+    - purpose: screenshot
+      uri: media/ss-fourth.png
+  files:
+    - purpose: install
+      uri: files/nomi-release.apk
+  catalog:
+    en-US:
+      name: NOMI
+      short_description: On-chain virtual pet dApp
+      long_description: |
+        NOMI is a mobile Solana dApp where you care for a virtual companion,
+        track mood and progression, and interact with wallet-connected features.
+
+        Core experience includes daily care loops, progression systems, and
+        mini-game style interactions designed around a fun pet-companion flow.
+      new_in_version: >-
+        Initial dApp Store release with core pet care gameplay, progression
+        systems, and Solana wallet connectivity.
+  android_details:
+    locales:
+      - en-US
+solana_mobile_dapp_publisher_portal:
+  testing_instructions: >-
+    Install the APK and launch the app. No username/password is required.
+    Wallet connection can be tested using any compatible Solana wallet.
+    Verify core flows: pet onboarding, home/care actions, game interactions,
+    and wallet connect/disconnect behavior.
