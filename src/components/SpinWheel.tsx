@@ -425,7 +425,7 @@ export function SpinWheel() {
   const isFreeSpin = lastSpinDate !== today;
   const canSpin = canSpinToday() && !spinning;
   const paidSpinsRemaining = Math.max(0, 3 - extraSpinsToday);
-  const PAID_SPIN_COST = 0.002;
+  const PAID_SPIN_COST = 0.01;
 
   useEffect(() => {
     pulseLoop.current?.stop();
@@ -490,7 +490,7 @@ export function SpinWheel() {
       ? 'No Spins Left'
       : isFreeSpin
         ? 'Free Spin!'
-        : 'Spin (0.002 SOL)';
+        : 'Spin (0.01 SOL)';
 
   return (
     <View style={{ paddingHorizontal: 24, marginTop: 16 }}>

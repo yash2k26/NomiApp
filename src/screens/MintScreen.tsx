@@ -43,10 +43,10 @@ export function MintScreen() {
     }
 
     // Pre-check balance before opening Phantom
-    if (balance < 0.02) {
+    if (balance < 0.2) {
       setMintError({
         title: 'Not Enough SOL',
-        message: `Minting costs ~0.015 SOL (rent + fees) but you only have ${balance.toFixed(4)} SOL. Please add more SOL to your wallet.`,
+        message: `Minting costs ~0.1 SOL (rent + fees) but you only have ${balance.toFixed(4)} SOL. Please add more SOL to your wallet.`,
         type: 'insufficient_funds',
       });
       setMintState('error');
@@ -177,7 +177,7 @@ export function MintScreen() {
             </View>
             <View className="flex-row justify-between py-3 border-b border-gray-100">
               <Text className="text-[12px] font-bold uppercase tracking-[0.8px] text-gray-500">Est. Cost</Text>
-              <Text className="text-[16px] font-black text-pet-blue-dark">~0.01 SOL</Text>
+              <Text className="text-[16px] font-black text-pet-blue-dark">~0.1 SOL</Text>
             </View>
             <View className="flex-row justify-between py-3">
               <Text className="text-[12px] font-bold uppercase tracking-[0.8px] text-gray-500">Your Balance</Text>

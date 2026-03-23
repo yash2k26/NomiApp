@@ -181,7 +181,7 @@ export function getPremiumSpinConfig() {
   return {
     maxFreeSpins: config.freeSpinsPerDay,
     maxPaidSpins: config.freeSpinsPerDay + 2,
-    paidSpinCost: config.tier === 'pro' ? 0 : 0.002,
+    paidSpinCost: config.tier === 'pro' ? 0 : 0.01,
   };
 }
 

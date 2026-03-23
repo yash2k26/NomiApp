@@ -45,7 +45,7 @@ export const TIER_CONFIGS: Record<PremiumTier, TierConfig> = {
   plus: {
     tier: 'plus',
     label: 'Plus',
-    price: 0.49,
+    price: 0.175,
     currency: 'SOL',
     emoji: '\u{2B50}',
     gradientColors: ['#9381FF', '#766BD1'],
