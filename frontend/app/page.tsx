@@ -136,12 +136,12 @@ function Hero() {
           <div className="absolute inset-0 bg-pet-blue/15 blur-3xl rounded-full" />
           <div className="relative animate-float">
             <Image
-              src="/nomi/photos/exploring.png"
-              alt="NOMI character exploring"
-              width={560}
-              height={560}
+              src="/nomi/hero.png"
+              alt="NOMI — your on-chain companion"
+              width={1532}
+              height={2047}
               priority
-              className="w-full h-auto max-w-[440px] mx-auto drop-shadow-[0_30px_40px_rgba(45,107,144,0.18)]"
+              className="w-full h-auto max-w-[460px] mx-auto rounded-[48px] drop-shadow-[0_30px_40px_rgba(45,107,144,0.22)]"
             />
           </div>
         </div>
