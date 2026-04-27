@@ -19,7 +19,7 @@ const featureCards = [
   {
     icon: "/nomi/icons/home.png",
     title: "A real Solana NFT",
-    body: "0.01 SOL one-time mint on mainnet. Metaplex standard. Lives in your wallet, not on a company server.",
+    body: "0.15 SOL one-time mint on mainnet. Metaplex standard. Lives in your wallet, not on a company server.",
     tint: "bg-pet-purple-light",
   },
   {
@@ -55,7 +55,7 @@ const screenshots: { label: string; tint: string; hasShot: boolean }[] = [
 const faqs = [
   {
     q: "How much does it cost?",
-    a: "0.01 SOL — a single one-time mint on Solana mainnet. No subscriptions, no in-app purchases unless you want shop accessories.",
+    a: "0.15 SOL — a single one-time mint on Solana mainnet. No subscriptions, no in-app purchases unless you want shop accessories.",
   },
   {
     q: "Where do I download NOMI?",
@@ -130,7 +130,7 @@ function Hero() {
             </a>
           </div>
           <p className="mt-4 text-sm text-pet-blue-dark/80">
-            Search <span className="font-bold text-pet-ink">&ldquo;NOMI&rdquo;</span> on the Solana dApp Store · 0.01 SOL one-time mint
+            Search <span className="font-bold text-pet-ink">&ldquo;NOMI&rdquo;</span> on the Solana dApp Store · 0.15 SOL one-time mint
           </p>
         </div>
         <div className="relative">
@@ -290,7 +290,7 @@ function HowItWorks() {
     {
       n: "02",
       title: "Mint your NOMI",
-      body: "Choose a name. Pay 0.01 SOL. Your pet is minted as a real Solana NFT — the moment is permanent.",
+      body: "Choose a name. Pay 0.15 SOL. Your pet is minted as a real Solana NFT — the moment is permanent.",
     },
     {
       n: "03",
@@ -338,7 +338,7 @@ function WhyNomi() {
         </p>
         <div className="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-5">
           {[
-            { k: "0.01 SOL", v: "One-time mint" },
+            { k: "0.15 SOL", v: "One-time mint" },
             { k: "5", v: "Evolution stages" },
             { k: "50", v: "Levels" },
             { k: "Solana", v: "Mainnet" },
