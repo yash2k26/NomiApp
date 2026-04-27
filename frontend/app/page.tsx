@@ -105,7 +105,7 @@ function Hero() {
             <span className="w-1.5 h-1.5 rounded-full bg-pet-blue animate-pulse" />
             On the Solana dApp Store
           </span>
-          <h1 className="mt-5 text-4xl sm:text-5xl md:text-6xl font-bold leading-[1.05] tracking-tight">
+          <h1 className="mt-5 text-3xl sm:text-4xl md:text-5xl font-bold leading-[1.1] tracking-tight">
             The pet that lives on Solana,{" "}
             <span className="text-pet-blue">and actually remembers your name.</span>
           </h1>
