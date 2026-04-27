@@ -39,6 +39,8 @@ interface ShopState {
   selectedCategory: ShopCategory;
   equippedItemId: string | null;
   equippedAnimationId: string | null;
+  // How many free unlocks have been granted via achievement milestones (1 per 3 achievements)
+  achievementUnlocksClaimed: number;
 }
 
 interface ShopActions {
@@ -48,6 +50,8 @@ interface ShopActions {
   unequipItem: (id?: string) => void;
   hydrateShop: () => Promise<void>;
   restoreFromChain: (itemIds: string[]) => void;
+  // Grant 1 free shop item per 3 achievements unlocked. Returns the items unlocked.
+  grantAchievementUnlocks: (totalAchievementsUnlocked: number) => ShopItem[];
 }
 
 type ShopStore = ShopState & ShopActions;
@@ -55,10 +59,14 @@ type ShopStore = ShopState & ShopActions;
 const SHOP_ITEMS: ShopItem[] = [
   // Common items
   { id: 'headphones', name: 'Headphones', category: 'Accessories', price: 0.001, image: '\u{1F3A7}', owned: false, skinKey: 'headphones', rarity: 'common' },
+  // Streak freeze — consumable, increments streakFreezes counter on petStore each purchase
+  { id: 'streak-freeze', name: 'Streak Freeze', category: 'Accessories', price: 0.0005, skrPrice: 10, image: '❄️', owned: false, skinKey: 'streak-freeze', rarity: 'common' },
+  // Outfit (texture swap) — equipping repaints the body diffuse map
+  { id: 'red-jersey', name: 'Red Jersey', category: 'Shirts', price: 0.002, image: '\u{1F454}', owned: false, skinKey: 'red-jersey', rarity: 'common' },
   { id: 'party-hat', name: 'Party Hat', category: 'Hats', price: 0.002, image: '\u{1F389}', owned: false, skinKey: 'party-hat', rarity: 'common', comingSoon: true },
   { id: 'beanie', name: 'Beanie', category: 'Hats', price: 0.002, image: '\u{1F9E2}', owned: false, skinKey: 'beanie', rarity: 'common', comingSoon: true },
   { id: 'flip-flops', name: 'Flip Flops', category: 'Shoes', price: 0.001, image: '\u{1FA74}', owned: false, skinKey: 'flip-flops', rarity: 'common', comingSoon: true },
-  { id: 'sneakers', name: 'Sneakers', category: 'Shoes', price: 0.002, image: '\u{1F45F}', owned: false, skinKey: 'sneakers', rarity: 'common', comingSoon: true },
+  { id: 'sneakers', name: 'Stylized Shoes', category: 'Shoes', price: 0.002, image: '\u{1F45F}', owned: false, skinKey: 'shoes', rarity: 'common' },
   // Rare items
   { id: 'hoodie', name: 'Hoodie', category: 'Shirts', price: 0.003, image: '\u{1F455}', owned: false, skinKey: 'hoodie', rarity: 'rare', comingSoon: true },
   { id: 'sunglasses', name: 'Sunglasses', category: 'Accessories', price: 0.003, image: '\u{1F576}\uFE0F', owned: false, skinKey: 'sunglasses', rarity: 'rare', comingSoon: true },
@@ -66,7 +74,10 @@ const SHOP_ITEMS: ShopItem[] = [
   { id: 'boots', name: 'Boots', category: 'Shoes', price: 0.004, image: '\u{1F462}', owned: false, skinKey: 'boots', rarity: 'rare', comingSoon: true },
   // Epic items
   { id: 'tuxedo', name: 'Tuxedo', category: 'Shirts', price: 0.005, image: '\u{1F3BD}', owned: false, skinKey: 'tuxedo', rarity: 'epic', comingSoon: true },
-  { id: 'crown', name: 'Crown', category: 'Hats', price: 0.001, image: '\u{1F451}', owned: false, skinKey: 'crown', rarity: 'epic', comingSoon: true },
+  { id: 'crown', name: 'Crown', category: 'Hats', price: 0.001, image: '\u{1F451}', owned: false, skinKey: 'crown', rarity: 'epic' },
+  { id: 'curly-hair', name: 'Curly Hair', category: 'Hats', price: 0.001, image: '\u{1F46F}', owned: false, skinKey: 'hair', rarity: 'rare' },
+  { id: 'beatrice-hair', name: 'Beatrice Hair', category: 'Hats', price: 0.001, image: '\u{1F478}', owned: false, skinKey: 'hair-beatrice', rarity: 'rare' },
+  { id: 'kink-hair', name: 'Kink Hair', category: 'Hats', price: 0.001, image: '\u{1F9D1}', owned: false, skinKey: 'hair-kink', rarity: 'rare' },
   { id: 'gold-chain', name: 'Gold Chain', category: 'Accessories', price: 0.005, skrPrice: 25, image: '\u{1F4FF}', owned: false, skinKey: 'gold-chain', rarity: 'epic', comingSoon: true },
   // Tier-exclusive items
   { id: 'neon-jacket', name: 'Neon Jacket', category: 'Shirts', price: 0.006, skrPrice: 30, image: '\u{1F31F}', owned: false, skinKey: 'neon-jacket', rarity: 'epic', tierTag: 'plus_exclusive', comingSoon: true },
@@ -122,9 +133,9 @@ export function getItemLockState(item: ShopItem): ItemLockState {
   return { locked: false, reason: '' };
 }
 
-async function saveShopState(ownedIds: string[], equippedItemId: string | null, equippedAnimationId: string | null) {
+async function saveShopState(ownedIds: string[], equippedItemId: string | null, equippedAnimationId: string | null, achievementUnlocksClaimed?: number) {
   try {
-    await AsyncStorage.setItem(SHOP_STORAGE_KEY, JSON.stringify({ ownedIds, equippedItemId, equippedAnimationId }));
+    await AsyncStorage.setItem(SHOP_STORAGE_KEY, JSON.stringify({ ownedIds, equippedItemId, equippedAnimationId, achievementUnlocksClaimed }));
   } catch {}
 }
 
@@ -133,10 +144,15 @@ export const useShopStore = create<ShopStore>((set, get) => ({
   selectedCategory: 'All',
   equippedItemId: null,
   equippedAnimationId: null,
+  achievementUnlocksClaimed: 0,
 
   setCategory: (category) => set({ selectedCategory: category }),
 
   buyItem: async (id, payWithSkr = false) => {
+    // DEV: skip on-chain payment & Phantom redirect, just unlock the item.
+    // Set to false before shipping.
+    const DEV_FREE_PURCHASES = true;
+
     const startedAt = Date.now();
     console.log(`${SHOP_LOG} start`, { id, payWithSkr });
     const { items } = get();
@@ -151,6 +167,29 @@ export const useShopStore = create<ShopStore>((set, get) => ({
     }
     if (item.comingSoon) {
       console.warn(`${SHOP_LOG} abort: item coming soon`, { id, name: item.name });
+      return;
+    }
+
+    if (DEV_FREE_PURCHASES) {
+      console.log(`${SHOP_LOG} DEV: free purchase, skipping payment`, { id, name: item.name });
+
+      // Streak Freeze is consumable — increment the counter instead of marking owned
+      if (item.skinKey === 'streak-freeze') {
+        try {
+          const { usePetStore } = require('./petStore');
+          const cur = usePetStore.getState().streakFreezes ?? 0;
+          usePetStore.setState({ streakFreezes: Math.min(99, cur + 1) });
+          console.log(`${SHOP_LOG} streak-freeze granted, total: ${cur + 1}`);
+        } catch (err: any) {
+          console.warn(`${SHOP_LOG} failed to grant streak-freeze:`, err?.message);
+        }
+        return;
+      }
+
+      const updated = items.map((i) => (i.id === id ? { ...i, owned: true } : i));
+      set({ items: updated });
+      const ownedIds = updated.filter((i) => i.owned).map((i) => i.id);
+      saveShopState(ownedIds, get().equippedItemId, get().equippedAnimationId);
       return;
     }
 
@@ -364,21 +403,65 @@ export const useShopStore = create<ShopStore>((set, get) => ({
     console.log('[shopStore] restoreFromChain — restored:', itemIds);
   },
 
+  grantAchievementUnlocks: (totalAchievementsUnlocked: number) => {
+    const { items, achievementUnlocksClaimed } = get();
+    // 1 free shop item for every 3 achievements unlocked
+    const earned = Math.floor(totalAchievementsUnlocked / 3);
+    const owed = earned - achievementUnlocksClaimed;
+    if (owed <= 0) return [];
+
+    // Only unlock items whose assets have actually shipped — comingSoon items
+    // have no accessory node / texture in PetRenderer, so equipping them renders nothing.
+    const candidates = items.filter((i) => !i.owned && !i.comingSoon);
+    const toUnlock = candidates.slice(0, owed);
+    if (toUnlock.length === 0) return [];
+
+    const unlockedIds = new Set(toUnlock.map((i) => i.id));
+    const updated = items.map((i) =>
+      unlockedIds.has(i.id) ? { ...i, owned: true } : i
+    );
+    const newClaimed = achievementUnlocksClaimed + toUnlock.length;
+    set({ items: updated, achievementUnlocksClaimed: newClaimed });
+    const ownedIds = updated.filter((i) => i.owned).map((i) => i.id);
+    saveShopState(ownedIds, get().equippedItemId, get().equippedAnimationId, newClaimed);
+    console.log(`[shopStore] grantAchievementUnlocks — unlocked ${toUnlock.length} item(s):`, toUnlock.map((i) => i.id));
+    return toUnlock;
+  },
+
   hydrateShop: async () => {
     try {
       const stored = await AsyncStorage.getItem(SHOP_STORAGE_KEY);
       if (!stored) return;
-      const { ownedIds, equippedItemId, equippedAnimationId } = JSON.parse(stored) as {
+      const { ownedIds, equippedItemId, equippedAnimationId, achievementUnlocksClaimed } = JSON.parse(stored) as {
         ownedIds: string[];
         equippedItemId: string | null;
         equippedAnimationId?: string | null;
+        achievementUnlocksClaimed?: number;
       };
       const { items } = get();
+      // Drop any owned IDs that point to a comingSoon item — those were granted
+      // by an earlier bug in grantAchievementUnlocks and have no working assets.
+      const validOwnedIds = ownedIds.filter((id) => {
+        const def = items.find((i) => i.id === id);
+        return def && !def.comingSoon;
+      });
       const updated = items.map((i) => ({
         ...i,
-        owned: ownedIds.includes(i.id),
+        owned: validOwnedIds.includes(i.id),
       }));
-      set({ items: updated, equippedItemId, equippedAnimationId: equippedAnimationId ?? null });
+      // If the equipped item got dropped, clear the slot so the renderer falls back to default.
+      const validEquipped = equippedItemId && validOwnedIds.includes(equippedItemId) ? equippedItemId : null;
+      const validEquippedAnim = equippedAnimationId && validOwnedIds.includes(equippedAnimationId) ? equippedAnimationId : null;
+      set({
+        items: updated,
+        equippedItemId: validEquipped,
+        equippedAnimationId: validEquippedAnim,
+        achievementUnlocksClaimed: achievementUnlocksClaimed ?? 0,
+      });
+      // Persist the cleaned-up state so the next hydrate doesn't re-do this work.
+      if (validOwnedIds.length !== ownedIds.length || validEquipped !== equippedItemId || validEquippedAnim !== (equippedAnimationId ?? null)) {
+        saveShopState(validOwnedIds, validEquipped, validEquippedAnim, achievementUnlocksClaimed ?? 0);
+      }
     } catch {}
   },
 }));

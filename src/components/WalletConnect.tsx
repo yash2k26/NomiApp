@@ -1,6 +1,8 @@
 import { View, Text, TouchableOpacity, ActivityIndicator, Linking, Image, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useWalletStore } from '../store/walletStore';
+import { usePetStore } from '../store/petStore';
+import { SOLANA_NETWORK } from '../lib/solanaClient';
 import { petTypography } from '../theme/typography';
 
 const HANGING_IMG = require('../../assets/Photos/hanging.png');
@@ -167,12 +169,28 @@ export function WalletConnect() {
           </View>
         </TouchableOpacity>
 
+        {/* Try-first link — gives casual users a sandbox path */}
+        <TouchableOpacity
+          onPress={() => {
+            usePetStore.setState({ trialMode: true, trialStartedAt: Date.now() });
+          }}
+          activeOpacity={0.7}
+          style={{ marginTop: 14 }}
+        >
+          <Text
+            className="text-white/85 text-[13px] text-center underline"
+            style={{ fontFamily: petTypography.body }}
+          >
+            Try without a wallet first
+          </Text>
+        </TouchableOpacity>
+
         {/* Fine print */}
         <Text
           className="text-white/45 text-[11px] text-center mt-4 tracking-[0.3px]"
           style={{ fontFamily: petTypography.body }}
         >
-          Solana Devnet  ·  Powered by Phantom
+          Solana {SOLANA_NETWORK === 'mainnet' ? 'Mainnet' : SOLANA_NETWORK === 'devnet' ? 'Devnet' : 'Testnet'}  ·  Powered by Phantom
         </Text>
       </View>
     </View>

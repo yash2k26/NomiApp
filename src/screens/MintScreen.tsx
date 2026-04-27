@@ -8,7 +8,7 @@ import { useXpStore } from '../store/xpStore';
 import { useAdventureStore } from '../store/adventureStore';
 import { ScreenHeader } from '../components/ui/ScreenHeader';
 import { mintPetNFT } from '../lib/nftMint';
-import { getSolscanTxUrl } from '../lib/solanaClient';
+import { getSolscanTxUrl, SOLANA_NETWORK } from '../lib/solanaClient';
 import { parseTxError, type ParsedTxError } from '../lib/transactionErrors';
 
 type MintState = 'idle' | 'confirming' | 'minting' | 'success' | 'error';
@@ -24,9 +24,16 @@ export function MintScreen() {
   const level = useXpStore((s) => s.level);
   const evolutionStage = useAdventureStore((s) => s.evolutionStage);
 
+  const setOwnerName = usePetStore((s) => s.setOwnerName);
+
   const [mintState, setMintState] = useState<MintState>('idle');
   const [mintError, setMintError] = useState<ParsedTxError | null>(null);
   const [txSignature, setTxSignature] = useState<string | null>(null);
+
+  const handleBack = () => {
+    // Clear owner name so the App gate routes back to NameInputScreen
+    setOwnerName('');
+  };
 
   const handleMint = async () => {
     console.log('[MintScreen] handleMint triggered');
@@ -144,13 +151,22 @@ export function MintScreen() {
           eyebrow="Genesis Companion"
           title="Mint Nomi"
           subtitle="Create your first companion NFT on Solana."
-          badge="On-Chain NFT · Mainnet"
+          badge={`On-Chain NFT · ${SOLANA_NETWORK === 'mainnet' ? 'Mainnet' : SOLANA_NETWORK === 'devnet' ? 'Devnet' : 'Testnet'}`}
           rightSlot={(
             <View className="bg-white/20 rounded-xl px-3 py-1.5 border border-white/35">
               <Text className="text-white text-[10px] font-black">{balance.toFixed(2)} SOL</Text>
             </View>
           )}
         />
+
+        {!isBusy && mintState !== 'success' && (
+          <TouchableOpacity onPress={handleBack} activeOpacity={0.7} style={{ marginTop: -8, marginBottom: 4 }}>
+            <View className="flex-row items-center self-start bg-white/60 border border-pet-blue-light/60 px-3 py-1.5 rounded-full">
+              <Text className="text-pet-blue-dark text-[14px] mr-1">←</Text>
+              <Text className="text-pet-blue-dark text-[11px] font-bold tracking-[0.4px]">Change Name</Text>
+            </View>
+          </TouchableOpacity>
+        )}
 
         <View className="flex-1 justify-center">
           <View
@@ -169,7 +185,7 @@ export function MintScreen() {
             </View>
             <View className="flex-row justify-between py-3 border-b border-gray-100">
               <Text className="text-[12px] font-bold uppercase tracking-[0.8px] text-gray-500">Network</Text>
-              <Text className="text-[13px] font-black text-pet-blue-dark">Solana Mainnet</Text>
+              <Text className="text-[13px] font-black text-pet-blue-dark">Solana {SOLANA_NETWORK === 'mainnet' ? 'Mainnet' : SOLANA_NETWORK === 'devnet' ? 'Devnet' : 'Testnet'}</Text>
             </View>
             <View className="flex-row justify-between py-3 border-b border-gray-100">
               <Text className="text-[12px] font-bold uppercase tracking-[0.8px] text-gray-500">Standard</Text>

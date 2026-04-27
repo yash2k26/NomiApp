@@ -157,6 +157,7 @@ export default function App() {
   const connected = useWalletStore((s) => s.connected);
   const hasPet = usePetStore((s) => s.hasPet);
   const ownerName = usePetStore((s) => s.ownerName);
+  const trialMode = usePetStore((s) => s.trialMode);
 
   const hydrateWallet = useWalletStore((s) => s.hydrateWallet);
   const hydrateShop = useShopStore((s) => s.hydrateShop);
@@ -172,14 +173,13 @@ export default function App() {
   const scheduleReturnNotifications = useNotificationStore((s) => s.scheduleReturnNotifications);
 
   useEffect(() => {
-    // Hydrate local stores first (fast), then wallet reauth (slow, talks to Phantom) in background
     Promise.all([hydratePetStore(), hydrateShop(), hydrateXp(), hydrateAdventure(), hydratePremium(), hydratePersonality(), hydrateEvents(), hydrateNotifications(), hydrateTxLabels(), initSounds()])
-      .finally(() => setHydrated(true));
+      .finally(() => { setHydrated(true); });
+
     // Wallet reauth runs in parallel but doesn't block the UI
     hydrateWallet()
       .then(async () => {
         try { await refreshSkrBalance(); } catch {}
-        // Auto-restore from chain if local data is empty (fresh install / cleared data)
         const wallet = require('./src/store/walletStore').useWalletStore.getState();
         const pet = require('./src/store/petStore').usePetStore.getState();
         const shop = require('./src/store/shopStore').useShopStore.getState();
@@ -274,11 +274,31 @@ export default function App() {
     );
   }
 
-  if (!connected) {
+  // Trial mode bypasses wallet & mint gates so casual users can try the app first.
+  if (!connected && !trialMode) {
     if (showWelcomeIntro) {
       return (
         <GestureHandlerRootView className="flex-1">
           <WelcomeIntro onContinue={() => {
+            // Skip wallet + mint gates: drop straight into the app with mock state.
+            useWalletStore.setState({
+              connected: true,
+              address: 'DevModeMockWa11etAddressForTesting1111111111',
+              balance: 10,
+              skrBalance: 1000,
+              authToken: 'dev-mock-token',
+              isConnecting: false,
+              error: null,
+            });
+            const pet = usePetStore.getState();
+            usePetStore.setState({
+              hasPet: true,
+              id: pet.id ?? `pet_dev_${Date.now()}`,
+              name: pet.name || 'Nomi',
+              ownerName: pet.ownerName || 'Dev',
+              mintAddress: pet.mintAddress || 'DevModeMockMintAddress11111111111111111111',
+              mintTxSignature: pet.mintTxSignature || 'dev-mock-tx',
+            });
             requestAnimationFrame(() => setShowWelcomeIntro(false));
           }} />
           <StatusBar style="light" />
@@ -303,7 +323,7 @@ export default function App() {
     );
   }
 
-  if (!hasPet) {
+  if (!hasPet && !trialMode) {
     return (
       <GestureHandlerRootView className="flex-1">
         <SafeAreaProvider>

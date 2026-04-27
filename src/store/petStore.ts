@@ -132,6 +132,14 @@ interface PetState {
   cooldowns: Record<string, number>;
   // Oracle's Blessing (level 50 perk)
   lastBlessingAt: number;
+  // Streak freeze — preserve streak when missing a day
+  streakFreezes: number;
+  lastFreezeRefillDate: string; // ISO date when last weekly free freeze was granted
+  // Pre-mint trial mode — try the app without a wallet
+  trialMode: boolean;
+  trialStartedAt: number;
+  // Referral — has the user already redeemed a friend's referral code
+  referralRedeemed: boolean;
 }
 
 interface PetActions {
@@ -158,6 +166,8 @@ interface PetActions {
   isOnCooldown: (action: string) => boolean;
   getCooldownRemaining: (action: string) => number; // ms remaining, 0 if ready
   startCooldown: (action: string) => void;
+  // Skip cooldown for a single action (or all variants matching prefix). Clears the timer.
+  skipCooldown: (actionPrefix: string) => void;
   // Variant-based care action
   performCareAction: (variantId: string) => boolean;
   // On-chain restore
@@ -211,6 +221,9 @@ const PERSISTED_KEYS: (keyof PetState)[] = [
   'id', 'name', 'ownerName', 'mintAddress', 'mintTxSignature', 'hunger', 'happiness', 'energy',
   'skin', 'hasPet', 'lastTickAt', 'lastActiveDate', 'streakDays',
   'stamina', 'lastStaminaRegenAt', 'cooldowns', 'lastBlessingAt',
+  'streakFreezes', 'lastFreezeRefillDate',
+  'trialMode', 'trialStartedAt',
+  'referralRedeemed',
 ];
 
 export function savePetState(state: PetState) {
@@ -303,6 +316,11 @@ export const usePetStore = create<PetStore>((set, get) => ({
   lastStaminaRegenAt: Date.now(),
   cooldowns: {},
   lastBlessingAt: 0,
+  streakFreezes: 1, // start with one free freeze
+  lastFreezeRefillDate: '',
+  trialMode: false,
+  trialStartedAt: 0,
+  referralRedeemed: false,
 
   setOwnerName: (ownerName: string) => {
     set({ ownerName });
@@ -359,6 +377,22 @@ export const usePetStore = create<PetStore>((set, get) => ({
     const { cooldowns } = get();
     set({ cooldowns: { ...cooldowns, [action]: Date.now() + duration } });
     savePetState(get());
+  },
+
+  skipCooldown: (actionPrefix: string) => {
+    const { cooldowns } = get();
+    const next = { ...cooldowns };
+    let cleared = 0;
+    for (const key of Object.keys(next)) {
+      if (key === actionPrefix || key.startsWith(`${actionPrefix}-`) || key.startsWith(`${actionPrefix}/`)) {
+        delete next[key];
+        cleared++;
+      }
+    }
+    if (cleared > 0) {
+      set({ cooldowns: next });
+      savePetState(get());
+    }
   },
 
   mintPet: (realMintAddress?: string, txSignature?: string) => {
@@ -678,13 +712,52 @@ export const usePetStore = create<PetStore>((set, get) => ({
     if (today !== lastActiveDate) {
       const yd = new Date(now); yd.setDate(yd.getDate() - 1);
       const yesterday = yd.toISOString().slice(0, 10);
-      const newStreak = lastActiveDate === yesterday ? streakDays + 1 : 1;
+
+      // Compute days missed since last visit (excluding today's visit)
+      const { streakFreezes, lastFreezeRefillDate } = get();
+      let daysMissed = 0;
+      if (lastActiveDate && lastActiveDate !== yesterday) {
+        const lastMs = new Date(lastActiveDate + 'T00:00:00Z').getTime();
+        const todayMs = new Date(today + 'T00:00:00Z').getTime();
+        daysMissed = Math.max(0, Math.floor((todayMs - lastMs) / (1000 * 60 * 60 * 24)) - 1);
+      }
+
+      let consumedFreezes = 0;
+      let newStreak: number;
+      if (lastActiveDate === yesterday) {
+        // No gap — streak continues
+        newStreak = streakDays + 1;
+      } else if (lastActiveDate && daysMissed > 0 && streakFreezes >= daysMissed) {
+        // Use freezes to cover gap, streak continues
+        consumedFreezes = daysMissed;
+        newStreak = streakDays + 1;
+      } else {
+        // Not enough freezes — streak resets
+        newStreak = 1;
+      }
+
+      // Weekly free freeze refill (cap at 3 stockpiled)
+      const FREEZE_CAP = 3;
+      const REFILL_INTERVAL_DAYS = 7;
+      let bonusFreeze = 0;
+      if (!lastFreezeRefillDate) {
+        bonusFreeze = 1;
+      } else {
+        const lastRefillMs = new Date(lastFreezeRefillDate + 'T00:00:00Z').getTime();
+        const todayMs = new Date(today + 'T00:00:00Z').getTime();
+        const daysSinceRefill = Math.floor((todayMs - lastRefillMs) / (1000 * 60 * 60 * 24));
+        if (daysSinceRefill >= REFILL_INTERVAL_DAYS) bonusFreeze = 1;
+      }
+
+      const finalFreezes = Math.min(FREEZE_CAP, streakFreezes - consumedFreezes + bonusFreeze);
       const streakBonus = Math.min(newStreak * 2, 10);
 
       set((state) => ({
         lastActiveDate: today,
         streakDays: newStreak,
         happiness: clamp(state.happiness + streakBonus, 0, 100),
+        streakFreezes: finalFreezes,
+        lastFreezeRefillDate: bonusFreeze > 0 ? today : state.lastFreezeRefillDate,
       }));
 
       // XP for daily login + streak

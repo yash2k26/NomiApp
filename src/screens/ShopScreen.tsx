@@ -907,6 +907,7 @@ export function ShopScreen() {
   const { items, buyItem, equipItem, unequipItem, equippedItemId, equippedAnimationId, hydrateShop } = useShopStore();
   const [selectedSection, setSelectedSection] = useState<ShopSection>('All');
   const [ownershipFilter, setOwnershipFilter] = useState<OwnershipFilter>('all');
+  const [showComingSoon, setShowComingSoon] = useState(false);
   const [purchasingId, setPurchasingId] = useState<string | null>(null);
   const [paymentItem, setPaymentItem] = useState<ShopItem | null>(null);
   const [receiptItem, setReceiptItem] = useState<ShopItem | null>(null);
@@ -935,10 +936,14 @@ export function ShopScreen() {
       const required = TIER_TAG_MAP[i.tierTag];
       return required ? isAtLeastTier(tier, required) : true;
     }).filter((i) => {
+      // Hide coming-soon items unless the user opts in (keeps already-owned visible regardless)
+      if (i.comingSoon && !i.owned && !showComingSoon) return false;
+      return true;
+    }).filter((i) => {
       if (ownershipFilter === 'all') return true;
       return ownershipFilter === 'owned' ? i.owned : !i.owned;
     });
-  }, [items, tier, ownershipFilter]);
+  }, [items, tier, ownershipFilter, showComingSoon]);
 
   const sectioned = useMemo(() => {
     const bySection: Record<Exclude<ShopSection, 'All'>, ShopItem[]> = {
@@ -1152,6 +1157,27 @@ export function ShopScreen() {
             </View>
           </TouchableOpacity>
         ))}
+        <TouchableOpacity
+          onPress={() => setShowComingSoon((s) => !s)}
+          activeOpacity={0.85}
+          style={{ marginLeft: 'auto' }}
+        >
+          <View
+            className={`px-4 py-2 ${
+              showComingSoon ? 'bg-pet-blue-dark' : 'bg-white border border-gray-200'
+            }`}
+            style={{ borderRadius: PILL_RADIUS }}
+          >
+            <Text
+              className={`text-[11px] font-bold tracking-[0.3px] ${
+                showComingSoon ? 'text-white' : 'text-gray-500'
+              }`}
+              style={{ fontFamily: petTypography.heading }}
+            >
+              {showComingSoon ? 'Hide Soon' : 'Show Soon'}
+            </Text>
+          </View>
+        </TouchableOpacity>
       </View>
 
       <ScrollView

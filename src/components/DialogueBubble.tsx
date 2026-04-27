@@ -69,37 +69,24 @@ export const DialogueBubble = memo(function DialogueBubble({ message }: Dialogue
   return (
     <Animated.View
       style={{ opacity: fadeAnim, transform: [{ scale: bounceAnim }] }}
-      className="absolute top-8 left-0 right-0 z-20 items-center px-6"
+      className="absolute top-1 left-0 right-0 z-20 items-center px-4"
     >
       <View
-        className="bg-white px-5 py-3.5 rounded-2xl border border-pet-blue-light/70"
+        className="bg-white px-4 py-2 rounded-2xl border border-pet-blue-light/70"
         style={{
           shadowColor: '#4FB0C6',
-          shadowOffset: { width: 0, height: 8 },
-          shadowOpacity: 0.16,
-          shadowRadius: 12,
-          elevation: 6,
-          minHeight: 44,
+          shadowOffset: { width: 0, height: 6 },
+          shadowOpacity: 0.14,
+          shadowRadius: 10,
+          elevation: 5,
+          maxWidth: '85%',
         }}
       >
-        <Text className="text-[13px] font-semibold text-gray-700 text-center">
+        <Text className="text-[12px] font-semibold text-gray-700 text-center">
           {displayedText}
           {isTyping && <Text className="text-pet-blue">|</Text>}
         </Text>
       </View>
-      <View
-        style={{
-          width: 0,
-          height: 0,
-          borderLeftWidth: 8,
-          borderRightWidth: 8,
-          borderTopWidth: 8,
-          borderLeftColor: 'transparent',
-          borderRightColor: 'transparent',
-          borderTopColor: '#ffffff',
-          marginTop: -1,
-        }}
-      />
     </Animated.View>
   );
 });

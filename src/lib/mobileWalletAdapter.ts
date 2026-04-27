@@ -28,12 +28,12 @@ export async function connectMobileWallet(): Promise<WalletAuthResult> {
   try {
     const result = await transact(async (wallet: Web3MobileWallet) => {
       console.log('[MWA] transact session opened in', Date.now() - startTime, 'ms');
-      console.log('[MWA] Calling wallet.authorize — chain: solana:mainnet');
+      console.log('[MWA] Calling wallet.authorize — chain: solana:devnet');
 
       const authStart = Date.now();
       const auth = await wallet.authorize({
         identity: APP_IDENTITY,
-        chain: 'solana:mainnet',
+        chain: 'solana:devnet',
       });
       console.log('[MWA] wallet.authorize returned in', Date.now() - authStart, 'ms');
       console.log('[MWA] auth_token present:', !!auth.auth_token, 'length:', auth.auth_token?.length);

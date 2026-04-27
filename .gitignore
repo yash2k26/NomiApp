@@ -36,3 +36,5 @@ discard/
 
 # Release signing (NEVER commit keystore or passwords)
 *.keystore
+# Local backup of main pet GLB (kept on disk, not committed)
+assets/pets/nomi-combined.backup.glb

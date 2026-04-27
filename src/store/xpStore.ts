@@ -513,6 +513,15 @@ export const useXpStore = create<XpStore>((set, get) => ({
     } else if (updated !== achievements) {
       set({ achievements: updated });
     }
+
+    // Grant free shop items: 1 per 3 achievements unlocked
+    try {
+      const unlockedCount = updated.filter((a) => a.unlocked).length;
+      const { useShopStore } = require('./shopStore');
+      useShopStore.getState().grantAchievementUnlocks(unlockedCount);
+    } catch (err: any) {
+      console.warn('[xpStore] grantAchievementUnlocks failed:', err?.message);
+    }
     saveXpState(get());
   },
 

@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { useAdventureStore } from '../store/adventureStore';
+import { usePetStore } from '../store/petStore';
 import { playSfx } from '../lib/soundManager';
 
 export function LoginCalendar({ onClaimed }: { onClaimed?: () => void } = {}) {
@@ -56,8 +57,14 @@ export function LoginCalendar({ onClaimed }: { onClaimed?: () => void } = {}) {
             <Text className="text-base mr-2">{'\u{1F4C5}'}</Text>
             <Text className="text-[12px] font-black text-white tracking-[0.8px] uppercase">Daily Login</Text>
           </View>
-          <View className="bg-white/30 px-2.5 py-1 rounded-full">
-            <Text className="text-[10px] font-bold text-white">Day {currentLoginDay}/7</Text>
+          <View className="flex-row items-center" style={{ gap: 6 }}>
+            <View className="bg-white/30 px-2.5 py-1 rounded-full flex-row items-center">
+              <Text className="text-[10px] mr-1">❄️</Text>
+              <Text className="text-[10px] font-bold text-white">{usePetStore((s) => s.streakFreezes)}</Text>
+            </View>
+            <View className="bg-white/30 px-2.5 py-1 rounded-full">
+              <Text className="text-[10px] font-bold text-white">Day {currentLoginDay}/7</Text>
+            </View>
           </View>
         </LinearGradient>
 

@@ -11,6 +11,9 @@ import { useTxHistoryStore, type LabeledTransaction } from '../store/txHistorySt
 import { XpBar } from '../components/XpBar';
 import { AchievementBadge } from '../components/AchievementBadge';
 import { PremiumCard } from '../components/PremiumCard';
+import { LeaderboardCard } from '../components/LeaderboardCard';
+import { ReferralCard } from '../components/ReferralCard';
+import { PersonalityTraitsCard } from '../components/PersonalityTraitsCard';
 import { usePremiumStore } from '../store/premiumStore';
 import { TIER_CONFIGS } from '../data/premiumTiers';
 import { useShopStore } from '../store/shopStore';
@@ -18,8 +21,9 @@ import { useNotificationStore } from '../store/notificationStore';
 import { ScreenHeader } from '../components/ui/ScreenHeader';
 import { SharePetCard } from '../components/SharePetCard';
 import { TransactionHistoryScreen } from './TransactionHistoryScreen';
-import { getSolscanTxUrl, getSolscanNftUrl, getSolscanAddressUrl } from '../lib/solanaClient';
+import { getSolscanTxUrl, getSolscanNftUrl, getSolscanAddressUrl, SOLANA_NETWORK } from '../lib/solanaClient';
 import { writeMemo } from '../lib/solanaTransactions';
+import { setMuted, isMuted } from '../lib/soundManager';
 
 interface InfoCardProps {
   title: string;
@@ -342,6 +346,14 @@ export function ProfileScreen() {
   const [showTxHistory, setShowTxHistory] = useState(false);
   const notificationsEnabled = useNotificationStore((s) => s.enabled);
   const toggleNotifications = useNotificationStore((s) => s.setEnabled);
+  const [soundEnabled, setSoundEnabled] = useState(() => !isMuted());
+  const toggleSound = useCallback(() => {
+    setSoundEnabled((prev) => {
+      const next = !prev;
+      setMuted(!next);
+      return next;
+    });
+  }, []);
   const completedAdventures = useAdventureStore((s) => s.completedAdventures);
   const miniGamesWon = useAdventureStore((s) => s.miniGamesWon);
 
@@ -442,6 +454,18 @@ export function ProfileScreen() {
 
         <PremiumCard />
 
+        <View className="mt-4 mb-1">
+          <LeaderboardCard />
+        </View>
+
+        <View className="mt-4 mb-1">
+          <ReferralCard />
+        </View>
+
+        <View className="mt-4 mb-1">
+          <PersonalityTraitsCard />
+        </View>
+
         <SharePetCard />
 
         <View className="mt-1" />
@@ -474,7 +498,7 @@ export function ProfileScreen() {
               </TouchableOpacity>
             </View>
           </View>
-          <InfoRow label="Network" value="Solana Mainnet" valueColor="text-pet-blue-dark" />
+          <InfoRow label="Network" value={`Solana ${SOLANA_NETWORK === 'mainnet' ? 'Mainnet' : SOLANA_NETWORK === 'devnet' ? 'Devnet' : 'Testnet'}`} valueColor="text-pet-blue-dark" />
         </InfoCard>
 
         <InfoCard title="Companion" icon={'\u{1F43E}'} accent="bg-pet-blue">
@@ -557,6 +581,16 @@ export function ProfileScreen() {
               <View className={`px-3 py-1 rounded-full ${notificationsEnabled ? 'bg-pet-green' : 'bg-gray-300'}`}>
                 <Text className="text-[10px] font-black text-white">
                   {notificationsEnabled ? 'ON' : 'OFF'}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+          <View className="flex-row justify-between py-3.5 border-b border-gray-100 items-center">
+            <Text className="text-[12px] font-semibold text-gray-500">Sound</Text>
+            <TouchableOpacity onPress={toggleSound} activeOpacity={0.7}>
+              <View className={`px-3 py-1 rounded-full ${soundEnabled ? 'bg-pet-green' : 'bg-gray-300'}`}>
+                <Text className="text-[10px] font-black text-white">
+                  {soundEnabled ? 'ON' : 'OFF'}
                 </Text>
               </View>
             </TouchableOpacity>

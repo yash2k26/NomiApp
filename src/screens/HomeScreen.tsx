@@ -4,6 +4,7 @@ import * as Haptics from 'expo-haptics';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { usePetStore, getPetNeeds } from '../store/petStore';
+import { useWalletStore } from '../store/walletStore';
 import { useShopStore } from '../store/shopStore';
 import { useAdventureStore } from '../store/adventureStore';
 import { PetRenderer, CareActions, ReflectionModal, type ActiveModel } from '../components';
@@ -13,6 +14,7 @@ import { LoginCalendar } from '../components/LoginCalendar';
 import { DialogueBubble } from '../components/DialogueBubble';
 import { ThoughtBubble } from '../components/ThoughtBubble';
 import { DiaryModal } from '../components/DiaryModal';
+import { DailyQuests } from '../components/DailyQuests';
 import { EventOverlay } from '../components/EventOverlay';
 import { TouchInteractionLayer } from '../components/TouchInteractionLayer';
 import { useXpStore } from '../store/xpStore';
@@ -21,6 +23,7 @@ import { usePersonalityStore, getActionDialogue, type DialogueContext } from '..
 import { ADVENTURE_ZONES } from '../store/adventureStore';
 import { petTypography } from '../theme/typography';
 import { playMusic, stopMusic, playSfx, playSound, playRandomSadSound } from '../lib/soundManager';
+import { SOLANA_NETWORK } from '../lib/solanaClient';
 import { OnboardingOverlay, shouldShowOnboarding } from '../components/OnboardingOverlay';
 
 const BACKFLIP_DURATION = 2500; // Backflip clip duration
@@ -394,6 +397,25 @@ function ActivityGlance({ onNavigateGames }: { onNavigateGames?: () => void }) {
   );
 }
 
+function TrialBanner() {
+  const trialMode = usePetStore((s) => s.trialMode);
+  const connected = useWalletStore((s) => s.connected);
+  if (!trialMode || connected) return null;
+  return (
+    <View
+      pointerEvents="none"
+      className="absolute z-30"
+      style={{ top: 4, left: 0, right: 0, alignItems: 'center' }}
+    >
+      <View className="bg-pet-blue-dark/90 border border-white/30 px-3 py-1 rounded-full">
+        <Text className="text-white text-[10px] font-black tracking-[0.5px]">
+          TRIAL · TAP PROFILE TO MINT
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void } = {}) {
   const [petReady, setPetReady] = useState(false);
   const [reflectionModalVisible, setReflectionModalVisible] = useState(false);
@@ -640,6 +662,25 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
           <MaterialCommunityIcons name="lightbulb-on-outline" size={20} color="#ffffff" />
         </TouchableOpacity>
       </View>
+
+      {/* Network badge — persistent visibility for trust */}
+      <View className="absolute top-5 left-5 z-30">
+        <View className={`px-2.5 py-1 rounded-full border ${
+          SOLANA_NETWORK === 'mainnet'
+            ? 'bg-emerald-500/90 border-emerald-700/60'
+            : SOLANA_NETWORK === 'devnet'
+              ? 'bg-amber-500/90 border-amber-700/60'
+              : 'bg-purple-500/90 border-purple-700/60'
+        }`}>
+          <Text className="text-white text-[9px] font-black tracking-[0.8px]">
+            {SOLANA_NETWORK.toUpperCase()}
+          </Text>
+        </View>
+      </View>
+
+      {/* Trial mode banner — only visible if user opted into trial-without-wallet */}
+      <TrialBanner />
+
       {/* Removed NOMI SKY CLUB label — space reclaimed */}
 
       <View className="absolute -top-8 -left-6 w-36 h-36 rounded-full bg-pet-blue-light/35" />
@@ -754,6 +795,9 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
         <View className="px-6 mt-3">
           <XpBar />
         </View>
+
+        {/* Daily Quests — surfaces today's objectives so user knows what to do */}
+        <DailyQuests />
 
         {/* Diary Button */}
         <View className="px-6 mt-4">

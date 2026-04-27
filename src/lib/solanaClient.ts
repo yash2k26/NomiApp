@@ -2,13 +2,22 @@ import { Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { runRpcHealthCheck } from './solanaDebugger';
 
 const HELIUS_API_KEY = process.env.EXPO_PUBLIC_HELIUS_API_KEY ?? '';
+// Switched to devnet for development/testing
 const MAINNET_URL = HELIUS_API_KEY
-  ? `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`
-  : 'https://api.mainnet-beta.solana.com';
+  ? `https://devnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`
+  : 'https://api.devnet.solana.com';
 
 const RPC_ENDPOINTS = HELIUS_API_KEY
-  ? [MAINNET_URL, 'https://api.mainnet-beta.solana.com']
-  : ['https://api.mainnet-beta.solana.com'];
+  ? [MAINNET_URL, 'https://api.devnet.solana.com']
+  : ['https://api.devnet.solana.com'];
+
+// Active network (reflects RPC URL). Update this if you swap MAINNET_URL above.
+export type SolanaNetwork = 'mainnet' | 'devnet' | 'testnet';
+export const SOLANA_NETWORK: SolanaNetwork = RPC_ENDPOINTS[0].includes('devnet')
+  ? 'devnet'
+  : RPC_ENDPOINTS[0].includes('testnet')
+    ? 'testnet'
+    : 'mainnet';
 
 console.log('[solanaClient] Initializing web3.js RPC endpoints:', RPC_ENDPOINTS);
 
