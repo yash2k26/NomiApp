@@ -42,14 +42,13 @@ const featureCards = [
   },
 ];
 
-// drop real screenshots into public/nomi/screenshots/{home,games,shop,profile}.png
-// then flip `hasShot: true` for that entry — the mockup will swap from
-// labeled placeholder to the real image automatically.
-const screenshots: { label: string; tint: string; hasShot: boolean }[] = [
-  { label: "Home", tint: "bg-pet-blue-light", hasShot: false },
-  { label: "Games", tint: "bg-pet-yellow-light", hasShot: false },
-  { label: "Shop", tint: "bg-pet-pink-light", hasShot: false },
-  { label: "Profile", tint: "bg-pet-green-light", hasShot: false },
+// rendered marketing scenes — each image already has an embedded title;
+// the alt text mirrors that for accessibility / SEO.
+const showcase = [
+  { src: "/nomi/showcase/01-companion.png", alt: "Meet your on-chain companion — wake screen" },
+  { src: "/nomi/showcase/02-care.png", alt: "Care that feels alive — feed, play, rest, mood" },
+  { src: "/nomi/showcase/03-connect.png", alt: "Connect in seconds — secure wallet onboarding" },
+  { src: "/nomi/showcase/04-grow.png", alt: "Grow and customize — level up, unlock rewards" },
 ];
 
 const faqs = [
@@ -200,51 +199,33 @@ function AppTour() {
     <section className="max-w-6xl mx-auto px-5 sm:px-8 py-16 sm:py-20">
       <div className="text-center max-w-2xl mx-auto">
         <span className="inline-block px-3 py-1.5 rounded-full bg-pet-purple-light text-pet-purple-dark text-xs font-bold uppercase tracking-wider">
-          Inside the app
+          See NOMI in action
         </span>
         <h2 className="mt-4 text-3xl sm:text-4xl font-bold tracking-tight">
-          Four screens, one whole world.
+          A whole world to wake up to.
         </h2>
         <p className="mt-3 text-pet-blue-dark text-lg">
-          Home, Games, Shop, Profile. Everything your NOMI needs and everything you&apos;ll come back for.
+          Wake your companion. Care for it. Connect your wallet. Grow it through 50 levels.
         </p>
       </div>
-      <div className="mt-12 grid grid-cols-2 md:grid-cols-4 gap-5 md:gap-6">
-        {screenshots.map((s) => (
-          <PhoneMockup key={s.label} label={s.label} tint={s.tint} hasShot={s.hasShot} />
+      <div className="mt-12 grid sm:grid-cols-2 gap-5 md:gap-7">
+        {showcase.map((s) => (
+          <div
+            key={s.src}
+            className="group relative rounded-4xl overflow-hidden shadow-soft hover:shadow-lift hover:-translate-y-1 transition-all bg-white"
+          >
+            <Image
+              src={s.src}
+              alt={s.alt}
+              width={1660}
+              height={948}
+              sizes="(min-width: 768px) 50vw, 100vw"
+              className="w-full h-auto block"
+            />
+          </div>
         ))}
       </div>
-      <p className="mt-8 text-center text-sm text-pet-blue-dark/70">
-        Real screenshots dropping in soon.
-      </p>
     </section>
-  );
-}
-
-function PhoneMockup({ label, tint, hasShot }: { label: string; tint: string; hasShot: boolean }) {
-  return (
-    <div className="flex flex-col items-center">
-      <div className="relative w-full max-w-[200px] aspect-[9/19.5] rounded-[36px] bg-pet-ink p-2 shadow-lift">
-        <div className={`relative w-full h-full rounded-[28px] overflow-hidden ${tint}`}>
-          {hasShot ? (
-            <Image
-              src={`/nomi/screenshots/${label.toLowerCase()}.png`}
-              alt={`${label} screen`}
-              width={200}
-              height={420}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-pet-blue-dark/60 text-sm font-bold">
-              <span className="text-4xl mb-2 opacity-50" aria-hidden>•••</span>
-              <span>{label}</span>
-            </div>
-          )}
-          <div className="absolute top-2 left-1/2 -translate-x-1/2 w-16 h-4 rounded-full bg-pet-ink" />
-        </div>
-      </div>
-      <p className="mt-3 text-sm font-bold text-pet-blue-dark">{label}</p>
-    </div>
   );
 }
 
