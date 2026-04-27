@@ -394,6 +394,18 @@ export const useXpStore = create<XpStore>((set, get) => ({
       pendingLevelUp: pendingLevelUp ?? state.pendingLevelUp,
     });
     saveXpState(get());
+
+    // If we just leveled up, have Nomi react in the speech bubble
+    if (pendingLevelUp && pendingLevelUp > state.level) {
+      try {
+        const mod = require('./personalityStore');
+        const ps = mod.usePersonalityStore.getState();
+        const petStoreMod = require('./petStore');
+        const ownerName = petStoreMod.usePetStore.getState().ownerName;
+        ps.recordMemory('leveled');
+        ps.setCurrentDialogue(mod.getActionDialogue('leveled', ps.traits, ownerName));
+      } catch {}
+    }
   },
 
   updateQuestProgress: (type, amount = 1) => {
@@ -512,6 +524,15 @@ export const useXpStore = create<XpStore>((set, get) => ({
       get().addXp(xpGained, 'achievement');
     } else if (updated !== achievements) {
       set({ achievements: updated });
+    }
+
+    // Grant free shop items: 1 per 3 achievements unlocked
+    try {
+      const unlockedCount = updated.filter((a) => a.unlocked).length;
+      const { useShopStore } = require('./shopStore');
+      useShopStore.getState().grantAchievementUnlocks(unlockedCount);
+    } catch (err: any) {
+      console.warn('[xpStore] grantAchievementUnlocks failed:', err?.message);
     }
     saveXpState(get());
   },

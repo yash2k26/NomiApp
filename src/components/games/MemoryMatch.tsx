@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, TouchableOpacity, Pressable, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { playMusic, stopMusic, playSfx } from '../../lib/soundManager';
 
 const EMOJIS = ['\u{1F436}', '\u{1F431}', '\u{1F430}', '\u{1F43C}', '\u{1F438}', '\u{1F427}',
@@ -253,8 +254,9 @@ export function MemoryMatch({ onComplete, onCancel }: MemoryMatchProps) {
     <View className="flex-1 bg-pet-background px-4 pt-4">
       {/* Header */}
       <View className="flex-row items-center justify-between mb-3">
-        <TouchableOpacity onPress={onCancel}>
-          <Text className="text-pet-purple font-bold text-[14px]">{'\u2190'} Back</Text>
+        <TouchableOpacity onPress={onCancel} className="flex-row items-center">
+          <MaterialCommunityIcons name="arrow-left" size={16} color="#7C3AED" style={{ marginRight: 4 }} />
+          <Text className="text-pet-purple font-bold text-[14px]">Back</Text>
         </TouchableOpacity>
         <View className="flex-row items-center">
           {combo > 1 && (

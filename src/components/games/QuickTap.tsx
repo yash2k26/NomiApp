@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, TouchableOpacity, Pressable, Animated, Dimensions } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { playMusic, stopMusic, playSfx } from '../../lib/soundManager';
 
 const GAME_TIME = 30;
@@ -221,7 +222,7 @@ export function QuickTap({ onComplete, onCancel }: QuickTapProps) {
       {/* Header */}
       <View className="flex-row items-center justify-between mb-3">
         <TouchableOpacity onPress={onCancel}>
-          <Text className="text-pet-purple font-bold text-[14px]">{'\u2190'} Back</Text>
+          <View className="flex-row items-center"><MaterialCommunityIcons name="arrow-left" size={16} color="#7C3AED" style={{ marginRight: 4 }} /><Text className="text-pet-purple font-bold text-[14px]">Back</Text></View>
         </TouchableOpacity>
         <View className="flex-row items-center">
           {streak >= 3 && (

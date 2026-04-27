@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { usePetStore } from '../store/petStore';
+import { useWalletStore } from '../store/walletStore';
 import { petTypography } from '../theme/typography';
 
 const { height: SCREEN_H } = Dimensions.get('window');
@@ -13,6 +15,7 @@ interface NameInputScreenProps {
 export function NameInputScreen({ onComplete }: NameInputScreenProps) {
   const [name, setName] = useState('');
   const setOwnerName = usePetStore((s) => s.setOwnerName);
+  const disconnectWallet = useWalletStore((s) => s.disconnectWallet);
 
   const trimmed = name.trim();
   const isValid = trimmed.length >= 2 && trimmed.length <= 12;
@@ -42,6 +45,17 @@ export function NameInputScreen({ onComplete }: NameInputScreenProps) {
         className="absolute rounded-full bg-white/8"
         style={{ width: 140, height: 140, top: SCREEN_H * 0.55, left: -50 }}
       />
+
+      <TouchableOpacity
+        onPress={disconnectWallet}
+        activeOpacity={0.7}
+        style={{ position: 'absolute', top: 56, left: 20, zIndex: 10 }}
+      >
+        <View className="flex-row items-center bg-white/15 border border-white/25 px-3 py-1.5 rounded-full">
+          <MaterialCommunityIcons name="arrow-left" size={14} color="#ffffff" style={{ marginRight: 4 }} />
+          <Text className="text-white text-[11px] font-bold tracking-[0.4px]">Back</Text>
+        </View>
+      </TouchableOpacity>
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}

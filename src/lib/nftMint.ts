@@ -1,4 +1,4 @@
-import { Keypair, PublicKey, Transaction, SystemProgram } from '@solana/web3.js';
+import { Keypair, LAMPORTS_PER_SOL, PublicKey, Transaction, SystemProgram } from '@solana/web3.js';
 import {
   MINT_SIZE,
   TOKEN_PROGRAM_ID,
@@ -13,9 +13,16 @@ import {
   PROGRAM_ID as TOKEN_METADATA_PROGRAM_ID,
 } from '@metaplex-foundation/mpl-token-metadata';
 import { getLatestBlockhash, getMinimumBalanceForRentExemption, sendTransaction, confirmTransaction } from './solanaSdk';
+import { SHOP_TREASURY } from './solanaClient';
 import { withWallet } from './mobileWalletAdapter';
 
-const NFT_METADATA_URI = 'https://raw.githubusercontent.com/yash2k26/NomiApp/main/assets/nft-metadata.json';
+// NOTE: pointing at the `new-char` branch because the new Nomi character art lives there.
+// After merging `new-char` → `main`, swap this back to `/main/` for permanence.
+const NFT_METADATA_URI = 'https://raw.githubusercontent.com/yash2k26/NomiApp/new-char/assets/nft-metadata.json';
+
+// Mint price paid by the user to the project treasury (in SOL).
+// On-chain rent + network fees are additional (~0.01 SOL).
+export const MINT_PRICE_SOL = 0.15;
 
 export interface MintResult {
   mintAddress: string;
@@ -77,6 +84,13 @@ export async function mintPetNFT(
     );
 
     const tx = new Transaction();
+
+    // 0. Mint fee — 0.15 SOL to project treasury
+    tx.add(SystemProgram.transfer({
+      fromPubkey: payer,
+      toPubkey: new PublicKey(SHOP_TREASURY),
+      lamports: Math.round(MINT_PRICE_SOL * LAMPORTS_PER_SOL),
+    }));
 
     // 1. Create mint account
     tx.add(SystemProgram.createAccount({

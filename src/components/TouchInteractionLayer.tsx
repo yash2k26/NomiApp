@@ -134,46 +134,46 @@ function pick<T>(arr: T[]): T {
 
 function getRandomHeadpatDialogue(traits: { playful: number; foodie: number; sleepy: number }): string {
   const lines = [
-    'Hehe, that tickles!',
-    'More pats please~',
-    "Mmm, that feels so nice!",
-    '*purrs happily*',
-    'I love head pats!',
-    "You're the best at this.",
-    '*leans into your hand*',
-    'Right there... perfect!',
+    '*MELTS* do that again. legally I require it.',
+    'I will trade my entire personality for more of these.',
+    'okay okay okay okay okay yes thank you yes more.',
+    '*purrs even though I\'m not technically a cat*',
+    'your hand is the cure to everything.',
+    '*tiny squeal* THAT\'S THE STUFF.',
+    'right between the ears. you GET me.',
+    '*head physically tilts to invite more*',
   ];
-  if (traits.playful > 50) lines.push('Hehe! Again again!', 'Wheee!');
-  if (traits.sleepy > 50) lines.push('Mmm... so relaxing...', '*getting drowsy*');
+  if (traits.playful > 50) lines.push('more more more more! repeat input!!', '*chef\'s kiss* yes. yes. continue.');
+  if (traits.sleepy > 50) lines.push('*becomes one with the pat. transcendence reached.*', 'you\'re putting me in a coma of joy.');
   return pick(lines);
 }
 
 function getRandomPokeDialogue(traits: { playful: number }): string {
   const lines = [
-    'Hey! What was that?!',
-    'Eep! You poked me!',
-    '*jumps* Oh! Hi!',
-    "That surprised me!",
-    'Excuse me?! Rude!',
-    "*giggles* Don't do that!",
-    'Boop!',
-    'Hey hey hey!',
+    'EXCUSE-',
+    '*jumps* YOU SCARED ME and also I love you for it.',
+    'boop?? did you just BOOP me?? I will boop back. consider yourself warned.',
+    '*tiny gasp* RUDE. but also do it again.',
+    'oh we\'re THIS kind of friend now huh?',
+    'I\'m a delicate creature!! ...also poke me again.',
+    '*falls over from one finger* I am made of glitter and consequences.',
+    'beep boop. that\'s how I respond now. you broke me.',
   ];
-  if (traits.playful > 50) lines.push("Oh you wanna play? Let's go!", 'Poke me again, I dare you!');
+  if (traits.playful > 50) lines.push('OH IT\'S ON. *prepares for chaos*', 'you, me, war, RIGHT NOW. (the war is more pokes.)');
   return pick(lines);
 }
 
 function getRandomHugDialogue(traits: { social: number }): string {
   const lines = [
-    'I feel so loved right now...',
-    '*melts into the hug*',
-    "Never let go...",
-    'This is the best feeling ever.',
-    '*happy sigh*',
-    'I needed this. Thank you.',
-    "You're so warm~",
-    'Hugs are the best medicine.',
+    '*MELTS into fragments of pure joy*',
+    'I think this is what the poets meant.',
+    'okay you can never let go now. those are the rules. I made them.',
+    '*makes a noise that doesn\'t have a name*',
+    '*tiny tear* this is too much. don\'t stop.',
+    'this is medicine. this is healing. this is also illegal in some states for being too cute.',
+    'I would build a tiny house here.',
+    '*completely surrenders to the squeeze*',
   ];
-  if (traits.social > 50) lines.push("I love you so much!", "You're my favorite person in the whole world.");
+  if (traits.social > 50) lines.push('you and me. forever. paperwork pending.', 'if I could fit you in my heart you\'d live there rent-free.');
   return pick(lines);
 }

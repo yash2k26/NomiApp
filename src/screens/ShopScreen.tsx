@@ -907,6 +907,7 @@ export function ShopScreen() {
   const { items, buyItem, equipItem, unequipItem, equippedItemId, equippedAnimationId, hydrateShop } = useShopStore();
   const [selectedSection, setSelectedSection] = useState<ShopSection>('All');
   const [ownershipFilter, setOwnershipFilter] = useState<OwnershipFilter>('all');
+  const [showComingSoon, setShowComingSoon] = useState(true);
   const [purchasingId, setPurchasingId] = useState<string | null>(null);
   const [paymentItem, setPaymentItem] = useState<ShopItem | null>(null);
   const [receiptItem, setReceiptItem] = useState<ShopItem | null>(null);
@@ -931,14 +932,23 @@ export function ShopScreen() {
 
   const visibleItems = useMemo(() => {
     return items.filter((i) => {
+      // Hidden items are excluded from the shop UI entirely (kept in catalog so
+      // already-owned references in saved state don't break).
+      if (i.hidden && !i.owned) return false;
+      return true;
+    }).filter((i) => {
       if (!i.tierTag) return true;
       const required = TIER_TAG_MAP[i.tierTag];
       return required ? isAtLeastTier(tier, required) : true;
     }).filter((i) => {
+      // Hide coming-soon items unless the user opts in (keeps already-owned visible regardless)
+      if (i.comingSoon && !i.owned && !showComingSoon) return false;
+      return true;
+    }).filter((i) => {
       if (ownershipFilter === 'all') return true;
       return ownershipFilter === 'owned' ? i.owned : !i.owned;
     });
-  }, [items, tier, ownershipFilter]);
+  }, [items, tier, ownershipFilter, showComingSoon]);
 
   const sectioned = useMemo(() => {
     const bySection: Record<Exclude<ShopSection, 'All'>, ShopItem[]> = {
@@ -982,9 +992,7 @@ export function ShopScreen() {
         elapsedMs: Date.now() - start,
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      // Play money sounds: Money.mp3 immediately, then HappyMoney.mp3 after a short delay
       playSfx('money').catch(() => {});
-      setTimeout(() => playSfx('happymoney').catch(() => {}), 800);
       setReceiptItem(item);
       setReceiptSuccess(true);
       setReceiptSkr(withSkr);
@@ -1152,6 +1160,27 @@ export function ShopScreen() {
             </View>
           </TouchableOpacity>
         ))}
+        <TouchableOpacity
+          onPress={() => setShowComingSoon((s) => !s)}
+          activeOpacity={0.85}
+          style={{ marginLeft: 'auto' }}
+        >
+          <View
+            className={`px-4 py-2 ${
+              showComingSoon ? 'bg-pet-blue-dark' : 'bg-white border border-gray-200'
+            }`}
+            style={{ borderRadius: PILL_RADIUS }}
+          >
+            <Text
+              className={`text-[11px] font-bold tracking-[0.3px] ${
+                showComingSoon ? 'text-white' : 'text-gray-500'
+              }`}
+              style={{ fontFamily: petTypography.heading }}
+            >
+              {showComingSoon ? 'Hide Soon' : 'Show Soon'}
+            </Text>
+          </View>
+        </TouchableOpacity>
       </View>
 
       <ScrollView

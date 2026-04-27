@@ -1,6 +1,7 @@
 import { View, Text, TouchableOpacity, ActivityIndicator, Linking, Image, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useWalletStore } from '../store/walletStore';
+import { SOLANA_NETWORK } from '../lib/solanaClient';
 import { petTypography } from '../theme/typography';
 
 const HANGING_IMG = require('../../assets/Photos/hanging.png');
@@ -172,7 +173,7 @@ export function WalletConnect() {
           className="text-white/45 text-[11px] text-center mt-4 tracking-[0.3px]"
           style={{ fontFamily: petTypography.body }}
         >
-          Solana Devnet  ·  Powered by Phantom
+          Solana {SOLANA_NETWORK === 'mainnet' ? 'Mainnet' : SOLANA_NETWORK === 'devnet' ? 'Devnet' : 'Testnet'}  ·  Powered by Phantom
         </Text>
       </View>
     </View>

@@ -4,6 +4,7 @@ import * as Haptics from 'expo-haptics';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { usePetStore, getPetNeeds } from '../store/petStore';
+import { useWalletStore } from '../store/walletStore';
 import { useShopStore } from '../store/shopStore';
 import { useAdventureStore } from '../store/adventureStore';
 import { PetRenderer, CareActions, ReflectionModal, type ActiveModel } from '../components';
@@ -13,6 +14,7 @@ import { LoginCalendar } from '../components/LoginCalendar';
 import { DialogueBubble } from '../components/DialogueBubble';
 import { ThoughtBubble } from '../components/ThoughtBubble';
 import { DiaryModal } from '../components/DiaryModal';
+import { DailyQuests } from '../components/DailyQuests';
 import { EventOverlay } from '../components/EventOverlay';
 import { TouchInteractionLayer } from '../components/TouchInteractionLayer';
 import { useXpStore } from '../store/xpStore';
@@ -20,7 +22,7 @@ import { useEventStore } from '../store/eventStore';
 import { usePersonalityStore, getActionDialogue, type DialogueContext } from '../store/personalityStore';
 import { ADVENTURE_ZONES } from '../store/adventureStore';
 import { petTypography } from '../theme/typography';
-import { playMusic, stopMusic, playSfx, playSound, playRandomSadSound } from '../lib/soundManager';
+import { playSfx } from '../lib/soundManager';
 import { OnboardingOverlay, shouldShowOnboarding } from '../components/OnboardingOverlay';
 
 const BACKFLIP_DURATION = 2500; // Backflip clip duration
@@ -253,50 +255,58 @@ function StreakCalendarModal({
   );
 }
 
-function LoadingSplash() {
-  const pulseAnim = useRef(new Animated.Value(0.85)).current;
+function LoadingSplash({ done = false, onExitComplete }: { done?: boolean; onExitComplete?: () => void }) {
+  const scaleAnim = useRef(new Animated.Value(0.85)).current;
+  const opacityAnim = useRef(new Animated.Value(1)).current;
+  const pulseLoopRef = useRef<Animated.CompositeAnimation | null>(null);
 
+  // Idle pulse (only while not done)
   useEffect(() => {
-    Animated.loop(
+    pulseLoopRef.current = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.1, duration: 900, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 0.85, duration: 900, useNativeDriver: true }),
+        Animated.timing(scaleAnim, { toValue: 1.1, duration: 900, useNativeDriver: true }),
+        Animated.timing(scaleAnim, { toValue: 0.85, duration: 900, useNativeDriver: true }),
       ])
-    ).start();
-  }, [pulseAnim]);
+    );
+    pulseLoopRef.current.start();
+    return () => pulseLoopRef.current?.stop();
+  }, [scaleAnim]);
+
+  // Exit: stop the pulse, fly the logo toward the camera while fading the splash out.
+  useEffect(() => {
+    if (!done) return;
+    pulseLoopRef.current?.stop();
+    Animated.parallel([
+      Animated.timing(scaleAnim, {
+        toValue: 3.4,
+        duration: 620,
+        useNativeDriver: true,
+      }),
+      Animated.timing(opacityAnim, {
+        toValue: 0,
+        duration: 580,
+        delay: 60, // hold full opacity briefly so the scale-up is felt before fading
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      onExitComplete?.();
+    });
+  }, [done, scaleAnim, opacityAnim, onExitComplete]);
 
   return (
-    <View className="absolute inset-0 z-50 items-center justify-center" style={{ backgroundColor: '#E8F4FA' }}>
+    <Animated.View
+      pointerEvents={done ? 'none' : 'auto'}
+      className="absolute inset-0 z-50 items-center justify-center"
+      style={{ backgroundColor: '#E8F4FA', opacity: opacityAnim }}
+    >
       <LinearGradient
         colors={['#E8F4FA', '#D6EDF7', '#E8F4FA']}
         className="absolute inset-0"
       />
       <View className="items-center">
-        <Animated.View
-          style={{
-            transform: [{ scale: pulseAnim }],
-            shadowColor: '#4FB0C6',
-            shadowOffset: { width: 0, height: 12 },
-            shadowOpacity: 0.3,
-            shadowRadius: 20,
-            elevation: 12,
-          }}
-          className="w-28 h-28 rounded-[28px] bg-white items-center justify-center mb-8"
-        >
-          <Image source={ME_IMG} style={{ width: 80, height: 80 }} resizeMode="contain" />
+        <Animated.View style={{ transform: [{ scale: scaleAnim }], marginBottom: 24 }}>
+          <Image source={ME_IMG} style={{ width: 220, height: 220 }} resizeMode="contain" />
         </Animated.View>
-        <Text
-          className="text-[28px] font-black text-pet-blue-dark mb-2"
-          style={{ fontFamily: petTypography.display }}
-        >
-          Nomi
-        </Text>
-        <Text
-          className="text-pet-blue text-[13px] font-semibold mb-6"
-          style={{ fontFamily: petTypography.body }}
-        >
-          Powered by Solana
-        </Text>
         <ActivityIndicator size="large" color="#4FB0C6" />
         <Text
           className="text-gray-400 text-xs mt-4"
@@ -305,7 +315,7 @@ function LoadingSplash() {
           Preparing Nomi's world...
         </Text>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -394,8 +404,28 @@ function ActivityGlance({ onNavigateGames }: { onNavigateGames?: () => void }) {
   );
 }
 
+function TrialBanner() {
+  const trialMode = usePetStore((s) => s.trialMode);
+  const connected = useWalletStore((s) => s.connected);
+  if (!trialMode || connected) return null;
+  return (
+    <View
+      pointerEvents="none"
+      className="absolute z-30"
+      style={{ top: 4, left: 0, right: 0, alignItems: 'center' }}
+    >
+      <View className="bg-pet-blue-dark/90 border border-white/30 px-3 py-1 rounded-full">
+        <Text className="text-white text-[10px] font-black tracking-[0.5px]">
+          TRIAL · TAP PROFILE TO MINT
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void } = {}) {
   const [petReady, setPetReady] = useState(false);
+  const [splashVisible, setSplashVisible] = useState(true);
   const [reflectionModalVisible, setReflectionModalVisible] = useState(false);
   const [helpVisible, setHelpVisible] = useState(false);
   const [streakVisible, setStreakVisible] = useState(false);
@@ -404,7 +434,6 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
   const [isFalling, setIsFalling] = useState(false);
   const [loginPopupVisible, setLoginPopupVisible] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const [musicMuted, setMusicMuted] = useState(false);
   const partyAnim = useRef(new Animated.Value(0)).current;
   const prevStreakRef = useRef(0);
   const prevAllHighRef = useRef(false);
@@ -482,22 +511,6 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
     };
   }, [hunger, happiness, energy, moodText, name, ownerName, streakDays, equippedSkinKey, level]);
 
-  // Play random sad sounds when any stat drops below 50%
-  useEffect(() => {
-    if (!anySadStat) return;
-    const scheduleNext = () => {
-      const delay = 10000 + Math.random() * 5000; // 10-15 sec
-      return setTimeout(() => {
-        playRandomSadSound();
-        timerRef = scheduleNext();
-      }, delay);
-    };
-    // Play one immediately, then schedule more
-    playRandomSadSound();
-    let timerRef = scheduleNext();
-    return () => clearTimeout(timerRef);
-  }, [anySadStat]);
-
   // Onboarding overlay — show once after first pet mint
   useEffect(() => {
     shouldShowOnboarding().then((show) => { if (show) setShowOnboarding(true); });
@@ -567,19 +580,8 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
   useEffect(() => {
     if (equippedSkinKey === 'headphones' && anySadStat) {
       unequipItem();
-      setMusicMuted(false);
     }
   }, [equippedSkinKey, anySadStat, unequipItem]);
-
-  // Play/stop headphones music when dance starts/stops or muted
-  useEffect(() => {
-    if (activeModel === 'dancing' && !musicMuted) {
-      playMusic('headphones');
-    } else {
-      stopMusic();
-    }
-    return () => { stopMusic(); };
-  }, [activeModel, musicMuted]);
 
   useEffect(() => {
     if (streakDays > prevStreakRef.current) {
@@ -598,13 +600,15 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
   const handleDoubleTap = useCallback((_e: GestureResponderEvent) => {
     if (!isFalling) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      playSound('fall');
       if (isExcitedBurst) {
         clearExcitedBurst();
       }
+      // Surface a cute fall reaction in the speech bubble
+      const ps = usePersonalityStore.getState();
+      ps.setCurrentDialogue(getActionDialogue('fell', ps.traits, ownerName));
       setIsFalling(true);
     }
-  }, [isFalling, isExcitedBurst, clearExcitedBurst]);
+  }, [isFalling, isExcitedBurst, clearExcitedBurst, ownerName]);
 
   useEffect(() => {
     if (!isFalling) return;
@@ -640,6 +644,10 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
           <MaterialCommunityIcons name="lightbulb-on-outline" size={20} color="#ffffff" />
         </TouchableOpacity>
       </View>
+
+      {/* Trial mode banner — only visible if user opted into trial-without-wallet */}
+      <TrialBanner />
+
       {/* Removed NOMI SKY CLUB label — space reclaimed */}
 
       <View className="absolute -top-8 -left-6 w-36 h-36 rounded-full bg-pet-blue-light/35" />
@@ -675,33 +683,9 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
             <SkyCloud className="top-20 right-10 scale-90" />
             <SkyCloud className="top-52 left-12 scale-75" />
             <View className="absolute inset-0 bg-white/35 rounded-b-[52px]" />
-            {!isExcitedBurst && <DialogueBubble message={currentDialogue ?? needMessage} />}
+            {!isExcitedBurst && <DialogueBubble message={currentDialogue ?? needMessage} crownEquipped={equippedSkinKey === 'crown'} />}
             {anySadStat && <ThoughtBubble hunger={shownHunger} happiness={shownHappiness} energy={shownEnergy} />}
-            {equippedSkinKey === 'headphones' && (
-              <TouchableOpacity
-                onPress={() => setMusicMuted((m) => !m)}
-                activeOpacity={0.7}
-                style={{
-                  position: 'absolute',
-                  bottom: 70,
-                  left: 16,
-                  zIndex: 30,
-                  width: 36,
-                  height: 36,
-                  borderRadius: 18,
-                  backgroundColor: musicMuted ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.5)',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <MaterialCommunityIcons
-                  name={musicMuted ? 'music-off' : 'music'}
-                  size={16}
-                  color={musicMuted ? 'rgba(255,255,255,0.75)' : 'rgba(36,50,74,0.55)'}
-                />
-              </TouchableOpacity>
-            )}
-            <PetRenderer activeModel={activeModel} onExcitedFinished={clearExcitedBurst} equippedSkin={equippedSkinKey} onReady={() => setPetReady(true)} />
+            <PetRenderer activeModel={activeModel} onExcitedFinished={clearExcitedBurst} equippedSkin={equippedSkinKey} onReady={() => setPetReady(true)} loopAnimation={!!equippedAnimModel && activeModel === equippedAnimModel} />
           </TouchInteractionLayer>
         </View>
 
@@ -754,6 +738,9 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
         <View className="px-6 mt-3">
           <XpBar />
         </View>
+
+        {/* Daily Quests — surfaces today's objectives so user knows what to do */}
+        <DailyQuests />
 
         {/* Diary Button */}
         <View className="px-6 mt-4">
@@ -850,7 +837,7 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
       )}
 
       {/* Full-screen loading splash until 3D pet is rendered */}
-      {!petReady && <LoadingSplash />}
+      {splashVisible && <LoadingSplash done={petReady} onExitComplete={() => setSplashVisible(false)} />}
     </View>
   );
 }

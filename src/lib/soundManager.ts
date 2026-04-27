@@ -3,8 +3,6 @@ type SoundName =
   | 'play'
   | 'rest'
   | 'tap'
-  | 'happy'
-  | 'sad'
   | 'excited'
   | 'mint'
   | 'purchase'
@@ -12,23 +10,19 @@ type SoundName =
   | 'reward'
   | 'levelup'
   | 'equip'
-  | 'fall'
   | 'money'
-  | 'happymoney'
   | 'gamevictory'
   | 'gameloss';
 
-type MusicName = 'headphones' | 'game1';
+type MusicName = 'game1';
 
 // Looping background music tracks — asset references
 const MUSIC_ASSETS: Record<MusicName, any> = {
-  headphones: require('../../assets/Audio/Headphones_music.mp3'),
   game1: require('../../assets/Audio/Game-1.mp3'),
 };
 
 // Per-track volume multiplier (relative to master volume)
 const MUSIC_VOLUME: Record<MusicName, number> = {
-  headphones: 0.275,
   game1: 1.0,
 };
 
@@ -36,23 +30,10 @@ const MUSIC_VOLUME: Record<MusicName, number> = {
 const SFX_ASSETS: Partial<Record<SoundName, any>> = {
   levelup: require('../../assets/Audio/Level-up.mp3'),
   reward: require('../../assets/Audio/Rewards.mp3'),
-  happy: require('../../assets/Audio/Reward_happy.mp3'),
-  fall: require('../../assets/Audio/Fall.mp3'),
   money: require('../../assets/Audio/Money.mp3'),
-  happymoney: require('../../assets/Audio/HappyMoney.mp3'),
   gamevictory: require('../../assets/Audio/Game-Victory.mp3'),
   gameloss: require('../../assets/Audio/Game-Loss.mp3'),
 };
-
-// Sad ambient sounds — played randomly when pet is sad
-const SAD_SOUNDS = [
-  require('../../assets/Audio/Sad/Nested-Sequence-12.mp3'),
-  require('../../assets/Audio/Sad/Nested-Sequence-13.mp3'),
-  require('../../assets/Audio/Sad/Nested-Sequence-14.mp3'),
-  require('../../assets/Audio/Sad/Nested-Sequence-15.mp3'),
-  require('../../assets/Audio/Sad/Nested-Sequence-16.mp3'),
-  require('../../assets/Audio/Sad/Nested-Sequence-17.mp3'),
-];
 
 let Audio: any = null;
 let audioReady = false;
@@ -243,26 +224,6 @@ export async function stopAll(): Promise<void> {
       await sound.stopAsync();
     } catch {}
   }
-}
-
-/**
- * Play a random sad ambient sound. One-shot, auto-unloads.
- */
-export async function playRandomSadSound(): Promise<void> {
-  if (!ensureAudio() || muted) return;
-
-  const asset = SAD_SOUNDS[Math.floor(Math.random() * SAD_SOUNDS.length)];
-  try {
-    const { sound } = await Audio.Sound.createAsync(asset, {
-      shouldPlay: true,
-      volume: volume * 0.35,
-    });
-    sound.setOnPlaybackStatusUpdate((status: any) => {
-      if (status.didJustFinish) {
-        sound.unloadAsync().catch(() => {});
-      }
-    });
-  } catch {}
 }
 
 export function setVolume(v: number): void {

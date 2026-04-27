@@ -3,9 +3,11 @@ import { View, Text, Animated } from 'react-native';
 
 interface DialogueBubbleProps {
   message: string | null;
+  /** Bubble sits high (crown clearance) when true, lower (just above body) when false. */
+  crownEquipped?: boolean;
 }
 
-export const DialogueBubble = memo(function DialogueBubble({ message }: DialogueBubbleProps) {
+export const DialogueBubble = memo(function DialogueBubble({ message, crownEquipped = false }: DialogueBubbleProps) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const bounceAnim = useRef(new Animated.Value(0.92)).current;
   const [displayedText, setDisplayedText] = useState('');
@@ -68,38 +70,34 @@ export const DialogueBubble = memo(function DialogueBubble({ message }: Dialogue
 
   return (
     <Animated.View
-      style={{ opacity: fadeAnim, transform: [{ scale: bounceAnim }] }}
-      className="absolute top-8 left-0 right-0 z-20 items-center px-6"
+      style={{
+        opacity: fadeAnim,
+        transform: [{ scale: bounceAnim }],
+        top: crownEquipped ? 4 : 12,
+      }}
+      className="absolute left-0 right-0 z-20 items-center px-5"
     >
       <View
-        className="bg-white px-5 py-3.5 rounded-2xl border border-pet-blue-light/70"
+        className="bg-white px-4 py-2 rounded-[20px] border border-pet-blue-light/70"
         style={{
           shadowColor: '#4FB0C6',
-          shadowOffset: { width: 0, height: 8 },
-          shadowOpacity: 0.16,
-          shadowRadius: 12,
-          elevation: 6,
-          minHeight: 44,
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.12,
+          shadowRadius: 8,
+          elevation: 4,
+          maxWidth: '90%',
         }}
       >
-        <Text className="text-[13px] font-semibold text-gray-700 text-center">
+        <Text
+          numberOfLines={2}
+          ellipsizeMode="tail"
+          className="text-[11px] font-semibold text-gray-700 text-center"
+          style={{ lineHeight: 15 }}
+        >
           {displayedText}
           {isTyping && <Text className="text-pet-blue">|</Text>}
         </Text>
       </View>
-      <View
-        style={{
-          width: 0,
-          height: 0,
-          borderLeftWidth: 8,
-          borderRightWidth: 8,
-          borderTopWidth: 8,
-          borderLeftColor: 'transparent',
-          borderRightColor: 'transparent',
-          borderTopColor: '#ffffff',
-          marginTop: -1,
-        }}
-      />
     </Animated.View>
   );
 });

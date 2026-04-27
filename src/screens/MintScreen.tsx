@@ -8,7 +8,7 @@ import { useXpStore } from '../store/xpStore';
 import { useAdventureStore } from '../store/adventureStore';
 import { ScreenHeader } from '../components/ui/ScreenHeader';
 import { mintPetNFT } from '../lib/nftMint';
-import { getSolscanTxUrl } from '../lib/solanaClient';
+import { getSolscanTxUrl, SOLANA_NETWORK } from '../lib/solanaClient';
 import { parseTxError, type ParsedTxError } from '../lib/transactionErrors';
 
 type MintState = 'idle' | 'confirming' | 'minting' | 'success' | 'error';
@@ -24,9 +24,16 @@ export function MintScreen() {
   const level = useXpStore((s) => s.level);
   const evolutionStage = useAdventureStore((s) => s.evolutionStage);
 
+  const setOwnerName = usePetStore((s) => s.setOwnerName);
+
   const [mintState, setMintState] = useState<MintState>('idle');
   const [mintError, setMintError] = useState<ParsedTxError | null>(null);
   const [txSignature, setTxSignature] = useState<string | null>(null);
+
+  const handleBack = () => {
+    // Clear owner name so the App gate routes back to NameInputScreen
+    setOwnerName('');
+  };
 
   const handleMint = async () => {
     console.log('[MintScreen] handleMint triggered');
@@ -43,10 +50,11 @@ export function MintScreen() {
     }
 
     // Pre-check balance before opening Phantom
-    if (balance < 0.02) {
+    // 0.15 SOL mint fee + ~0.01 SOL on-chain rent/fees buffer
+    if (balance < 0.16) {
       setMintError({
         title: 'Not Enough SOL',
-        message: `Minting costs ~0.015 SOL (rent + fees) but you only have ${balance.toFixed(4)} SOL. Please add more SOL to your wallet.`,
+        message: `Minting costs 0.15 SOL plus ~0.01 SOL in network fees, but you only have ${balance.toFixed(4)} SOL. Please add more SOL to your wallet.`,
         type: 'insufficient_funds',
       });
       setMintState('error');
@@ -140,11 +148,40 @@ export function MintScreen() {
       <View className="absolute top-80 -left-10 w-40 h-40 rounded-full bg-pet-blue-light/35" />
 
       <View className="flex-1 px-6 pt-6 pb-8">
+        {!isBusy && mintState !== 'success' && (
+          <TouchableOpacity
+            onPress={handleBack}
+            activeOpacity={0.85}
+            style={{ alignSelf: 'flex-start', marginBottom: 14 }}
+          >
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: '#FFFFFF',
+                borderRadius: 22,
+                paddingHorizontal: 14,
+                paddingVertical: 8,
+                borderWidth: 1,
+                borderColor: '#9FD2E0',
+                shadowColor: '#1E3A5F',
+                shadowOffset: { width: 0, height: 3 },
+                shadowOpacity: 0.12,
+                shadowRadius: 6,
+                elevation: 4,
+              }}
+            >
+              <MaterialCommunityIcons name="arrow-left" size={16} color="#2D6B90" style={{ marginRight: 6 }} />
+              <Text style={{ color: '#2D6B90', fontSize: 12, fontWeight: '800', letterSpacing: 0.3 }}>Change Name</Text>
+            </View>
+          </TouchableOpacity>
+        )}
+
         <ScreenHeader
           eyebrow="Genesis Companion"
           title="Mint Nomi"
           subtitle="Create your first companion NFT on Solana."
-          badge="On-Chain NFT · Mainnet"
+          badge={`On-Chain NFT · ${SOLANA_NETWORK === 'mainnet' ? 'Mainnet' : SOLANA_NETWORK === 'devnet' ? 'Devnet' : 'Testnet'}`}
           rightSlot={(
             <View className="bg-white/20 rounded-xl px-3 py-1.5 border border-white/35">
               <Text className="text-white text-[10px] font-black">{balance.toFixed(2)} SOL</Text>
@@ -169,15 +206,26 @@ export function MintScreen() {
             </View>
             <View className="flex-row justify-between py-3 border-b border-gray-100">
               <Text className="text-[12px] font-bold uppercase tracking-[0.8px] text-gray-500">Network</Text>
-              <Text className="text-[13px] font-black text-pet-blue-dark">Solana Mainnet</Text>
+              <Text className="text-[13px] font-black text-pet-blue-dark">Solana {SOLANA_NETWORK === 'mainnet' ? 'Mainnet' : SOLANA_NETWORK === 'devnet' ? 'Devnet' : 'Testnet'}</Text>
             </View>
             <View className="flex-row justify-between py-3 border-b border-gray-100">
               <Text className="text-[12px] font-bold uppercase tracking-[0.8px] text-gray-500">Standard</Text>
               <Text className="text-[13px] font-black text-gray-800">Metaplex Token Metadata</Text>
             </View>
-            <View className="flex-row justify-between py-3 border-b border-gray-100">
-              <Text className="text-[12px] font-bold uppercase tracking-[0.8px] text-gray-500">Est. Cost</Text>
-              <Text className="text-[16px] font-black text-pet-blue-dark">~0.01 SOL</Text>
+            <View className="flex-row justify-between items-center py-3 border-b border-gray-100">
+              <View>
+                <Text className="text-[12px] font-bold uppercase tracking-[0.8px] text-gray-500">Mint Price</Text>
+                <View className="flex-row items-center mt-1">
+                  <View className="bg-pink-100 px-1.5 py-0.5 rounded-md border border-pink-200">
+                    <Text className="text-[9px] font-black text-pink-600 tracking-[0.5px]">EARLY BIRD</Text>
+                  </View>
+                  <Text className="text-[10px] font-semibold text-gray-400 ml-2">limited drop</Text>
+                </View>
+              </View>
+              <View className="items-end">
+                <Text className="text-[13px] font-bold text-gray-400 line-through" style={{ textDecorationLine: 'line-through' }}>0.3 SOL</Text>
+                <Text className="text-[18px] font-black text-pet-blue-dark mt-0.5">0.15 SOL</Text>
+              </View>
             </View>
             <View className="flex-row justify-between py-3">
               <Text className="text-[12px] font-bold uppercase tracking-[0.8px] text-gray-500">Your Balance</Text>

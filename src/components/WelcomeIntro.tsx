@@ -1,4 +1,5 @@
-import { View, Text, TouchableOpacity, Image, Dimensions } from 'react-native';
+import { useState } from 'react';
+import { View, Text, TouchableOpacity, Image, Dimensions, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { petTypography } from '../theme/typography';
 
@@ -12,6 +13,17 @@ interface WelcomeIntroProps {
 }
 
 export function WelcomeIntro({ onContinue }: WelcomeIntroProps) {
+  // Show a spinner the instant the button is tapped, so the user gets immediate
+  // visual feedback even if the parent's onContinue handler does heavy work
+  // (mounting WalletConnect, etc.) on the next tick.
+  const [pressed, setPressed] = useState(false);
+  const handlePress = () => {
+    if (pressed) return; // ignore double-taps
+    setPressed(true);
+    // Defer the heavy state change one frame so the spinner paints first.
+    requestAnimationFrame(onContinue);
+  };
+
   return (
     <View className="flex-1">
       <LinearGradient
@@ -100,7 +112,8 @@ export function WelcomeIntro({ onContinue }: WelcomeIntroProps) {
           Start your first moment with Nomi
         </Text>
         <TouchableOpacity
-          onPress={onContinue}
+          onPress={handlePress}
+          disabled={pressed}
           activeOpacity={0.88}
           style={{
             shadowColor: '#1A4E6E',
@@ -110,19 +123,31 @@ export function WelcomeIntro({ onContinue }: WelcomeIntroProps) {
             elevation: 7,
             borderRadius: 9999,
             overflow: 'hidden',
+            opacity: pressed ? 0.85 : 1,
           }}
         >
           <LinearGradient
             colors={['#F8FDFF', '#E8F4FB']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            style={{ paddingVertical: 18, alignItems: 'center', borderRadius: 9999, borderWidth: 1, borderColor: '#CFE8F6' }}
+            style={{
+              paddingVertical: 18,
+              alignItems: 'center',
+              borderRadius: 9999,
+              borderWidth: 1,
+              borderColor: '#CFE8F6',
+              flexDirection: 'row',
+              justifyContent: 'center',
+            }}
           >
+            {pressed && (
+              <ActivityIndicator size="small" color="#2E7DA8" style={{ marginRight: 8 }} />
+            )}
             <Text
               className="text-[#2E7DA8] text-[16px] tracking-[0.3px]"
               style={{ fontFamily: petTypography.strong }}
             >
-              Continue
+              {pressed ? 'Just a sec…' : 'Continue'}
             </Text>
           </LinearGradient>
         </TouchableOpacity>

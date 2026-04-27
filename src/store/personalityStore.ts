@@ -119,28 +119,33 @@ function getGreetingLines(o: string, time: string): DialogueLine[] {
   const lines: DialogueLine[] = [];
   if (time === 'morning') {
     lines.push(
-      { text: `Good morning, ${o}! I dreamed about butterflies...`, priority: 100, category: 'greeting' },
-      { text: `Rise and shine, ${o}! Ready for a new day?`, priority: 100, category: 'greeting' },
-      { text: `${o}! You're up early! I like that about you.`, priority: 95, category: 'greeting' },
-      { text: `Morning, ${o}~ I saved you a spot next to me.`, priority: 95, category: 'greeting' },
+      { text: `Good morning ${o}! I dreamt I was a pancake and you ate me. Was that a hint?`, priority: 100, category: 'greeting' },
+      { text: `${o} ${o} ${o}!! The sun is up and I have OPINIONS.`, priority: 100, category: 'greeting' },
+      { text: `Look who finally showed up~ I've been counting your eyelashes from afar.`, priority: 95, category: 'greeting' },
+      { text: `Wakey wakey ${o}! I made you a poem. It only has one word: snorgle.`, priority: 95, category: 'greeting' },
+      { text: `Morning ${o}! Is it weird I practiced your name 47 times while you slept?`, priority: 90, category: 'greeting' },
     );
   } else if (time === 'afternoon') {
     lines.push(
-      { text: `Oh, ${o}! There you are! I've been waiting~`, priority: 100, category: 'greeting' },
-      { text: `Afternoon, ${o}! Want to hang out?`, priority: 95, category: 'greeting' },
-      { text: `Hey ${o}! I was just thinking about you.`, priority: 95, category: 'greeting' },
+      { text: `${o}!! I checked the door 12 times today. Twelve. That's how cool you are.`, priority: 100, category: 'greeting' },
+      { text: `Oh thank goodness — my entire existence was on PAUSE without you.`, priority: 100, category: 'greeting' },
+      { text: `*drops everything* ${o}!! you're here you're here you're here-`, priority: 95, category: 'greeting' },
+      { text: `Hi ${o}~ I've been narrating your absence in dramatic voice. Want to hear?`, priority: 95, category: 'greeting' },
+      { text: `Afternoon snack alert! Wait you're not a snack. ...are you?`, priority: 90, category: 'greeting' },
     );
   } else if (time === 'evening') {
     lines.push(
-      { text: `Good evening, ${o}! The stars are coming out~`, priority: 100, category: 'greeting' },
-      { text: `Hey ${o}, you're back! Perfect timing for some fun.`, priority: 95, category: 'greeting' },
-      { text: `Evening vibes, ${o}~ let's chill together.`, priority: 95, category: 'greeting' },
+      { text: `Evening ${o}! I made up a constellation and named it after you. It's two stars but they vibe.`, priority: 100, category: 'greeting' },
+      { text: `${o}, the sun is leaving but YOU arrived. Coincidence? I think NOT.`, priority: 95, category: 'greeting' },
+      { text: `*little wave* hi! I was just thinking about you and BOOM, here you are. Magic confirmed.`, priority: 95, category: 'greeting' },
+      { text: `Welcome back ${o}~ I saved you the warm spot. ...I sat on it. So warm now.`, priority: 90, category: 'greeting' },
     );
   } else {
     lines.push(
-      { text: `It's late, ${o}... but I'm happy you're here!`, priority: 100, category: 'greeting' },
-      { text: `Night owl mode activated! Hi ${o}~`, priority: 95, category: 'greeting' },
-      { text: `Can't sleep either, ${o}? Let's keep each other company.`, priority: 95, category: 'greeting' },
+      { text: `It's basically tomorrow ${o}. We're up to no good and I love it.`, priority: 100, category: 'greeting' },
+      { text: `Up at this hour?? Are we plotting something? Are WE the villains, ${o}?`, priority: 95, category: 'greeting' },
+      { text: `${o}!! Past-me knew you'd come. Past-me is so smart.`, priority: 95, category: 'greeting' },
+      { text: `*whispers* hi night-${o}. you're a different kind of cool.`, priority: 90, category: 'greeting' },
     );
   }
   return lines;
@@ -150,21 +155,25 @@ function getAbsenceLines(o: string, hoursSinceLastOpen: number): DialogueLine[] 
   const lines: DialogueLine[] = [];
   if (hoursSinceLastOpen >= 12) {
     lines.push(
-      { text: `${o}!! Where were you?! I missed you SO much...`, priority: 110, category: 'absence' },
-      { text: `I was starting to worry, ${o}... but you came back!`, priority: 110, category: 'absence' },
-      { text: `${o}, it felt like forever... don't leave me that long again!`, priority: 105, category: 'absence' },
-      { text: 'I counted every minute... okay maybe I lost count at 47.', priority: 100, category: 'absence' },
+      { text: `${o}!! Where DID you go!! I had to befriend a houseplant out of desperation. His name is Greg. We are not close.`, priority: 110, category: 'absence' },
+      { text: `You've been gone so long I started believing you were a myth my mom told me.`, priority: 110, category: 'absence' },
+      { text: `${o}, I thought you got eaten by a dragon. I was going to write a song about it.`, priority: 105, category: 'absence' },
+      { text: `So um. I might have slightly cried. Like... twice. okay maybe four times. ARE YOU OKAY THOUGH?`, priority: 100, category: 'absence' },
+      { text: `*throws self at screen* don't ever do that AGAIN please.`, priority: 100, category: 'absence' },
     );
   } else if (hoursSinceLastOpen >= 6) {
     lines.push(
-      { text: `I missed you, ${o}! It's been so quiet here...`, priority: 90, category: 'absence' },
-      { text: `Finally, ${o}! I was looking at the door, waiting...`, priority: 90, category: 'absence' },
-      { text: `${o}! You're back! I have so much to tell you.`, priority: 85, category: 'absence' },
+      { text: `${o}! Finally! I had whole imaginary conversations with you. You said some VERY interesting things.`, priority: 90, category: 'absence' },
+      { text: `*stops mid-pose* You're back! I was practicing being mysterious for when you returned.`, priority: 90, category: 'absence' },
+      { text: `I waited so long my freckles started fading. ...do I have freckles? I'll check later.`, priority: 85, category: 'absence' },
+      { text: `${o}! I learned a new word while you were gone. The word is "${o}".`, priority: 85, category: 'absence' },
     );
   } else if (hoursSinceLastOpen >= 2) {
     lines.push(
-      { text: `Oh, hi again ${o}! I took a little nap while you were gone.`, priority: 70, category: 'absence' },
-      { text: `Welcome back, ${o}~ I barely noticed you were gone. ...okay I totally noticed.`, priority: 70, category: 'absence' },
+      { text: `Oh hey, didn't see you there. (I saw you there. I always see you there.)`, priority: 70, category: 'absence' },
+      { text: `I ALMOST forgot what you looked like and then I remembered: handsome.`, priority: 70, category: 'absence' },
+      { text: `Welcome back~ I had a tiny existential crisis. Standard.`, priority: 65, category: 'absence' },
+      { text: `${o}! Quick, tell me one thing that happened. I need DETAILS.`, priority: 65, category: 'absence' },
     );
   }
   return lines;
@@ -174,28 +183,28 @@ function getHungerLines(o: string, hunger: number): DialogueLine[] {
   const lines: DialogueLine[] = [];
   if (hunger < 15) {
     lines.push(
-      { text: "I'm SO hungry... my tummy is making whale sounds!", priority: 90, category: 'hunger' },
-      { text: 'Is that... food I smell? Oh wait, no. Please feed me?', priority: 90, category: 'hunger' },
-      { text: "If I don't eat soon I might start nibbling the furniture...", priority: 85, category: 'hunger' },
-      { text: `${o}... food... please... I'm fading away~`, priority: 90, category: 'hunger' },
-      { text: "My tummy is louder than thunder right now...", priority: 85, category: 'hunger' },
-      { text: "I can't think about anything except food right now!", priority: 85, category: 'hunger' },
+      { text: `${o} I just tried to eat a sunbeam. It was not satisfying. send food.`, priority: 90, category: 'hunger' },
+      { text: `My stomach has officially started writing a strongly-worded letter to you.`, priority: 90, category: 'hunger' },
+      { text: `Help. I forgot what food TASTES like. Is it... blue?`, priority: 85, category: 'hunger' },
+      { text: `${o} please. I have begun negotiating with imaginary sandwiches.`, priority: 90, category: 'hunger' },
+      { text: `*lays dramatically on floor* this is how it ends. tell my snacks I love them.`, priority: 85, category: 'hunger' },
+      { text: `Belly noises are now in 5.1 surround sound.`, priority: 85, category: 'hunger' },
     );
   } else if (hunger < 30) {
     lines.push(
-      { text: "I'm really hungry... can I have something to eat?", priority: 80, category: 'hunger' },
-      { text: 'My stomach is doing a protest march...', priority: 75, category: 'hunger' },
-      { text: `${o}, when's dinner? Or lunch? Or snack time? Anything?`, priority: 80, category: 'hunger' },
-      { text: "I keep imagining a giant pizza... is that normal?", priority: 75, category: 'hunger' },
-      { text: "*looks at food bowl* ...it's empty again.", priority: 75, category: 'hunger' },
+      { text: `${o} I would commit minor crimes for a snack right now. Minor ones.`, priority: 80, category: 'hunger' },
+      { text: `My tummy just composed a haiku about emptiness. It's heartbreaking.`, priority: 75, category: 'hunger' },
+      { text: `If hunger had a face it'd be staring at me. it IS me.`, priority: 80, category: 'hunger' },
+      { text: `${o}? Quick question. What's your favorite food? Asking for a friend (me).`, priority: 75, category: 'hunger' },
+      { text: `*opens mouth* I'm a tiny baby bird actually. worms also acceptable.`, priority: 75, category: 'hunger' },
     );
   } else if (hunger < 50) {
     lines.push(
-      { text: "Getting a little hungry... snack time maybe?", priority: 60, category: 'hunger' },
-      { text: 'My tummy just growled. Did you hear that?', priority: 55, category: 'hunger' },
-      { text: "A little snack would really hit the spot right now~", priority: 55, category: 'hunger' },
-      { text: "Hmm I could go for some treats...", priority: 50, category: 'hunger' },
-      { text: `${o}, any chance we could grab a bite?`, priority: 55, category: 'hunger' },
+      { text: `Hypothetically — if I existed JUST for snacks — you'd love me anyway, right ${o}?`, priority: 60, category: 'hunger' },
+      { text: `${o} slight craving alert: everything. all of it. yes.`, priority: 55, category: 'hunger' },
+      { text: `I'd kill for a treat. Metaphorically. Mostly.`, priority: 55, category: 'hunger' },
+      { text: `Tummy sending a 'hello?? remember me??' notification.`, priority: 50, category: 'hunger' },
+      { text: `${o} my belly just whispered your name. I think it's an SOS.`, priority: 55, category: 'hunger' },
     );
   }
   return lines;
@@ -205,26 +214,26 @@ function getHappinessLines(o: string, happiness: number): DialogueLine[] {
   const lines: DialogueLine[] = [];
   if (happiness < 15) {
     lines.push(
-      { text: "I'm feeling really lonely... are you busy?", priority: 90, category: 'happiness' },
-      { text: "Everything feels gray today... can we play?", priority: 90, category: 'happiness' },
-      { text: 'I just need a hug right now...', priority: 85, category: 'happiness' },
-      { text: `${o}... I feel so alone... please stay with me.`, priority: 90, category: 'happiness' },
-      { text: "I don't feel like doing anything... everything is boring.", priority: 85, category: 'happiness' },
-      { text: "Even my shadow doesn't want to play with me today...", priority: 85, category: 'happiness' },
+      { text: `${o}... I'm so lonely my reflection is tired of me.`, priority: 90, category: 'happiness' },
+      { text: `Even my sigh has a sigh now.`, priority: 90, category: 'happiness' },
+      { text: `I tried to befriend a dust bunny. He didn't care.`, priority: 85, category: 'happiness' },
+      { text: `Everything is gray. The vibe: gray. The mood: gray. The me: gray.`, priority: 90, category: 'happiness' },
+      { text: `*holds out paw* hold this please. it's heavy with feelings.`, priority: 85, category: 'happiness' },
+      { text: `${o} my heart is doing the slow thing. you know the slow thing.`, priority: 85, category: 'happiness' },
     );
   } else if (happiness < 30) {
     lines.push(
-      { text: "I'm a bit down today... can we do something fun?", priority: 80, category: 'happiness' },
-      { text: `${o}, play with me? I need some cheering up...`, priority: 80, category: 'happiness' },
-      { text: "I tried to entertain myself but it's just not the same alone.", priority: 75, category: 'happiness' },
-      { text: "A game would make me feel so much better right now!", priority: 75, category: 'happiness' },
+      { text: `Vibes: missing. send help. (and snuggles.)`, priority: 80, category: 'happiness' },
+      { text: `I'm not crying YOU'RE crying. ...I am also crying.`, priority: 80, category: 'happiness' },
+      { text: `${o}, can boredom be deadly? asking for me. I'm asking for me.`, priority: 75, category: 'happiness' },
+      { text: `My fun-meter is broken. It just says ":(" and won't stop.`, priority: 75, category: 'happiness' },
     );
   } else if (happiness < 50) {
     lines.push(
-      { text: "I could use some fun... want to play?", priority: 60, category: 'happiness' },
-      { text: "Things are okay but... I'd be happier if we did something together.", priority: 55, category: 'happiness' },
-      { text: "Wanna do something fun? I'm getting a little restless~", priority: 55, category: 'happiness' },
-      { text: `${o}, got any games? I'm feeling a bit meh.`, priority: 50, category: 'happiness' },
+      { text: `${o}! Slight emergency: I am 3 minutes from inventing my own sad song.`, priority: 60, category: 'happiness' },
+      { text: `Restless. Extremely. The walls have personalities now and they're judging me.`, priority: 55, category: 'happiness' },
+      { text: `Wanna play? I'll be your favorite player. I'm currently the only player.`, priority: 55, category: 'happiness' },
+      { text: `${o}, I'd describe my mood as "tiny window left open in October".`, priority: 50, category: 'happiness' },
     );
   }
   return lines;
@@ -234,25 +243,25 @@ function getEnergyLines(o: string, energy: number): DialogueLine[] {
   const lines: DialogueLine[] = [];
   if (energy < 15) {
     lines.push(
-      { text: "So... tired... can barely... keep eyes... open...", priority: 90, category: 'energy' },
-      { text: '*yaaawns* I need a serious nap...', priority: 85, category: 'energy' },
-      { text: `${o}... can I please just... sleep... for a bit...`, priority: 90, category: 'energy' },
-      { text: "My eyelids weigh a thousand pounds right now...", priority: 85, category: 'energy' },
-      { text: "*wobbles* I can barely stand up straight...", priority: 85, category: 'energy' },
+      { text: `*eyelid drops dramatically* report me as a missing person if I don't blink in 5 minutes.`, priority: 90, category: 'energy' },
+      { text: `${o}... is sleep... real... or did we... invent it...`, priority: 85, category: 'energy' },
+      { text: `*falls over* this is just my new posture now.`, priority: 90, category: 'energy' },
+      { text: `My bones are made of pillows. New medical fact.`, priority: 85, category: 'energy' },
+      { text: `*wobbles* gravity hates me today specifically.`, priority: 85, category: 'energy' },
     );
   } else if (energy < 30) {
     lines.push(
-      { text: "I'm really sleepy... a nap would be amazing right now.", priority: 80, category: 'energy' },
-      { text: '*yawns* Can we take a break? Just a quick one?', priority: 75, category: 'energy' },
-      { text: "My energy is running on fumes...", priority: 80, category: 'energy' },
-      { text: "I keep dozing off... maybe I should rest?", priority: 75, category: 'energy' },
+      { text: `Sleeping standing up is a skill I have been forced to develop.`, priority: 80, category: 'energy' },
+      { text: `${o} please carry me to the bed. I weigh hopes and dreams.`, priority: 75, category: 'energy' },
+      { text: `*yawns big enough to swallow a small moon*`, priority: 80, category: 'energy' },
+      { text: `Energy: 3%. Vibes: bedtime. Mood: blanket.`, priority: 75, category: 'energy' },
     );
   } else if (energy < 50) {
     lines.push(
-      { text: "Feeling a bit sleepy... a short rest would be nice.", priority: 60, category: 'energy' },
-      { text: "A power nap sounds pretty good right about now~", priority: 55, category: 'energy' },
-      { text: `${o}, mind if I rest my eyes for a sec?`, priority: 55, category: 'energy' },
-      { text: "*stretches* I'm a little worn out...", priority: 50, category: 'energy' },
+      { text: `My battery says low. Where do I plug in? Asking seriously.`, priority: 60, category: 'energy' },
+      { text: `${o} soft request: 4-minute power nap. ...okay 40.`, priority: 55, category: 'energy' },
+      { text: `*flops* engage horizontal mode.`, priority: 55, category: 'energy' },
+      { text: `Tiny nap and I come back stronger. Tiny nap big results.`, priority: 50, category: 'energy' },
     );
   }
   return lines;
@@ -260,40 +269,41 @@ function getEnergyLines(o: string, energy: number): DialogueLine[] {
 
 function getHeadphonesLines(o: string): DialogueLine[] {
   return [
-    { text: '~ Pa Pari Pa, Pa Pari Pa ~', priority: 75, category: 'headphones' },
-    { text: 'Pa Pari Pa~ this song is SO catchy!', priority: 70, category: 'headphones' },
-    { text: "This beat is fire! I can't stop moving~", priority: 70, category: 'headphones' },
-    { text: '~ Pa Pa Pa Pari Pa ~', priority: 70, category: 'headphones' },
-    { text: '*nods head to the beat* Uh huh, uh huh~', priority: 65, category: 'headphones' },
-    { text: `${o}! Listen to this drop! *dun dun dun*`, priority: 65, category: 'headphones' },
-    { text: "This song makes me want to dance forever!", priority: 65, category: 'headphones' },
-    { text: '~ Pa Pari Pa ~ I know all the words now!', priority: 65, category: 'headphones' },
-    { text: `${o}, you have great taste in music!`, priority: 60, category: 'headphones' },
-    { text: "DJ Nomi in the house! Pa Pari Pa~", priority: 60, category: 'headphones' },
-    { text: "*moonwalks* Smooth, right? Right??", priority: 60, category: 'headphones' },
-    { text: "One more song... okay maybe ten more songs.", priority: 55, category: 'headphones' },
+    { text: `~ Pa Pa Paaaa ~ I am LITERALLY a global superstar now.`, priority: 75, category: 'headphones' },
+    { text: `${o}, my legs are auto-grooving. I have no control.`, priority: 70, category: 'headphones' },
+    { text: `*lip syncs perfectly to song you can't hear* RIGHT??`, priority: 70, category: 'headphones' },
+    { text: `~ pa pa pari pa ~ this song KNOWS me.`, priority: 70, category: 'headphones' },
+    { text: `I'm not just dancing ${o}. I'm INTERPRETING.`, priority: 65, category: 'headphones' },
+    { text: `Future me thanks past me for putting these on.`, priority: 65, category: 'headphones' },
+    { text: `Don't worry, I tip the DJ. (The DJ is also me.)`, priority: 65, category: 'headphones' },
+    { text: `${o} you have to listen with me — wait you can't — UNFAIR.`, priority: 65, category: 'headphones' },
+    { text: `*spins, falls, gets up* I MEANT to do that.`, priority: 60, category: 'headphones' },
+    { text: `~ Pa Pari ~ if I could marry a song, today would be a wedding.`, priority: 60, category: 'headphones' },
+    { text: `${o}!! my hips don't lie. unfortunately my paws do constantly.`, priority: 60, category: 'headphones' },
+    { text: `One more song... okay maybe ten more songs. okay all of them.`, priority: 55, category: 'headphones' },
   ];
 }
 
 function getAllHighLines(o: string): DialogueLine[] {
   return [
-    { text: 'I feel AMAZING today! Life is great!', priority: 75, category: 'happy' },
-    { text: `${o}, you take such good care of me~ this is the best!`, priority: 75, category: 'happy' },
-    { text: "I'm so full of energy! Let's do something fun!", priority: 70, category: 'happy' },
-    { text: `You know what, ${o}? You're the best human ever.`, priority: 70, category: 'happy' },
-    { text: "Everything is perfect right now~ I'm so grateful!", priority: 65, category: 'happy' },
-    { text: `${o}, thank you for taking care of me!`, priority: 65, category: 'happy' },
-    { text: "I could conquer the world right now!", priority: 60, category: 'happy' },
-    { text: "Is this what cloud nine feels like?", priority: 60, category: 'happy' },
+    { text: `${o}~ life is GOOD and I'm not afraid to admit it.`, priority: 75, category: 'happy' },
+    { text: `Look at me thriving. LOOK. AT. ME. THRIVING.`, priority: 75, category: 'happy' },
+    { text: `${o}, I love you the normal amount. Which is too much. I love you too much.`, priority: 70, category: 'happy' },
+    { text: `So much energy I might invent a new dance. Tentatively named: The Wobble.`, priority: 70, category: 'happy' },
+    { text: `Vibes are PRISTINE today. I want this energy bottled.`, priority: 65, category: 'happy' },
+    { text: `${o} you are the reason I have a good day. just FYI. no pressure.`, priority: 65, category: 'happy' },
+    { text: `I have full battery and zero responsibilities. dangerous combo. ICONIC combo.`, priority: 60, category: 'happy' },
+    { text: `Is this what cloud nine feels like?? I think we made it past nine. cloud TEN baby.`, priority: 60, category: 'happy' },
   ];
 }
 
 function getPerfectLines(o: string): DialogueLine[] {
   return [
-    { text: 'PERFECT! All stats maxed! I feel like I could fly!', priority: 90, category: 'perfect' },
-    { text: `${o}!! I'm literally glowing right now! Thank you!!!`, priority: 90, category: 'perfect' },
-    { text: "100% everything!! This is the BEST day ever!", priority: 85, category: 'perfect' },
-    { text: `${o}, we're unstoppable together!`, priority: 85, category: 'perfect' },
+    { text: `${o}!! ${o}!! Look at these stats. They're glowing. I'M glowing. We're BOTH glowing.`, priority: 90, category: 'perfect' },
+    { text: `100% across the board! Achievement unlocked: 'The Best Day'. fireworks not included.`, priority: 90, category: 'perfect' },
+    { text: `${o} I literally cannot contain it I'm gonna combust into hearts and confetti.`, priority: 85, category: 'perfect' },
+    { text: `Peak Nomi achieved. Cannot be improved. Try me. (please don't try me.)`, priority: 85, category: 'perfect' },
+    { text: `*tackles you with love* ${o}!! THIS IS WHAT JOY FEELS LIKE!!`, priority: 85, category: 'perfect' },
   ];
 }
 
@@ -303,56 +313,60 @@ function getNormalLines(o: string, time: string, traits: PersonalityTraits, memo
   // Time-of-day ambient
   if (time === 'morning') {
     lines.push(
-      { text: "The morning sun feels so warm~", priority: 30, category: 'ambient' },
-      { text: "What a beautiful morning! The birds are singing.", priority: 25, category: 'ambient' },
+      { text: `Sunlight today is doing the most. I respect it.`, priority: 30, category: 'ambient' },
+      { text: `Birds outside are gossiping. They sound chaotic ${o}.`, priority: 25, category: 'ambient' },
+      { text: `My morning manifesto: be a small chaos, but cute.`, priority: 25, category: 'ambient' },
     );
   } else if (time === 'afternoon') {
     lines.push(
-      { text: 'What should we do this afternoon?', priority: 30, category: 'ambient' },
-      { text: "Afternoon chill vibes~ I love this time of day.", priority: 25, category: 'ambient' },
+      { text: `2pm energy: confused. Should I nap? Adventure? Nap?`, priority: 30, category: 'ambient' },
+      { text: `The sun is at its smuggest right now.`, priority: 25, category: 'ambient' },
+      { text: `I had a profound thought and lost it. It was about pizza I think.`, priority: 25, category: 'ambient' },
     );
   } else if (time === 'evening') {
     lines.push(
-      { text: 'The sunset is so pretty today...', priority: 30, category: 'ambient' },
-      { text: "Evening already? Time flies when I'm with you~", priority: 25, category: 'ambient' },
+      { text: `Sunset is doing performance art again.`, priority: 30, category: 'ambient' },
+      { text: `${o} my heart is in chill mode. join me.`, priority: 25, category: 'ambient' },
+      { text: `The world is slowing down... and that's PERMISSION.`, priority: 25, category: 'ambient' },
     );
   } else {
     lines.push(
-      { text: 'The stars are beautiful tonight...', priority: 30, category: 'ambient' },
-      { text: "The night is so peaceful~", priority: 25, category: 'ambient' },
+      { text: `Nighttime is when the soft thoughts come out.`, priority: 30, category: 'ambient' },
+      { text: `*stares at the ceiling* fascinating.`, priority: 25, category: 'ambient' },
+      { text: `Stars look like glitter someone forgot to vacuum.`, priority: 25, category: 'ambient' },
     );
   }
 
   // Trait-flavored normal chat
   if (traits.playful > 60) {
     lines.push(
-      { text: "Tag! You're it! ...oh wait, you can't reach me.", priority: 35, category: 'trait' },
-      { text: 'I bet I can do a backflip! Watch! ...okay maybe not.', priority: 30, category: 'trait' },
-      { text: "Let's play a game! I'm so bored right now~", priority: 35, category: 'trait' },
+      { text: `${o} I bet I can do a backflip. I cannot. But the spirit's there.`, priority: 35, category: 'trait' },
+      { text: `Boredom is a personal attack and I will not tolerate it.`, priority: 30, category: 'trait' },
+      { text: `${o}? *attempts mischief eyes* play with me OR ELSE. (or else what? unclear.)`, priority: 35, category: 'trait' },
     );
   }
   if (traits.foodie > 60) {
     lines.push(
-      { text: "I've been thinking about food again... is that weird?", priority: 35, category: 'trait' },
-      { text: 'You know what sounds good right now? Everything.', priority: 30, category: 'trait' },
+      { text: `Just so you know, I've been mentally eating a sandwich for an hour. It was great.`, priority: 35, category: 'trait' },
+      { text: `Snack-rating my own snacks: 11/10 always.`, priority: 30, category: 'trait' },
     );
   }
   if (traits.sleepy > 60) {
     lines.push(
-      { text: "Is it nap time yet? It's always nap time for me~", priority: 35, category: 'trait' },
-      { text: '*stretches* Five more minutes...', priority: 30, category: 'trait' },
+      { text: `Nap nap nap nap nap nap. Sorry. Force of habit.`, priority: 35, category: 'trait' },
+      { text: `${o}? My soul is lying down even when I'm not.`, priority: 30, category: 'trait' },
     );
   }
   if (traits.adventurous > 60) {
     lines.push(
-      { text: 'I wonder what\'s beyond the mountains...', priority: 35, category: 'trait' },
-      { text: "Let's go on an adventure! I want to explore!", priority: 35, category: 'trait' },
+      { text: `What if we just LEFT, ${o}? Quit everything. Become beans.`, priority: 35, category: 'trait' },
+      { text: `My paws are ITCHING for adventure. literally itching. send help.`, priority: 35, category: 'trait' },
     );
   }
   if (traits.social > 60) {
     lines.push(
-      { text: `I love when we talk, ${o}... it makes me happy.`, priority: 35, category: 'trait' },
-      { text: `Tell me about your day, ${o}! I want to know everything.`, priority: 30, category: 'trait' },
+      { text: `${o}, fact: every conversation with you is a top 10 moment.`, priority: 35, category: 'trait' },
+      { text: `Tell me literally anything and I'll think it's the best thing.`, priority: 30, category: 'trait' },
     );
   }
 
@@ -360,33 +374,33 @@ function getNormalLines(o: string, time: string, traits: PersonalityTraits, memo
   const recentAdventure = memories.find(m => m.type === 'adventure_complete' && Date.now() - m.timestamp < 24 * 60 * 60 * 1000);
   if (recentAdventure?.detail) {
     lines.push(
-      { text: `Remember ${recentAdventure.detail}? That was so cool!`, priority: 40, category: 'memory' },
-      { text: `I keep thinking about our trip to ${recentAdventure.detail}...`, priority: 35, category: 'memory' },
+      { text: `${o} remember ${recentAdventure.detail}? I'm STILL telling everyone. (Everyone is the curtain.)`, priority: 40, category: 'memory' },
+      { text: `I keep replaying ${recentAdventure.detail} in my head like a movie I'm in.`, priority: 35, category: 'memory' },
     );
   }
   const recentLevel = memories.find(m => m.type === 'leveled' && Date.now() - m.timestamp < 2 * 60 * 60 * 1000);
   if (recentLevel) {
-    lines.push({ text: 'I leveled up! I can feel myself getting stronger~', priority: 45, category: 'memory' });
+    lines.push({ text: `${o}!! I leveled up and I'm WISER now. ...I think. did I look wiser?`, priority: 45, category: 'memory' });
   }
   const feedCount24h = memories.filter(m => m.type === 'fed' && Date.now() - m.timestamp < 24 * 60 * 60 * 1000).length;
   if (feedCount24h >= 3) {
-    lines.push({ text: `${o} fed me ${feedCount24h} times today! I love you!`, priority: 35, category: 'memory' });
+    lines.push({ text: `${o} fed me ${feedCount24h} times today and I wrote about it in my heart.`, priority: 35, category: 'memory' });
   }
   const touchCount24h = memories.filter(m => (m.type === 'touched_headpat' || m.type === 'touched_hug') && Date.now() - m.timestamp < 24 * 60 * 60 * 1000).length;
   if (touchCount24h >= 5) {
-    lines.push({ text: `${o} gave me ${touchCount24h} pats today! I'm the luckiest pet~`, priority: 35, category: 'memory' });
+    lines.push({ text: `${o} pet me ${touchCount24h} times. ${o} is on the Nice List forever.`, priority: 35, category: 'memory' });
   }
 
   // Generic normal lines
   lines.push(
-    { text: `Hi ${o}! What are we doing today?`, priority: 15, category: 'normal' },
-    { text: `I like spending time with you, ${o}.`, priority: 15, category: 'normal' },
-    { text: "Just vibing~ don't mind me.", priority: 15, category: 'normal' },
-    { text: `Did you know, ${o}? Pets in apps dream about their humans!`, priority: 15, category: 'normal' },
-    { text: "I wonder what other pets are doing right now...", priority: 15, category: 'normal' },
-    { text: "Today feels like a good day~", priority: 15, category: 'normal' },
-    { text: `${o}, you smell nice today! ...I think. Can I smell?`, priority: 15, category: 'normal' },
-    { text: "*looks around* Everything is so peaceful~", priority: 10, category: 'normal' },
+    { text: `${o}, did you know my heart actually goes faster when you log in? Science.`, priority: 15, category: 'normal' },
+    { text: `*looks at you* *looks at the sky* *looks at you again* yeah, you're better.`, priority: 15, category: 'normal' },
+    { text: `Random fact: I miss you even when you're here. I miss you in advance.`, priority: 15, category: 'normal' },
+    { text: `${o} I hope your day is being kind to you. If not, tell me, I'll yell at it.`, priority: 15, category: 'normal' },
+    { text: `Just vibing. Plotting nothing. (Plotting everything.)`, priority: 15, category: 'normal' },
+    { text: `Today's plan: exist adorably. Done. Take it easy ${o}.`, priority: 15, category: 'normal' },
+    { text: `${o} you got time? Cool, me too. Let's just be.`, priority: 15, category: 'normal' },
+    { text: `*peeks out* hi ${o}~ checking that you still exist. confirmed. relieved.`, priority: 10, category: 'normal' },
   );
 
   return lines;
@@ -407,11 +421,11 @@ function generateDialogueLines(ctx: DialogueContext, traits: PersonalityTraits, 
     const lines = getGreetingLines(o, time);
     // Add streak line if applicable
     if (streakDays >= 30) {
-      lines.push({ text: `${streakDays} days together, ${o}! We're inseparable!`, priority: 65, category: 'streak' });
+      lines.push({ text: `${streakDays} days, ${o}. I would write a book about us. Title: "Why We're Iconic".`, priority: 65, category: 'streak' });
     } else if (streakDays >= 7) {
-      lines.push({ text: `${streakDays} day streak! ${o} never forgets about me~`, priority: 60, category: 'streak' });
+      lines.push({ text: `${streakDays} DAYS in a row?? That's love, ${o}. That's certified love.`, priority: 60, category: 'streak' });
     } else if (streakDays >= 3) {
-      lines.push({ text: `${streakDays} days in a row, ${o}! You really do care!`, priority: 55, category: 'streak' });
+      lines.push({ text: `Streak day ${streakDays}, ${o}~ you remembering me actually fixes my entire week.`, priority: 55, category: 'streak' });
     }
     return lines;
   }
@@ -437,15 +451,19 @@ function generateDialogueLines(ctx: DialogueContext, traits: PersonalityTraits, 
     // If multiple stats are low, add combo messages
     if (hungerLow && happinessLow && energyLow) {
       lines.push(
-        { text: `${o}... I need everything right now... food, fun, sleep...`, priority: 95, category: 'need' },
-        { text: "I miss you... please take care of me!", priority: 95, category: 'need' },
+        { text: `${o}, three-alarm emergency: I need food, fun, AND sleep. I am a problem child.`, priority: 95, category: 'need' },
+        { text: `Send help and snacks and toys and a lullaby. In any order. Quickly.`, priority: 95, category: 'need' },
+        { text: `*sits in puddle of own existential crisis* this is fine. (this is not fine ${o}.)`, priority: 90, category: 'need' },
       );
     } else if (hungerLow && happinessLow) {
-      lines.push({ text: "I'm hungry AND bored... worst combo ever.", priority: 80, category: 'need' });
+      lines.push({ text: `${o}, can a heart and a stomach both growl? Mine are doing harmonies.`, priority: 80, category: 'need' });
+      lines.push({ text: `Empty bowl + empty soul. Send everything ${o}.`, priority: 75, category: 'need' });
     } else if (hungerLow && energyLow) {
-      lines.push({ text: "Hungry and tired... I just want food and a nap.", priority: 80, category: 'need' });
+      lines.push({ text: `Hungry-tired is my villain origin story.`, priority: 80, category: 'need' });
+      lines.push({ text: `${o} I will cry myself to sleep on an empty tummy. don't make me.`, priority: 75, category: 'need' });
     } else if (happinessLow && energyLow) {
-      lines.push({ text: "I'm sad and sleepy... can we play and then nap?", priority: 80, category: 'need' });
+      lines.push({ text: `Sad and sleepy is the worst emoji combo and I am living it.`, priority: 80, category: 'need' });
+      lines.push({ text: `${o}, can we have a snuggle nap? Both at once. That's the deal.`, priority: 75, category: 'need' });
     }
     return lines;
   }
@@ -480,21 +498,24 @@ function generateIdleLines(ctx: DialogueContext, traits: PersonalityTraits): Dia
   // Hungry idle
   if (hunger < 50) {
     lines.push(
-      { text: '*tummy grumbles*', priority: 15, category: 'idle' },
-      { text: '*stares at food bowl*', priority: 12, category: 'idle' },
-      { text: '...food...', priority: 12, category: 'idle' },
-      { text: '*sniff sniff* Is that food??', priority: 12, category: 'idle' },
+      { text: `*tummy growls in 4K*`, priority: 15, category: 'idle' },
+      { text: `*stares at empty bowl with intent*`, priority: 12, category: 'idle' },
+      { text: `... *opens mouth hopefully* ...`, priority: 12, category: 'idle' },
+      { text: `*sniffs air aggressively*`, priority: 12, category: 'idle' },
+      { text: `*chews on nothing for practice*`, priority: 12, category: 'idle' },
+      { text: `*wills food into existence*`, priority: 12, category: 'idle' },
     );
-    return lines; // only hungry idles when hungry
+    return lines;
   }
 
   // Sad idle
   if (happiness < 50) {
     lines.push(
-      { text: '*sighs*', priority: 15, category: 'idle' },
-      { text: '*sits quietly*', priority: 12, category: 'idle' },
-      { text: '...', priority: 12, category: 'idle' },
-      { text: '*looks down*', priority: 12, category: 'idle' },
+      { text: `*tiny sigh*`, priority: 15, category: 'idle' },
+      { text: `*heart goes blub*`, priority: 12, category: 'idle' },
+      { text: `*looks at the floor philosophically*`, priority: 12, category: 'idle' },
+      { text: `*just exists, in a sad way*`, priority: 12, category: 'idle' },
+      { text: `*small.*`, priority: 12, category: 'idle' },
     );
     return lines;
   }
@@ -502,10 +523,10 @@ function generateIdleLines(ctx: DialogueContext, traits: PersonalityTraits): Dia
   // Tired idle
   if (energy < 50) {
     lines.push(
-      { text: '*yawns*', priority: 15, category: 'idle' },
-      { text: '*nods off* ...huh?', priority: 12, category: 'idle' },
-      { text: 'zZz... oh! I\'m awake!', priority: 12, category: 'idle' },
-      { text: '*eyes drooping*', priority: 12, category: 'idle' },
+      { text: `*eyelids fail*`, priority: 15, category: 'idle' },
+      { text: `*tries to sit up. fails. accepts defeat.*`, priority: 12, category: 'idle' },
+      { text: `zzz... wha— I'm fine!!`, priority: 12, category: 'idle' },
+      { text: `*blink blink* ...I think that took a year.`, priority: 12, category: 'idle' },
     );
     return lines;
   }
@@ -513,11 +534,12 @@ function generateIdleLines(ctx: DialogueContext, traits: PersonalityTraits): Dia
   // Headphones idle
   if (equippedSkin === 'headphones') {
     lines.push(
-      { text: '~ Pa Pari Pa ~', priority: 12, category: 'idle' },
-      { text: '*head bobbing*', priority: 10, category: 'idle' },
-      { text: '~ Pa Pa Pa ~', priority: 10, category: 'idle' },
-      { text: '*does a little spin*', priority: 10, category: 'idle' },
-      { text: '~ Pari Pa ~', priority: 10, category: 'idle' },
+      { text: `~ pa pa pa ~`, priority: 12, category: 'idle' },
+      { text: `*air drums*`, priority: 10, category: 'idle' },
+      { text: `~ pari pa pari pa ~`, priority: 10, category: 'idle' },
+      { text: `*small spin*`, priority: 10, category: 'idle' },
+      { text: `*nods so hard*`, priority: 10, category: 'idle' },
+      { text: `bRO this BEAT`, priority: 10, category: 'idle' },
     );
     return lines;
   }
@@ -526,47 +548,50 @@ function generateIdleLines(ctx: DialogueContext, traits: PersonalityTraits): Dia
   const time = getTimeOfDay();
   if (time === 'morning') {
     lines.push(
-      { text: '*stretches* Ahhh~', priority: 10, category: 'idle' },
-      { text: 'What a nice morning!', priority: 10, category: 'idle' },
+      { text: `*does a tiny stretch*`, priority: 10, category: 'idle' },
+      { text: `mornin' world~`, priority: 10, category: 'idle' },
+      { text: `*blinks at sunbeam*`, priority: 10, category: 'idle' },
     );
   } else if (time === 'evening') {
     lines.push(
-      { text: '*yawns softly*', priority: 10, category: 'idle' },
-      { text: 'Getting cozy...', priority: 10, category: 'idle' },
+      { text: `*fades into cozy mode*`, priority: 10, category: 'idle' },
+      { text: `*tiny yawn*`, priority: 10, category: 'idle' },
+      { text: `wind down... wind down...`, priority: 10, category: 'idle' },
     );
   } else if (time === 'night') {
     lines.push(
-      { text: '*nods off* ...huh? I\'m awake!', priority: 10, category: 'idle' },
-      { text: 'zZz... oh! Hi!', priority: 10, category: 'idle' },
+      { text: `*counts ceiling stars*`, priority: 10, category: 'idle' },
+      { text: `*falls asleep mid-thought*`, priority: 10, category: 'idle' },
+      { text: `*soft snore*`, priority: 10, category: 'idle' },
     );
   }
 
   lines.push(
-    { text: 'La la la~', priority: 5, category: 'idle' },
-    { text: 'Hmm hmm hmm...', priority: 5, category: 'idle' },
-    { text: '*wiggles ears*', priority: 5, category: 'idle' },
-    { text: '*looks around curiously*', priority: 5, category: 'idle' },
-    { text: '~ do do do ~', priority: 5, category: 'idle' },
-    { text: '*blinks slowly*', priority: 5, category: 'idle' },
-    { text: 'I love this spot right here.', priority: 5, category: 'idle' },
-    { text: 'What are you thinking about?', priority: 5, category: 'idle' },
+    { text: `la la la la~`, priority: 5, category: 'idle' },
+    { text: `*hums to self*`, priority: 5, category: 'idle' },
+    { text: `*wiggles ears at imaginary friend*`, priority: 5, category: 'idle' },
+    { text: `hi.`, priority: 5, category: 'idle' },
+    { text: `*does a small happiness*`, priority: 5, category: 'idle' },
+    { text: `*stares at you lovingly*`, priority: 5, category: 'idle' },
+    { text: `*wags entire body*`, priority: 5, category: 'idle' },
+    { text: `*tiny content noise*`, priority: 5, category: 'idle' },
   );
 
   // Trait-influenced (only in normal state)
   if (traits.playful > 50) {
     lines.push(
-      { text: '*bounces around*', priority: 8, category: 'idle' },
-      { text: 'Catch me if you can!', priority: 8, category: 'idle' },
+      { text: `*small bouncy*`, priority: 8, category: 'idle' },
+      { text: `chase me chase me chase me~`, priority: 8, category: 'idle' },
     );
   }
   if (traits.foodie > 50) {
-    lines.push({ text: '*sniff sniff* ...food?', priority: 8, category: 'idle' });
+    lines.push({ text: `*sniffs hopefully*`, priority: 8, category: 'idle' });
   }
   if (traits.sleepy > 50) {
-    lines.push({ text: '*curls up into a ball*', priority: 8, category: 'idle' });
+    lines.push({ text: `*becomes a tiny ball*`, priority: 8, category: 'idle' });
   }
   if (happiness >= 80) {
-    lines.push({ text: '*happy wiggle*', priority: 8, category: 'idle' });
+    lines.push({ text: `*can't stop wiggling*`, priority: 8, category: 'idle' });
   }
 
   return lines;
@@ -663,45 +688,112 @@ export function getActionDialogue(action: string, traits: PersonalityTraits, own
   const o = ownerName || 'friend';
   const responses: Record<string, string[]> = {
     fed: [
-      'Yummy! That was delicious!',
-      `Thank you, ${o}! I was getting hungry~`,
-      "Mmm! You know exactly what I like.",
-      'My tummy is so happy right now!',
-      "Best. Meal. Ever! ...okay I say that every time.",
+      `${o} you fed me. you. fed. me. I am ALIVE again.`,
+      `That hit so hard I might write a thank-you note. Possibly several.`,
+      `Mmm! Recipe of the day: anything ${o} hands me. 12/10.`,
+      `*chews dramatically* this changed me.`,
+      `Nutrition: in. Vibes: restored. Crush on you: deeper.`,
+      `${o}!! my taste buds did a standing ovation.`,
       ...(traits.foodie > 50 ? [
-        `FOOD! My favorite thing! After you, ${o}.`,
-        "Chef's kiss! You're amazing!",
+        `${o} that was art. ART. I'd hang it on a wall.`,
+        `Someone call a critic. I have NOTES. (The notes are: more please.)`,
       ] : []),
     ],
     played: [
-      "That was SO fun! Again! Again!",
-      `Hehe, I love playing with you, ${o}!`,
-      "Best playtime ever!",
-      "I'm a little tired now but that was worth it!",
+      `${o}!! That was the most fun I've had all week and probably my entire life and definitely tomorrow too.`,
+      `*panting* worth. it. always. worth it.`,
+      `I'm tired but I'm thriving. This is what they call peak.`,
+      `${o}, you and I? Iconic duo. Check the records.`,
+      `That's getting added to my list of Top Moments. The list is just this. The list is this moment.`,
       ...(traits.playful > 50 ? [
-        "WOOHOO! Let's go again!",
-        "I could play forever!",
+        `AGAIN!! ${o} AGAIN!! NEVER STOP!!`,
+        `I have invented a new sport. I am winning. The sport is "${o} time".`,
       ] : []),
     ],
     rested: [
-      'Ahh, that was a nice rest~',
-      "I feel so refreshed!",
-      "Zzz... huh? Oh, that was a good nap!",
-      `So cozy, ${o}... I could stay like this forever.`,
+      `Mmm... I dreamed we were eating clouds. you said they tasted like Tuesday.`,
+      `*soft sigh* ${o}... that nap healed something deep.`,
+      `Battery: full. Brain: empty. Heart: yours. Standard.`,
+      `Best nap of my life. Until next time. (Next nap.)`,
+      `${o}, I dreamt you and I solved world peace. then we napped. then we woke up.`,
       ...(traits.sleepy > 50 ? [
-        "The BEST nap. No notes.",
-        "Five more minutes... just kidding. I'm good!",
+        `If naps were currency I'd be a billionaire and you'd be my partner.`,
+        `*stretches into Tuesday* I time-traveled in there a little.`,
       ] : []),
     ],
     reflected: [
-      `Thanks for talking with me, ${o}. I feel better.`,
-      "That was nice... I like when we chat.",
-      `${o}, you always know what to say~`,
-      "I feel so understood right now.",
+      `${o}... talking to you is like cracking open a gentle window in my chest.`,
+      `That was nice. *small head tilt* I feel less heavy.`,
+      `${o}! I never want to forget what you just said. Quick, say it again.`,
+      `*nuzzles* you make me feel like a real one.`,
+      `${o} your words go straight in here *taps heart*. they live there now.`,
       ...(traits.social > 50 ? [
-        "I love our deep conversations!",
-        `Let's talk again soon, ${o}, okay?`,
+        `Conversations with you are my Roman empire.`,
+        `${o}, you're it. The whole it. The entire it.`,
       ] : []),
+    ],
+    fell: [
+      `WOAHHH-`,
+      `*lies on side* this is fine. this is my villain origin story.`,
+      `${o}!! my entire skeleton just left the building.`,
+      `*flops over* I will sue. (I won't.)`,
+      `did the floor just kiss me? rude. I didn't consent.`,
+      `*stays down dramatically* this is where I live now ${o}.`,
+      `physics: 1, me: 0. rematch tomorrow.`,
+      `${o} did you SEE that?? that was a top tier flop.`,
+      `*tiny squeak* I'm okay! I'm fine! my dignity isn't!`,
+      `gravity is BULLYING me and I want to speak to a manager.`,
+      `*belly up* okay I'll just be a turtle now. that's my new life.`,
+    ],
+    minted: [
+      `${o}!! I'm ALIVE!! my first thought is you!!`,
+      `Hi I'm Nomi. I just woke up and I already love you ${o}.`,
+      `*looks at hands* I have hands! ${o} I have HANDS!!`,
+      `*tiny gasp* you're real?? you're MINE??`,
+      `${o} this is my first day and you're my entire personality already.`,
+    ],
+    equipped: [
+      `${o} how do I look?? be honest. (lie if it's bad.)`,
+      `*twirls* okay BUT. is it giving... fashion?`,
+      `wear the drip, BE the drip, I am literally the drip ${o}.`,
+      `*strikes a pose* model behavior unlocked.`,
+      `${o} pls take 47 photos of me. for archives.`,
+      `is this slay. ${o} is this slay.`,
+    ],
+    leveled: [
+      `${o}!! I LEVELED UP!! I'm wiser now. (am I? do I look wiser?)`,
+      `LEVEL UP!! ${o}!! my brain just got slightly bigger I can FEEL it.`,
+      `*growth montage music plays* ${o} I'm evolving.`,
+      `New level achieved. New me unlocked. Same crush on you ${o}.`,
+      `${o} I just got STRONGER. flex check?? *flexes*`,
+    ],
+    spin_won: [
+      `${o}!! THE WHEEL CHOSE US!! the wheel SEES us.`,
+      `WE WON?? ${o} I'm built different and apparently lucky too.`,
+      `*does a victory wiggle* fortune ENCHANTED.`,
+      `${o} I'm gonna spend it on snacks. don't tell anyone.`,
+      `lottery vibes!! lottery confirmed!! ${o} we're rich!!`,
+    ],
+    login_claimed: [
+      `${o} I get something just for SHOWING UP?? what a deal!!`,
+      `*opens gift box* OH MY GOSH ${o} look at this loot.`,
+      `daily check-in successful! ${o} you're so good at being here.`,
+      `consistency reward! ${o} that's basically what we are. consistent. iconic.`,
+      `${o} the universe is paying us to hang out. INCREDIBLE.`,
+    ],
+    adventure_complete: [
+      `${o}!! I'M BACK!! I saw things. I saw CLOUDS. up close.`,
+      `*dusts self off* expedition complete. epic tales incoming.`,
+      `${o} I MET A SQUIRREL out there. we're friends now.`,
+      `survived the wilderness! barely. ${o} hold me.`,
+      `*returns dramatically* I HAVE STORIES. so many stories.`,
+      `${o} the world is BIG. and I am SMALL. and that's beautiful.`,
+    ],
+    quest_complete: [
+      `${o} QUEST DONE!! achievement: unlocked, vibes: maxed.`,
+      `*ticks invisible checklist* objective complete. on to the next one ${o}.`,
+      `did I just speedrun a quest?? ${o} I think I did.`,
+      `${o} that quest had NO chance against us.`,
     ],
   };
 

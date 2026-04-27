@@ -2,7 +2,9 @@ import { useRef, useEffect, useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, Animated, Image, type ImageSourcePropType } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Alert } from 'react-native';
 import { usePetStore, STAMINA_COSTS, getEffectiveStaminaMax } from '../store/petStore';
+import { useWalletStore } from '../store/walletStore';
 import { usePremiumStore } from '../store/premiumStore';
 import { XpFloatText } from './XpFloatText';
 import { CareModal } from './CareModal';
@@ -138,9 +140,13 @@ interface ActionButtonProps {
   disabled?: boolean;
   staminaCost: number;
   cooldownRemaining: number;
+  onSkipCooldown?: () => void;
+  skipCost?: number;
 }
 
-function ActionButton({ iconSource, label, bgColor, onPress, disabled, staminaCost, cooldownRemaining }: ActionButtonProps) {
+const SKIP_COOLDOWN_COST = 0.0005; // SOL — small but real cost so coins/SOL feel useful
+
+function ActionButton({ iconSource, label, bgColor, onPress, disabled, staminaCost, cooldownRemaining, onSkipCooldown, skipCost }: ActionButtonProps) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const onCooldown = cooldownRemaining > 0;
   const isDisabled = disabled || onCooldown;
@@ -186,16 +192,106 @@ function ActionButton({ iconSource, label, bgColor, onPress, disabled, staminaCo
           </Text>
         </View>
       </TouchableOpacity>
+      {onCooldown && onSkipCooldown && (
+        <TouchableOpacity onPress={onSkipCooldown} activeOpacity={0.7} style={{ marginTop: 6 }}>
+          <View className="self-center bg-white border border-pet-blue-light/60 px-2.5 py-1 rounded-full flex-row items-center">
+            <Text className="text-[9px] mr-1">⚡</Text>
+            <Text className="text-[9px] font-black text-pet-blue-dark tracking-[0.3px]">
+              SKIP {skipCost?.toFixed(4)}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      )}
+    </Animated.View>
+  );
+}
+
+const ACTION_TOAST_LABEL: Record<CareAction, string> = {
+  feed: 'Fed Nomi!',
+  play: 'Played with Nomi!',
+  rest: 'Nomi rested!',
+};
+
+const ACTION_TOAST_EMOJI: Record<CareAction, string> = {
+  feed: '\u{1F356}',
+  play: '\u{1F389}',
+  rest: '\u{1F4A4}',
+};
+
+function ActionToast({ action, onDone }: { action: CareAction; onDone: () => void }) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(8)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(opacity, { toValue: 1, duration: 180, useNativeDriver: true }),
+      Animated.timing(translateY, { toValue: 0, duration: 220, useNativeDriver: true }),
+    ]).start();
+    const out = setTimeout(() => {
+      Animated.parallel([
+        Animated.timing(opacity, { toValue: 0, duration: 220, useNativeDriver: true }),
+        Animated.timing(translateY, { toValue: -8, duration: 220, useNativeDriver: true }),
+      ]).start(onDone);
+    }, 1100);
+    return () => clearTimeout(out);
+  }, [action, opacity, translateY, onDone]);
+
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={{
+        position: 'absolute',
+        top: -42,
+        alignSelf: 'center',
+        opacity,
+        transform: [{ translateY }],
+        zIndex: 50,
+      }}
+    >
+      <View className="flex-row items-center bg-pet-blue-dark px-4 py-2 rounded-full" style={{
+        shadowColor: '#1A2A40',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.18,
+        shadowRadius: 8,
+        elevation: 6,
+      }}>
+        <Text className="text-[14px] mr-1.5">{ACTION_TOAST_EMOJI[action]}</Text>
+        <Text className="text-[12px] font-black text-white tracking-[0.4px]">{ACTION_TOAST_LABEL[action]}</Text>
+      </View>
     </Animated.View>
   );
 }
 
 export function CareActions() {
-  const { hunger, happiness, energy, getStamina, isOnCooldown, getCooldownRemaining } = usePetStore();
+  const { hunger, happiness, energy, getStamina, isOnCooldown, getCooldownRemaining, skipCooldown } = usePetStore();
+  const balance = useWalletStore((s) => s.balance);
+  const deductBalance = useWalletStore((s) => s.deductBalance);
   const needsAttention = hunger < 25 || happiness < 25 || energy < 25;
   const [xpFloat, setXpFloat] = useState<{ amount: number; key: number } | null>(null);
+  const [actionToast, setActionToast] = useState<{ action: CareAction; key: number } | null>(null);
   const [careModalAction, setCareModalAction] = useState<CareAction | null>(null);
   const [, setTick] = useState(0);
+
+  const handleSkipCooldown = useCallback((action: CareAction) => {
+    if (balance < SKIP_COOLDOWN_COST) {
+      Alert.alert('Not Enough', `Need ${SKIP_COOLDOWN_COST} SOL to skip a cooldown.`);
+      return;
+    }
+    Alert.alert(
+      'Skip Cooldown',
+      `Spend ${SKIP_COOLDOWN_COST} SOL to skip the ${action} cooldown?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Skip',
+          onPress: () => {
+            deductBalance(SKIP_COOLDOWN_COST);
+            skipCooldown(action);
+          },
+        },
+      ],
+    );
+  }, [balance, deductBalance, skipCooldown]);
 
   // Re-render every second for cooldown countdowns
   useEffect(() => {
@@ -311,6 +407,13 @@ export function CareActions() {
             onDone={() => setXpFloat(null)}
           />
         )}
+        {actionToast && (
+          <ActionToast
+            key={actionToast.key}
+            action={actionToast.action}
+            onDone={() => setActionToast(null)}
+          />
+        )}
         <View className="flex-row gap-3">
           <ActionButton
             iconSource={require('../../assets/Icons/Feed.png')}
@@ -320,6 +423,8 @@ export function CareActions() {
             disabled={hunger >= 100 || currentStamina < STAMINA_COSTS.feed || feedAllCooldown}
             staminaCost={STAMINA_COSTS.feed}
             cooldownRemaining={feedMinRemaining}
+            onSkipCooldown={() => handleSkipCooldown('feed')}
+            skipCost={SKIP_COOLDOWN_COST}
           />
           <ActionButton
             iconSource={require('../../assets/Icons/Play.png')}
@@ -329,6 +434,8 @@ export function CareActions() {
             disabled={energy < 15 || currentStamina < STAMINA_COSTS.play || playAllCooldown}
             staminaCost={STAMINA_COSTS.play}
             cooldownRemaining={playMinRemaining}
+            onSkipCooldown={() => handleSkipCooldown('play')}
+            skipCost={SKIP_COOLDOWN_COST}
           />
           <ActionButton
             iconSource={require('../../assets/Icons/Rest.png')}
@@ -338,6 +445,8 @@ export function CareActions() {
             disabled={energy >= 100 || currentStamina < STAMINA_COSTS.rest || restAllCooldown}
             staminaCost={STAMINA_COSTS.rest}
             cooldownRemaining={restMinRemaining}
+            onSkipCooldown={() => handleSkipCooldown('rest')}
+            skipCost={SKIP_COOLDOWN_COST}
           />
         </View>
       </View>
@@ -348,6 +457,9 @@ export function CareActions() {
         onClose={() => setCareModalAction(null)}
         onActionComplete={(xpAmount) => {
           showXpFloat(xpAmount);
+          if (careModalAction) {
+            setActionToast({ action: careModalAction, key: Date.now() });
+          }
           setCareModalAction(null);
         }}
       />

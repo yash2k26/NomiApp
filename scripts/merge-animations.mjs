@@ -1,12 +1,15 @@
 /**
- * Merge external animation clips into nomi-combined.glb
+ * Merge external animation clips into nomi-combined.glb (in place).
  *
- * Extracts animation data from GangamStyle.glb, FallOver.glb, Punch.glb, backflip.glb
- * and bakes them into nomi-combined.glb so the app loads a single file.
+ * Drop Mixamo-rigged GLBs into assets/animation/ matching the names below,
+ * then run: node scripts/merge-animations.mjs
+ *
+ * Missing source files are skipped with a warning, so you can add one at a time.
  */
 
 import { NodeIO } from '@gltf-transform/core';
 import { KHRMeshQuantization } from '@gltf-transform/extensions';
+import { existsSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -14,32 +17,30 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 
 const BASE_GLB = path.join(ROOT, 'assets/pets/nomi-combined.glb');
-const OUTPUT_GLB = path.join(ROOT, 'assets/pets/nomi-combined-merged.glb');
+// Overwrite the runtime asset directly (matches the bake_all_accessories.py pattern).
+const OUTPUT_GLB = BASE_GLB;
 
-// Animation sources: [file, rename map]
-// Each animation GLB may have multiple clips named mixamo.com, mixamo.com.001, etc.
-// We pick the longest clip (main animation) and give it a descriptive name.
+// Animation sources. For each entry, drop a Mixamo-rigged GLB at `file`.
+// `name` must match the values in CLIP_NAME_MAP inside src/components/PetRenderer.tsx.
+// Pick strategy:
+//   - pickClipName: import the clip with this exact name (best for multi-clip Mixamo bundles)
+//   - pickStrategy: 'longest' picks the clip with the largest duration (fallback only)
+// If both are set, pickClipName wins. If pickClipName misses, falls back to longest with a warning.
 const ANIM_SOURCES = [
   {
-    file: path.join(ROOT, 'assets/animation/GangamStyle.glb'),
-    // The longer clip (mixamo.com.001 at ~12s) is the main dance
-    pickStrategy: 'longest',
-    name: 'Gangnam',
+    file: path.join(ROOT, 'assets/pets/sources/gubu-dance.glb'),
+    pickClipName: 'Armature.001|mixamo.com|Layer0',  // 6.13s — third attempt
+    name: 'Dance',
   },
   {
-    file: path.join(ROOT, 'assets/animation/FallOver.glb'),
-    pickStrategy: 'longest',
-    name: 'FallOver',
+    file: path.join(ROOT, 'assets/pets/sources/gubu-backflip.glb'),
+    pickClipName: 'Armature|mixamo.com|Layer0.004',  // 2.27s — second attempt (Layer0.003 may be wrong)
+    name: 'Backflip',
   },
   {
     file: path.join(ROOT, 'assets/animation/Punch.glb'),
     pickStrategy: 'longest',
     name: 'Punch',
-  },
-  {
-    file: path.join(ROOT, 'assets/animation/backflip.glb'),
-    pickStrategy: 'longest',
-    name: 'Backflip',
   },
 ];
 
@@ -59,6 +60,11 @@ async function main() {
   for (const source of ANIM_SOURCES) {
     console.log(`\nProcessing: ${path.basename(source.file)} → "${source.name}"`);
 
+    if (!existsSync(source.file)) {
+      console.warn(`  Source file not found, skipping. Drop one at: ${source.file}`);
+      continue;
+    }
+
     const animDoc = await io.read(source.file);
     const animRoot = animDoc.getRoot();
     const animations = animRoot.listAnimations();
@@ -68,26 +74,31 @@ async function main() {
       continue;
     }
 
-    // Pick the longest animation clip
-    let bestAnim = animations[0];
-    let bestDuration = 0;
-    for (const anim of animations) {
+    // Pick the target clip — by explicit name if specified, else by longest duration
+    const clipDuration = (anim) => {
       let maxTime = 0;
       for (const sampler of anim.listSamplers()) {
-        const input = sampler.getInput();
-        if (input) {
-          const arr = input.getArray();
-          if (arr && arr.length > 0) {
-            maxTime = Math.max(maxTime, arr[arr.length - 1]);
-          }
-        }
+        const arr = sampler.getInput()?.getArray();
+        if (arr && arr.length > 0) maxTime = Math.max(maxTime, arr[arr.length - 1]);
       }
-      console.log(`  Clip "${anim.getName()}" duration: ${maxTime.toFixed(2)}s, channels: ${anim.listChannels().length}`);
-      if (maxTime > bestDuration) {
-        bestDuration = maxTime;
-        bestAnim = anim;
+      return maxTime;
+    };
+
+    for (const anim of animations) {
+      console.log(`  Clip "${anim.getName()}" duration: ${clipDuration(anim).toFixed(2)}s, channels: ${anim.listChannels().length}`);
+    }
+
+    let bestAnim = null;
+    if (source.pickClipName) {
+      bestAnim = animations.find((a) => a.getName() === source.pickClipName) ?? null;
+      if (!bestAnim) {
+        console.warn(`  pickClipName "${source.pickClipName}" not found, falling back to longest`);
       }
     }
+    if (!bestAnim) {
+      bestAnim = animations.reduce((acc, a) => (clipDuration(a) > clipDuration(acc) ? a : acc), animations[0]);
+    }
+    const bestDuration = clipDuration(bestAnim);
 
     console.log(`  Selected: "${bestAnim.getName()}" (${bestDuration.toFixed(2)}s)`);
 
