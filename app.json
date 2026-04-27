@@ -33,7 +33,8 @@
         "foregroundImage": "./assets/App-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.anonymous.oraclepet"
+      "package": "com.anonymous.oraclepet",
+      "versionCode": 1
     }
   }
 }

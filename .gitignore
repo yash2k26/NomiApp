@@ -41,3 +41,8 @@ assets/pets/nomi-combined.backup.glb
 
 # Original (untweaked) audio backups — kept locally only
 assets/Audio/_originals/
+android/app/release.keystore
+android/gradle.properties
+.local-secrets/
+android/app/build/outputs/
+android/local.properties
