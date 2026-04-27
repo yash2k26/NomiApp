@@ -77,9 +77,17 @@ interface PetModelProps {
   activeModel: ActiveModel;
   onAnimationDone?: () => void;
   equippedSkin: string;
+  /** Force the active clip to LoopRepeat regardless of ONE_SHOT membership.
+   *  Used when activeModel comes from an equipped shop animation — the user
+   *  expects a continuous loop, not a play-once-and-freeze. */
+  loopAnimation?: boolean;
+  /** Fires once after the GLB is loaded and the model has mounted (post-Suspense).
+   *  This is the real "Nomi is on screen" signal — Canvas onCreated fires earlier,
+   *  before the model has loaded, so it can't be used for hiding the loading splash. */
+  onModelMounted?: () => void;
 }
 
-function PetModel({ activeModel, onAnimationDone, equippedSkin }: PetModelProps) {
+function PetModel({ activeModel, onAnimationDone, equippedSkin, loopAnimation, onModelMounted }: PetModelProps) {
   const mixerRef = useRef<THREE.AnimationMixer | null>(null);
   const activeActionRef = useRef<THREE.AnimationAction | null>(null);
   const [headBone, setHeadBone] = useState<THREE.Object3D | null>(null);
@@ -160,6 +168,17 @@ function PetModel({ activeModel, onAnimationDone, equippedSkin }: PetModelProps)
     };
   }, [scene]);
 
+  // Fire once after the GLB is loaded and PetModel has mounted (post-Suspense).
+  // This is the real "Nomi is on screen" signal for hiding the loading splash.
+  const mountedFiredRef = useRef(false);
+  const onModelMountedRef = useRef(onModelMounted);
+  onModelMountedRef.current = onModelMounted;
+  useEffect(() => {
+    if (mountedFiredRef.current) return;
+    mountedFiredRef.current = true;
+    onModelMountedRef.current?.();
+  }, []);
+
   // Toggle accessory visibility + re-parent head accessories to head bone
   useEffect(() => {
     const refs = accessoryRefsRef.current;
@@ -220,17 +239,25 @@ function PetModel({ activeModel, onAnimationDone, equippedSkin }: PetModelProps)
 
   // Animation switching — all clips are baked, just find by name
   useEffect(() => {
+    // When loopAnimation is on, equipped one-shots (like backflip) loop
+    // continuously instead of playing once and freezing.
+    const playOnce = ONE_SHOT.has(activeModel) && !loopAnimation;
     const mixer = mixerRef.current;
     if (!mixer || animations.length === 0) {
-      if (ONE_SHOT.has(activeModel)) {
+      if (playOnce) {
         const t = setTimeout(() => onAnimationDone?.(), 1500);
         return () => clearTimeout(t);
       }
       return;
     }
 
-    // Special case: falling with headphones uses Dance instead of Gangnam
+    // 'dancing' prefers the real Dance clip if it's been merged in;
+    // otherwise falls back to Excited (set in CLIP_NAME_MAP).
     let clipName = CLIP_NAME_MAP[activeModel];
+    if (activeModel === 'dancing' && animations.some(c => c.name === 'Dance')) {
+      clipName = 'Dance';
+    }
+    // Special case: falling with headphones uses Dance instead of FallOver
     if (activeModel === 'falling' && equippedSkin === 'headphones') {
       clipName = 'Dance';
     }
@@ -248,7 +275,7 @@ function PetModel({ activeModel, onAnimationDone, equippedSkin }: PetModelProps)
     const action = mixer.clipAction(clip);
     action.reset();
 
-    if (ONE_SHOT.has(activeModel)) {
+    if (playOnce) {
       action.setLoop(THREE.LoopOnce, 1);
       action.clampWhenFinished = true;
     } else {
@@ -260,23 +287,23 @@ function PetModel({ activeModel, onAnimationDone, equippedSkin }: PetModelProps)
 
     const onFinished = () => onAnimationDone?.();
 
-    if (ONE_SHOT.has(activeModel)) {
+    if (playOnce) {
       mixer.addEventListener('finished', onFinished);
     }
 
     return () => {
-      if (ONE_SHOT.has(activeModel)) {
+      if (playOnce) {
         mixer.removeEventListener('finished', onFinished);
       }
     };
-  }, [activeModel, animations, equippedSkin, onAnimationDone]);
+  }, [activeModel, animations, equippedSkin, onAnimationDone, loopAnimation]);
 
   useFrame((_state, delta) => {
     mixerRef.current?.update(delta);
   });
 
   return (
-    <group position={[0, -0.75, 0]} scale={0.95}>
+    <group position={[0, -1.05, 0]} scale={1.25}>
       <primitive object={scene} />
       {equippedSkin === 'crown' && crownNode && (
         <CrownSpinner crownNode={crownNode} />
@@ -308,9 +335,12 @@ interface PetRendererProps {
   onExcitedFinished?: () => void;
   equippedSkin?: string;
   onReady?: () => void;
+  /** True when the active animation comes from an equipped shop item — forces the
+   *  clip to LoopRepeat so e.g. backflip keeps looping instead of freezing. */
+  loopAnimation?: boolean;
 }
 
-export const PetRenderer = memo(function PetRenderer({ activeModel = 'breathing', onExcitedFinished, equippedSkin = 'default', onReady }: PetRendererProps) {
+export const PetRenderer = memo(function PetRenderer({ activeModel = 'breathing', onExcitedFinished, equippedSkin = 'default', onReady, loopAnimation }: PetRendererProps) {
   const [canvasReady, setCanvasReady] = useState(false);
   const onReadyRef = useRef(onReady);
   onReadyRef.current = onReady;
@@ -330,7 +360,7 @@ export const PetRenderer = memo(function PetRenderer({ activeModel = 'breathing'
       <Canvas
         camera={{ position: [0, 0.3, 5.5], fov: 45 }}
         gl={{ antialias: false, powerPreference: 'low-power' }}
-        onCreated={() => { setCanvasReady(true); onReadyRef.current?.(); }}
+        onCreated={() => setCanvasReady(true)}
       >
         <color attach="background" args={['#bae6fd']} />
         <ambientLight intensity={2} />
@@ -348,11 +378,24 @@ export const PetRenderer = memo(function PetRenderer({ activeModel = 'breathing'
           dampingFactor={0.12}
         />
 
+        {/* Ground / contact shadow — gives the impression Nomi is standing on a surface.
+            Two stacked discs: outer soft platform tint + inner darker contact shadow. */}
+        <mesh position={[0, -1.06, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <circleGeometry args={[1.6, 48]} />
+          <meshBasicMaterial color="#7fbcd0" transparent opacity={0.28} depthWrite={false} />
+        </mesh>
+        <mesh position={[0, -1.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <circleGeometry args={[0.95, 48]} />
+          <meshBasicMaterial color="#1e3a5f" transparent opacity={0.22} depthWrite={false} />
+        </mesh>
+
         <Suspense fallback={null}>
           <PetModel
             activeModel={activeModel}
             onAnimationDone={activeModel === 'excited' ? stableOnDone : undefined}
             equippedSkin={equippedSkin}
+            loopAnimation={loopAnimation}
+            onModelMounted={() => onReadyRef.current?.()}
           />
         </Suspense>
       </Canvas>

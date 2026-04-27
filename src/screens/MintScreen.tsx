@@ -50,10 +50,11 @@ export function MintScreen() {
     }
 
     // Pre-check balance before opening Phantom
-    if (balance < 0.02) {
+    // 0.15 SOL mint fee + ~0.01 SOL on-chain rent/fees buffer
+    if (balance < 0.16) {
       setMintError({
         title: 'Not Enough SOL',
-        message: `Minting costs ~0.015 SOL (rent + fees) but you only have ${balance.toFixed(4)} SOL. Please add more SOL to your wallet.`,
+        message: `Minting costs 0.15 SOL plus ~0.01 SOL in network fees, but you only have ${balance.toFixed(4)} SOL. Please add more SOL to your wallet.`,
         type: 'insufficient_funds',
       });
       setMintState('error');
@@ -147,6 +148,35 @@ export function MintScreen() {
       <View className="absolute top-80 -left-10 w-40 h-40 rounded-full bg-pet-blue-light/35" />
 
       <View className="flex-1 px-6 pt-6 pb-8">
+        {!isBusy && mintState !== 'success' && (
+          <TouchableOpacity
+            onPress={handleBack}
+            activeOpacity={0.85}
+            style={{ alignSelf: 'flex-start', marginBottom: 14 }}
+          >
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: '#FFFFFF',
+                borderRadius: 22,
+                paddingHorizontal: 14,
+                paddingVertical: 8,
+                borderWidth: 1,
+                borderColor: '#9FD2E0',
+                shadowColor: '#1E3A5F',
+                shadowOffset: { width: 0, height: 3 },
+                shadowOpacity: 0.12,
+                shadowRadius: 6,
+                elevation: 4,
+              }}
+            >
+              <MaterialCommunityIcons name="arrow-left" size={16} color="#2D6B90" style={{ marginRight: 6 }} />
+              <Text style={{ color: '#2D6B90', fontSize: 12, fontWeight: '800', letterSpacing: 0.3 }}>Change Name</Text>
+            </View>
+          </TouchableOpacity>
+        )}
+
         <ScreenHeader
           eyebrow="Genesis Companion"
           title="Mint Nomi"
@@ -158,15 +188,6 @@ export function MintScreen() {
             </View>
           )}
         />
-
-        {!isBusy && mintState !== 'success' && (
-          <TouchableOpacity onPress={handleBack} activeOpacity={0.7} style={{ marginTop: -8, marginBottom: 4 }}>
-            <View className="flex-row items-center self-start bg-white/60 border border-pet-blue-light/60 px-3 py-1.5 rounded-full">
-              <Text className="text-pet-blue-dark text-[14px] mr-1">←</Text>
-              <Text className="text-pet-blue-dark text-[11px] font-bold tracking-[0.4px]">Change Name</Text>
-            </View>
-          </TouchableOpacity>
-        )}
 
         <View className="flex-1 justify-center">
           <View
@@ -191,9 +212,20 @@ export function MintScreen() {
               <Text className="text-[12px] font-bold uppercase tracking-[0.8px] text-gray-500">Standard</Text>
               <Text className="text-[13px] font-black text-gray-800">Metaplex Token Metadata</Text>
             </View>
-            <View className="flex-row justify-between py-3 border-b border-gray-100">
-              <Text className="text-[12px] font-bold uppercase tracking-[0.8px] text-gray-500">Est. Cost</Text>
-              <Text className="text-[16px] font-black text-pet-blue-dark">~0.01 SOL</Text>
+            <View className="flex-row justify-between items-center py-3 border-b border-gray-100">
+              <View>
+                <Text className="text-[12px] font-bold uppercase tracking-[0.8px] text-gray-500">Mint Price</Text>
+                <View className="flex-row items-center mt-1">
+                  <View className="bg-pink-100 px-1.5 py-0.5 rounded-md border border-pink-200">
+                    <Text className="text-[9px] font-black text-pink-600 tracking-[0.5px]">EARLY BIRD</Text>
+                  </View>
+                  <Text className="text-[10px] font-semibold text-gray-400 ml-2">limited drop</Text>
+                </View>
+              </View>
+              <View className="items-end">
+                <Text className="text-[13px] font-bold text-gray-400 line-through" style={{ textDecorationLine: 'line-through' }}>0.3 SOL</Text>
+                <Text className="text-[18px] font-black text-pet-blue-dark mt-0.5">0.15 SOL</Text>
+              </View>
             </View>
             <View className="flex-row justify-between py-3">
               <Text className="text-[12px] font-bold uppercase tracking-[0.8px] text-gray-500">Your Balance</Text>

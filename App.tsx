@@ -3,7 +3,7 @@ import './src/polyfills';
 
 import React, { useState, useEffect, Component, type ErrorInfo, type ReactNode } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { View, Text, TouchableOpacity, LogBox, AppState, BackHandler, Platform, Image, type ImageSourcePropType } from 'react-native';
+import { View, Text, TouchableOpacity, LogBox, AppState, BackHandler, Platform, Image, ActivityIndicator, type ImageSourcePropType } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useWalletStore } from './src/store/walletStore';
@@ -157,7 +157,6 @@ export default function App() {
   const connected = useWalletStore((s) => s.connected);
   const hasPet = usePetStore((s) => s.hasPet);
   const ownerName = usePetStore((s) => s.ownerName);
-  const trialMode = usePetStore((s) => s.trialMode);
 
   const hydrateWallet = useWalletStore((s) => s.hydrateWallet);
   const hydrateShop = useShopStore((s) => s.hydrateShop);
@@ -266,7 +265,14 @@ export default function App() {
       <GestureHandlerRootView className="flex-1">
         <SafeAreaProvider>
           <SafeAreaView className="flex-1 bg-pet-background items-center justify-center" edges={['top']}>
-            <Image source={TAB_ICONS.profile} style={{ width: 100, height: 100, marginBottom: 12 }} resizeMode="contain" />
+            <Image source={TAB_ICONS.profile} style={{ width: 220, height: 220, marginBottom: 24 }} resizeMode="contain" />
+            <ActivityIndicator size="large" color="#4FB0C6" />
+            <Text
+              className="text-gray-400 text-xs mt-4"
+              style={{ fontFamily: petTypography.body }}
+            >
+              Preparing Nomi's world...
+            </Text>
             <StatusBar style="dark" />
           </SafeAreaView>
         </SafeAreaProvider>
@@ -274,31 +280,11 @@ export default function App() {
     );
   }
 
-  // Trial mode bypasses wallet & mint gates so casual users can try the app first.
-  if (!connected && !trialMode) {
+  if (!connected) {
     if (showWelcomeIntro) {
       return (
         <GestureHandlerRootView className="flex-1">
           <WelcomeIntro onContinue={() => {
-            // Skip wallet + mint gates: drop straight into the app with mock state.
-            useWalletStore.setState({
-              connected: true,
-              address: 'DevModeMockWa11etAddressForTesting1111111111',
-              balance: 10,
-              skrBalance: 1000,
-              authToken: 'dev-mock-token',
-              isConnecting: false,
-              error: null,
-            });
-            const pet = usePetStore.getState();
-            usePetStore.setState({
-              hasPet: true,
-              id: pet.id ?? `pet_dev_${Date.now()}`,
-              name: pet.name || 'Nomi',
-              ownerName: pet.ownerName || 'Dev',
-              mintAddress: pet.mintAddress || 'DevModeMockMintAddress11111111111111111111',
-              mintTxSignature: pet.mintTxSignature || 'dev-mock-tx',
-            });
             requestAnimationFrame(() => setShowWelcomeIntro(false));
           }} />
           <StatusBar style="light" />
@@ -323,7 +309,7 @@ export default function App() {
     );
   }
 
-  if (!hasPet && !trialMode) {
+  if (!hasPet) {
     return (
       <GestureHandlerRootView className="flex-1">
         <SafeAreaProvider>

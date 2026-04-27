@@ -11,7 +11,6 @@ import { useTxHistoryStore, type LabeledTransaction } from '../store/txHistorySt
 import { XpBar } from '../components/XpBar';
 import { AchievementBadge } from '../components/AchievementBadge';
 import { PremiumCard } from '../components/PremiumCard';
-import { LeaderboardCard } from '../components/LeaderboardCard';
 import { ReferralCard } from '../components/ReferralCard';
 import { PersonalityTraitsCard } from '../components/PersonalityTraitsCard';
 import { usePremiumStore } from '../store/premiumStore';
@@ -453,10 +452,6 @@ export function ProfileScreen() {
         <EvolutionCard />
 
         <PremiumCard />
-
-        <View className="mt-4 mb-1">
-          <LeaderboardCard />
-        </View>
 
         <View className="mt-4 mb-1">
           <ReferralCard />

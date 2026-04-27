@@ -423,11 +423,14 @@ export const useAdventureStore = create<AdventureStore>((set, get) => ({
       set({ evolutionShards: get().evolutionShards + 1 });
     }
 
-    // Record personality memory
+    // Record personality memory + speech bubble reaction
     try {
-      const ps = require('./personalityStore').usePersonalityStore.getState();
+      const mod = require('./personalityStore');
+      const ps = mod.usePersonalityStore.getState();
+      const ownerName = require('./petStore').usePetStore.getState().ownerName;
       ps.recordMemory('adventure_complete');
       ps.updateTraits('adventure_complete');
+      ps.setCurrentDialogue(mod.getActionDialogue('adventure_complete', ps.traits, ownerName));
     } catch {}
 
     set({ pendingLoot: null });
@@ -534,6 +537,14 @@ export const useAdventureStore = create<AdventureStore>((set, get) => ({
     }
 
     saveAdventureState(get());
+
+    // Pet reacts to the wheel result
+    try {
+      const mod = require('./personalityStore');
+      const ps = mod.usePersonalityStore.getState();
+      const ownerName = require('./petStore').usePetStore.getState().ownerName;
+      ps.setCurrentDialogue(mod.getActionDialogue('spin_won', ps.traits, ownerName));
+    } catch {}
   },
 
   // ── Login Calendar ──
@@ -578,6 +589,14 @@ export const useAdventureStore = create<AdventureStore>((set, get) => ({
     try {
       const xpStore = require('./xpStore').useXpStore.getState();
       xpStore.updateWeeklyQuestProgress('loginEveryDay');
+    } catch {}
+
+    // Pet reacts to the daily login claim
+    try {
+      const mod = require('./personalityStore');
+      const ps = mod.usePersonalityStore.getState();
+      const ownerName = require('./petStore').usePetStore.getState().ownerName;
+      ps.setCurrentDialogue(mod.getActionDialogue('login_claimed', ps.traits, ownerName));
     } catch {}
 
     // Handle special bonuses

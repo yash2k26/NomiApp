@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { usePetStore } from '../store/petStore';
 import { useWalletStore } from '../store/walletStore';
 import { petTypography } from '../theme/typography';
@@ -51,7 +52,7 @@ export function NameInputScreen({ onComplete }: NameInputScreenProps) {
         style={{ position: 'absolute', top: 56, left: 20, zIndex: 10 }}
       >
         <View className="flex-row items-center bg-white/15 border border-white/25 px-3 py-1.5 rounded-full">
-          <Text className="text-white text-[14px] mr-1">←</Text>
+          <MaterialCommunityIcons name="arrow-left" size={14} color="#ffffff" style={{ marginRight: 4 }} />
           <Text className="text-white text-[11px] font-bold tracking-[0.4px]">Back</Text>
         </View>
       </TouchableOpacity>

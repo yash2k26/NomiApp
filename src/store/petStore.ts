@@ -90,20 +90,20 @@ export function getPetNeeds(hunger: number, happiness: number, energy: number): 
   if (needs.length === 0) return null;
 
   if (needs.length === 3) {
-    return "I miss you... please take care of me!";
+    return "i'm a small disaster, send everything halp";
   }
   if (needs.length === 2) {
     const msgs: Record<string, string> = {
-      'hunger,happiness': "I'm hungry and feeling down...",
-      'hunger,energy': "Feed me and let me rest...",
-      'happiness,energy': "Play with me and let me rest...",
+      'hunger,happiness': "lonely AND empty. catastrophic combo.",
+      'hunger,energy': "tired tummy, sleepy soul, save me",
+      'happiness,energy': "nap + cuddle, that's the entire prescription",
     };
-    return msgs[needs.join(',')] ?? "I need some attention...";
+    return msgs[needs.join(',')] ?? "i need... something. SOMETHING.";
   }
   // Single need
-  if (needs.includes('hunger')) return "I'm hungry! Feed me please~";
-  if (needs.includes('happiness')) return "I'm feeling lonely... play with me!";
-  if (needs.includes('energy')) return "So tired... let me rest...";
+  if (needs.includes('hunger')) return "treat alarm: low. critically low.";
+  if (needs.includes('happiness')) return "i need attention. literally any attention.";
+  if (needs.includes('energy')) return "eyelids... too... heavy... save... me...";
   return null;
 }
 
@@ -203,12 +203,12 @@ function computeMood(hunger: number, happiness: number, energy: number, isExcite
 
 function getMoodTextFromMood(name: string, mood: PetMood): string {
   const moodTexts: Record<PetMood, string> = {
-    excited: `${name} is SO excited!`,
-    happy: `${name} feels happy`,
-    content: `${name} feels content`,
-    tired: `${name} is exhausted...`,
-    hungry: `${name} is starving...`,
-    sad: `${name} feels sad`,
+    excited: `${name} is BUZZING with joy!`,
+    happy: `${name} is feeling sunshiney~`,
+    content: `${name} is just chillin'`,
+    tired: `${name} is barely awake...`,
+    hungry: `${name} would commit minor crimes for snacks`,
+    sad: `${name}'s heart is doing the slow thing`,
   };
   return moodTexts[mood];
 }
@@ -406,6 +406,11 @@ export const usePetStore = create<PetStore>((set, get) => ({
       energy: 80,
     });
     savePetState(get());
+    try {
+      const mod = require('./personalityStore');
+      const ps = mod.usePersonalityStore.getState();
+      ps.setCurrentDialogue(mod.getActionDialogue('minted', ps.traits, get().ownerName));
+    } catch {}
   },
 
   feedPet: () => {
@@ -421,9 +426,11 @@ export const usePetStore = create<PetStore>((set, get) => ({
     checkExcitedTrigger(get());
     // Personality
     try {
-      const ps = require('./personalityStore').usePersonalityStore.getState();
+      const mod = require('./personalityStore');
+      const ps = mod.usePersonalityStore.getState();
       ps.recordMemory('fed');
       ps.updateTraits('fed');
+      ps.setCurrentDialogue(mod.getActionDialogue('fed', ps.traits, get().ownerName));
     } catch {}
     const xp = useXpStore.getState();
     xp.addXp(8, 'feed');
@@ -447,9 +454,11 @@ export const usePetStore = create<PetStore>((set, get) => ({
     savePetState(get());
     checkExcitedTrigger(get());
     try {
-      const ps = require('./personalityStore').usePersonalityStore.getState();
+      const mod = require('./personalityStore');
+      const ps = mod.usePersonalityStore.getState();
       ps.recordMemory('played');
       ps.updateTraits('played');
+      ps.setCurrentDialogue(mod.getActionDialogue('played', ps.traits, get().ownerName));
     } catch {}
     const xp = useXpStore.getState();
     xp.addXp(12, 'play');
@@ -471,9 +480,11 @@ export const usePetStore = create<PetStore>((set, get) => ({
     savePetState(get());
     checkExcitedTrigger(get());
     try {
-      const ps = require('./personalityStore').usePersonalityStore.getState();
+      const mod = require('./personalityStore');
+      const ps = mod.usePersonalityStore.getState();
       ps.recordMemory('rested');
       ps.updateTraits('rested');
+      ps.setCurrentDialogue(mod.getActionDialogue('rested', ps.traits, get().ownerName));
     } catch {}
     const xp = useXpStore.getState();
     xp.addXp(5, 'rest');
@@ -525,9 +536,12 @@ export const usePetStore = create<PetStore>((set, get) => ({
     // Personality
     const memoryMap: Record<string, string> = { feed: 'fed', play: 'played', rest: 'rested' };
     try {
-      const ps = require('./personalityStore').usePersonalityStore.getState();
-      ps.recordMemory(memoryMap[variant.action] ?? variant.action);
-      ps.updateTraits(memoryMap[variant.action] ?? variant.action);
+      const mod = require('./personalityStore');
+      const ps = mod.usePersonalityStore.getState();
+      const action = memoryMap[variant.action] ?? variant.action;
+      ps.recordMemory(action);
+      ps.updateTraits(action);
+      ps.setCurrentDialogue(mod.getActionDialogue(action, ps.traits, get().ownerName));
     } catch {}
 
     // XP + quest progress
@@ -560,9 +574,11 @@ export const usePetStore = create<PetStore>((set, get) => ({
     savePetState(get());
     checkExcitedTrigger(get());
     try {
-      const ps = require('./personalityStore').usePersonalityStore.getState();
+      const mod = require('./personalityStore');
+      const ps = mod.usePersonalityStore.getState();
       ps.recordMemory('reflected');
       ps.updateTraits('reflected');
+      ps.setCurrentDialogue(mod.getActionDialogue('reflected', ps.traits, get().ownerName));
     } catch {}
     const xp = useXpStore.getState();
     xp.addXp(20, 'reflect');
@@ -582,9 +598,11 @@ export const usePetStore = create<PetStore>((set, get) => ({
     savePetState(get());
     checkExcitedTrigger(get());
     try {
-      const ps = require('./personalityStore').usePersonalityStore.getState();
+      const mod = require('./personalityStore');
+      const ps = mod.usePersonalityStore.getState();
       ps.recordMemory('reflected');
       ps.updateTraits('reflected');
+      ps.setCurrentDialogue(mod.getActionDialogue('reflected', ps.traits, get().ownerName));
     } catch {}
     const xp = useXpStore.getState();
     xp.addXp(20, 'reflect');
@@ -604,9 +622,11 @@ export const usePetStore = create<PetStore>((set, get) => ({
     savePetState(get());
     checkExcitedTrigger(get());
     try {
-      const ps = require('./personalityStore').usePersonalityStore.getState();
+      const mod = require('./personalityStore');
+      const ps = mod.usePersonalityStore.getState();
       ps.recordMemory('reflected');
       ps.updateTraits('reflected');
+      ps.setCurrentDialogue(mod.getActionDialogue('reflected', ps.traits, get().ownerName));
     } catch {}
     const xp = useXpStore.getState();
     xp.addXp(20, 'reflect');

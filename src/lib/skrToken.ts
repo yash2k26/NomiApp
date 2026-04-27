@@ -58,14 +58,9 @@ async function getDevnetMint(): Promise<{ mintPubkey: PublicKey; mintKeypair: Ke
 
 /**
  * Get the active SKR mint for the current network.
- * On devnet: returns test mint (or null if not created yet).
  * On mainnet: returns the real SKR mint.
  */
 export async function getActiveSkrMint(): Promise<PublicKey> {
-  // Devnet mode: use the test mint (call createDevnetSkrMint once if not yet created).
-  const devnet = await getDevnetMint();
-  if (devnet) return devnet.mintPubkey;
-  // Fallback to mainnet mint public key (balance lookups will return 0 on devnet)
   return new PublicKey(SKR_MINT_MAINNET);
 }
 

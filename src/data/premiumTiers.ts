@@ -64,7 +64,7 @@ export const TIER_CONFIGS: Record<PremiumTier, TierConfig> = {
   pro: {
     tier: 'pro',
     label: 'Pro',
-    price: 1499,
+    price: 1799,
     currency: 'SKR',
     emoji: '\u{1F48E}',
     gradientColors: ['#B9F2FF', '#7DF9FF'],

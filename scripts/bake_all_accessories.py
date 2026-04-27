@@ -22,7 +22,7 @@ NOMI_GLB = f'{ROOT}/assets/pets/nomi-combined.glb'
 # - z_offset_factor: vertical offset above head center (fraction of head_height)
 ACCESSORIES = [
     ('assets/shop/thick_curly_hairs_v7.1.glb',                      'Accessory_Hair',          1.05, 1.05, 1.20, 0.15),
-    ('assets/shop/curly_hair_1_beatrice_-_character_hair_free.glb', 'Accessory_HairBeatrice',  1.45, 1.15, 0.75, 0.25),
+    ('assets/shop/curly_hair_1_beatrice_-_character_hair_free.glb', 'Accessory_HairBeatrice',  1.45, 1.30, 1.10, 0.00),
     ('assets/shop/brown_kink_hairs_08.glb',                         'Accessory_HairKink',      1.05, 1.05, 1.20, 0.15),
     ('assets/shop/little_crown.glb',                                'Accessory_Crown',         0.50, 0.50, 0.45, 0.78),
 ]

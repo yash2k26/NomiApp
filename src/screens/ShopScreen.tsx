@@ -907,7 +907,7 @@ export function ShopScreen() {
   const { items, buyItem, equipItem, unequipItem, equippedItemId, equippedAnimationId, hydrateShop } = useShopStore();
   const [selectedSection, setSelectedSection] = useState<ShopSection>('All');
   const [ownershipFilter, setOwnershipFilter] = useState<OwnershipFilter>('all');
-  const [showComingSoon, setShowComingSoon] = useState(false);
+  const [showComingSoon, setShowComingSoon] = useState(true);
   const [purchasingId, setPurchasingId] = useState<string | null>(null);
   const [paymentItem, setPaymentItem] = useState<ShopItem | null>(null);
   const [receiptItem, setReceiptItem] = useState<ShopItem | null>(null);
@@ -932,6 +932,11 @@ export function ShopScreen() {
 
   const visibleItems = useMemo(() => {
     return items.filter((i) => {
+      // Hidden items are excluded from the shop UI entirely (kept in catalog so
+      // already-owned references in saved state don't break).
+      if (i.hidden && !i.owned) return false;
+      return true;
+    }).filter((i) => {
       if (!i.tierTag) return true;
       const required = TIER_TAG_MAP[i.tierTag];
       return required ? isAtLeastTier(tier, required) : true;
@@ -987,9 +992,7 @@ export function ShopScreen() {
         elapsedMs: Date.now() - start,
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      // Play money sounds: Money.mp3 immediately, then HappyMoney.mp3 after a short delay
       playSfx('money').catch(() => {});
-      setTimeout(() => playSfx('happymoney').catch(() => {}), 800);
       setReceiptItem(item);
       setReceiptSuccess(true);
       setReceiptSkr(withSkr);

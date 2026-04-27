@@ -38,3 +38,6 @@ discard/
 *.keystore
 # Local backup of main pet GLB (kept on disk, not committed)
 assets/pets/nomi-combined.backup.glb
+
+# Original (untweaked) audio backups — kept locally only
+assets/Audio/_originals/
