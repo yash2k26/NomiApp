@@ -1,0 +1,13 @@
+# netlify config for the marketing site under frontend/
+# (the parent NomiApp/ is the react native app — netlify ignores it)
+
+[build]
+  base = "frontend"
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
