@@ -249,8 +249,8 @@ function Features() {
             key={f.title}
             className="rounded-3xl bg-white p-6 shadow-soft hover:shadow-lift hover:-translate-y-1 transition-all"
           >
-            <div className={`w-14 h-14 rounded-2xl ${f.tint} flex items-center justify-center mb-4`}>
-              <Image src={f.icon} alt="" width={36} height={36} className="w-9 h-9 object-contain" />
+            <div className={`w-20 h-20 rounded-2xl ${f.tint} flex items-center justify-center mb-5`}>
+              <Image src={f.icon} alt="" width={96} height={96} className="w-14 h-14 object-contain" />
             </div>
             <h3 className="text-lg font-bold leading-snug">{f.title}</h3>
             <p className="mt-2 text-pet-blue-dark leading-relaxed">{f.body}</p>
