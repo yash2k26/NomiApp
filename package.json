@@ -12,6 +12,8 @@
   },
   "dependencies": {
     "@craftzdog/react-native-buffer": "^6.1.1",
+    "@expo-google-fonts/fredoka": "^0.4.1",
+    "@expo-google-fonts/nunito": "^0.4.2",
     "@metaplex-foundation/js": "^0.20.1",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-navigation/bottom-tabs": "^7.14.0",
@@ -28,6 +30,7 @@
     "expo": "^54.0.0",
     "expo-av": "~16.0.8",
     "expo-dev-client": "~6.0.20",
+    "expo-font": "~14.0.11",
     "expo-gl": "~16.0.10",
     "expo-haptics": "~15.0.8",
     "expo-linear-gradient": "~15.0.8",

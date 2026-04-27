@@ -16,7 +16,9 @@ import { getLatestBlockhash, getMinimumBalanceForRentExemption, sendTransaction,
 import { SHOP_TREASURY } from './solanaClient';
 import { withWallet } from './mobileWalletAdapter';
 
-const NFT_METADATA_URI = 'https://raw.githubusercontent.com/yash2k26/NomiApp/main/assets/nft-metadata.json';
+// NOTE: pointing at the `new-char` branch because the new Nomi character art lives there.
+// After merging `new-char` → `main`, swap this back to `/main/` for permanence.
+const NFT_METADATA_URI = 'https://raw.githubusercontent.com/yash2k26/NomiApp/new-char/assets/nft-metadata.json';
 
 // Mint price paid by the user to the project treasury (in SOL).
 // On-chain rent + network fees are additional (~0.01 SOL).

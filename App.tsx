@@ -1,9 +1,14 @@
 // Polyfills MUST be imported before anything else
 import './src/polyfills';
 
-import React, { useState, useEffect, Component, type ErrorInfo, type ReactNode } from 'react';
+// Patch every <Text> / <TextInput> to default to Fredoka (with weight-aware
+// variant lookup). Must run BEFORE any RN component is rendered.
+import { applyDefaultFonts } from './src/lib/fontPatch';
+applyDefaultFonts();
+
+import React, { useState, useEffect, useRef, Component, type ErrorInfo, type ReactNode } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { View, Text, TouchableOpacity, LogBox, AppState, BackHandler, Platform, Image, ActivityIndicator, type ImageSourcePropType } from 'react-native';
+import { View, Text, TouchableOpacity, LogBox, AppState, BackHandler, Platform, Image, ActivityIndicator, Animated, StyleSheet, type ImageSourcePropType } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useWalletStore } from './src/store/walletStore';
@@ -21,6 +26,7 @@ import { WalletConnect, WelcomeIntro } from './src/components';
 import { HomeScreen, ProfileScreen, MintScreen, ShopScreen, NameInputScreen } from './src/screens';
 import { GamesScreen } from './src/screens/GamesScreen';
 import { petTypography } from './src/theme/typography';
+import { useFonts, Fredoka_500Medium, Fredoka_600SemiBold, Fredoka_700Bold } from '@expo-google-fonts/fredoka';
 
 import './global.css';
 
@@ -154,9 +160,42 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [showWelcomeIntro, setShowWelcomeIntro] = useState(true);
   const [hydrated, setHydrated] = useState(false);
+
+  // Cross-fade between WelcomeIntro and WalletConnect.
+  const welcomeOpacity = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    Animated.timing(welcomeOpacity, {
+      toValue: showWelcomeIntro ? 1 : 0,
+      duration: 280,
+      useNativeDriver: true,
+    }).start();
+  }, [showWelcomeIntro, welcomeOpacity]);
+
+  // (walletConnectReady — WalletConnect mount is deferred. Defined after
+  // `connected` is declared below since it depends on it.)
+  const [walletConnectReady, setWalletConnectReady] = useState(false);
+
+  // Single-family typography — every text in the app renders in Fredoka.
+  // We use only 3 weights (Medium / SemiBold / Bold); fewer fonts = faster
+  // useFonts resolution = snappier cold start.
+  const [fontsLoaded] = useFonts({
+    Fredoka_500Medium,
+    Fredoka_600SemiBold,
+    Fredoka_700Bold,
+  });
   const connected = useWalletStore((s) => s.connected);
   const hasPet = usePetStore((s) => s.hasPet);
   const ownerName = usePetStore((s) => s.ownerName);
+
+  // Pre-warm WalletConnect ~1.2s after the welcome screen mounts. Mounting it
+  // immediately blocks the JS thread (~150-300ms for gradient + images + wallet
+  // store wiring) and would freeze the Continue button. Deferring lets welcome
+  // be interactive instantly, then pre-mounts behind it for a snappy fade.
+  useEffect(() => {
+    if (connected || walletConnectReady) return;
+    const timer = setTimeout(() => setWalletConnectReady(true), 1200);
+    return () => clearTimeout(timer);
+  }, [connected, walletConnectReady]);
 
   const hydrateWallet = useWalletStore((s) => s.hydrateWallet);
   const hydrateShop = useShopStore((s) => s.hydrateShop);
@@ -260,7 +299,7 @@ export default function App() {
     }
   };
 
-  if (!hydrated) {
+  if (!hydrated || !fontsLoaded) {
     return (
       <GestureHandlerRootView className="flex-1">
         <SafeAreaProvider>
@@ -281,20 +320,20 @@ export default function App() {
   }
 
   if (!connected) {
-    if (showWelcomeIntro) {
-      return (
-        <GestureHandlerRootView className="flex-1">
-          <WelcomeIntro onContinue={() => {
-            requestAnimationFrame(() => setShowWelcomeIntro(false));
-          }} />
-          <StatusBar style="light" />
-        </GestureHandlerRootView>
-      );
-    }
-
     return (
       <GestureHandlerRootView className="flex-1">
-        <WalletConnect />
+        <View className="flex-1">
+          {/* WalletConnect mounts ~1.2s after welcome to pre-warm without
+              blocking the welcome screen's interactivity. By the time user
+              taps Continue, WalletConnect is rendered underneath. */}
+          {walletConnectReady && <WalletConnect />}
+          <Animated.View
+            pointerEvents={showWelcomeIntro ? 'auto' : 'none'}
+            style={[StyleSheet.absoluteFill, { opacity: welcomeOpacity }]}
+          >
+            <WelcomeIntro onContinue={() => setShowWelcomeIntro(false)} />
+          </Animated.View>
+        </View>
         <StatusBar style="light" />
       </GestureHandlerRootView>
     );
