@@ -16,9 +16,7 @@ import { getLatestBlockhash, getMinimumBalanceForRentExemption, sendTransaction,
 import { SHOP_TREASURY } from './solanaClient';
 import { withWallet } from './mobileWalletAdapter';
 
-// NOTE: pointing at the `new-char` branch because the new Nomi character art lives there.
-// After merging `new-char` → `main`, swap this back to `/main/` for permanence.
-const NFT_METADATA_URI = 'https://raw.githubusercontent.com/yash2k26/NomiApp/new-char/assets/nft-metadata.json';
+const NFT_METADATA_URI = 'https://raw.githubusercontent.com/yash2k26/NomiApp/main/assets/nft-metadata.json';
 
 // Mint price paid by the user to the project treasury (in SOL).
 // On-chain rent + network fees are additional (~0.01 SOL).
@@ -63,16 +61,12 @@ export async function mintPetNFT(
     const tokenAccount = getAssociatedTokenAddressSync(mintPubkey, payer);
     console.log('[nftMint] payer:', address, 'ATA:', tokenAccount.toBase58());
 
-    let metadataUri = NFT_METADATA_URI;
-    if (attributes) {
-      const params: string[] = [];
-      if (attributes.ownerName) params.push(`owner=${encodeURIComponent(attributes.ownerName)}`);
-      if (attributes.level) params.push(`level=${attributes.level}`);
-      if (attributes.stage) params.push(`stage=${attributes.stage}`);
-      if (attributes.streak) params.push(`streak=${attributes.streak}`);
-      params.push(`mint=${mintPubkey.toBase58().slice(0, 8)}`);
-      metadataUri = `${NFT_METADATA_URI}?${params.join('&')}`;
-    }
+    // Use the canonical metadata URI directly. Per-NFT query strings make each
+    // mint have a unique URI, which prevents Phantom/Helius from caching the
+    // resolved metadata + image and causes random "Unknown" placeholders. The
+    // GitHub-hosted JSON is static anyway — query params do nothing there.
+    const metadataUri = NFT_METADATA_URI;
+    void attributes; // accepted for API stability, no longer used in URI
 
     const [metadataPda] = PublicKey.findProgramAddressSync(
       [Buffer.from('metadata'), TOKEN_METADATA_PROGRAM_ID.toBuffer(), mintPubkey.toBuffer()],
