@@ -12,6 +12,18 @@ const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 export function WalletConnect() {
   const { connectWallet, isConnecting, error } = useWalletStore();
 
+  // Reusable: lets the user retry after errors AND get help when stuck.
+  // Previously a "no wallet found" error was a dead-end if Phantom was
+  // installed afterwards — they had to force-close. Now connectWallet is
+  // re-callable from the error block.
+  const retry = () => {
+    if (isConnecting) return;
+    connectWallet();
+  };
+  const openHelp = () => {
+    Linking.openURL('mailto:team@talkamore.com?subject=Nomi%20wallet%20connect%20help').catch(() => {});
+  };
+
   return (
     <View className="flex-1">
       {/* Full-bleed gradient */}
@@ -131,6 +143,15 @@ export function WalletConnect() {
                 </Text>
               </TouchableOpacity>
             )}
+            <View className="flex-row items-center justify-center mt-2" style={{ gap: 14 }}>
+              <TouchableOpacity onPress={retry} disabled={isConnecting}>
+                <Text className="text-[11px] text-blue-600 font-bold underline">Try again</Text>
+              </TouchableOpacity>
+              <Text className="text-gray-300">·</Text>
+              <TouchableOpacity onPress={openHelp}>
+                <Text className="text-[11px] text-gray-500 font-bold">Get help</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         )}
 

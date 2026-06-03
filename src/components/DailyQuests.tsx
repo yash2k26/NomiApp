@@ -73,10 +73,19 @@ function useCountdown() {
 
   useEffect(() => {
     function update() {
+      // Quest rollover is anchored to UTC date (xpStore.checkAndRefreshQuests
+      // uses toISOString().slice(0, 10), which is UTC). Counting down to
+      // *local* midnight produces a contradiction for non-UTC users — the
+      // counter hits 0 hours before the reset actually fires, so we count
+      // down to UTC midnight to match.
       const now = new Date();
-      const midnight = new Date(now);
-      midnight.setHours(24, 0, 0, 0);
-      const diff = midnight.getTime() - now.getTime();
+      const utcMidnight = Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate() + 1,
+        0, 0, 0, 0,
+      );
+      const diff = utcMidnight - now.getTime();
       const hours = Math.floor(diff / (1000 * 60 * 60));
       const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
       setTimeLeft(`${hours}h ${minutes}m`);
@@ -185,7 +194,7 @@ export function DailyQuests() {
           </View>
           <View className="bg-white/15 px-2 py-1 rounded-full">
             <Text className="text-white/90 text-[10px] font-bold">
-              resets in {timeLeft}
+              resets in {timeLeft} UTC
             </Text>
           </View>
         </LinearGradient>

@@ -15,6 +15,8 @@ import { DailyQuests } from '../components/DailyQuests';
 import { AdventureCard } from '../components/AdventureCard';
 import { SpinWheel } from '../components/SpinWheel';
 import { ScreenHeader } from '../components/ui/ScreenHeader';
+import { NotificationBell } from '../components/notifications/NotificationBell';
+import { events } from '../lib/analytics';
 
 type ActiveGame = 'memory' | 'quicktap' | 'pattern' | 'colormatch' | 'mathrush' | 'emojicatch' | null;
 
@@ -104,13 +106,26 @@ export function GamesScreen() {
   }, []);
 
   const startGame = (gameId: ActiveGame, cooldownKey: string) => {
-    consumeStamina(STAMINA_COSTS.miniGame);
+    // consumeStamina returns false when the user doesn't have enough.
+    // Previously the return value was ignored — the game launched anyway and
+    // the cooldown started, so a stamina-starved user could still play (and
+    // their cooldown record went out of sync with reality). Bail out cleanly
+    // here, surface a toast, and don't start the cooldown.
+    if (!consumeStamina(STAMINA_COSTS.miniGame)) {
+      try {
+        const { notify } = require('../lib/notify');
+        notify.warning('Not enough stamina', `Mini-games cost ${STAMINA_COSTS.miniGame} stamina. Wait for it to regenerate or use Pro for 2x regen.`);
+      } catch {}
+      return;
+    }
     startCooldown(cooldownKey);
     setActiveGame(gameId);
+    if (gameId) events.miniGameStarted({ game: gameId });
   };
 
   const handleGameComplete = (gameId: string) => (score: number, xp: number) => {
     reportMiniGameScore(gameId, score, xp);
+    events.miniGameCompleted({ game: gameId, score, xp });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setActiveGame(null);
   };
@@ -176,6 +191,10 @@ export function GamesScreen() {
         end={{ x: 1, y: 1 }}
         className="absolute inset-0"
       />
+      {/* Notification bell — same global access pattern as Home/Profile/Shop. */}
+      <View style={{ position: 'absolute', top: 16, right: 20, zIndex: 30 }}>
+        <NotificationBell />
+      </View>
       <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
         <View className="pt-5 px-6 mb-4">
           <ScreenHeader

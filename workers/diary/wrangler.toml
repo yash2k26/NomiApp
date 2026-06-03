@@ -1,0 +1,11 @@
+name = "nomi-diary"
+main = "src/index.ts"
+compatibility_date = "2026-01-15"
+
+# Set with: wrangler secret put ANTHROPIC_API_KEY
+# (do NOT put the key in this file)
+
+# Optional KV for rate limiting + caching (uncomment after creating namespace)
+# [[kv_namespaces]]
+# binding = "RATE_LIMIT"
+# id = "4e505e71fb1b4aa38e49ca5ba641f1e8"

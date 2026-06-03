@@ -1,0 +1,10 @@
+name = "nomi-state"
+main = "src/index.ts"
+compatibility_date = "2026-01-15"
+
+# D1 — fill in `database_id` after `wrangler d1 create nomi-state`
+[[d1_databases]]
+binding = "DB"
+database_name = "nomi-state"
+database_id = "4df9a54f-bf53-496b-811d-042c2ccc9043"
+migrations_dir = "migrations"

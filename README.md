@@ -15,7 +15,7 @@ Nomi is a mobile-first companion app where you mint your pet as an **on-chain NF
 - **SKR Token Economy** — Earn and spend $SKR tokens through adventures and the in-app shop
 - **Shop with On-Chain Purchases** — Buy skins, accessories, and animations with SOL or SKR (real blockchain transfers)
 - **Adventures & Loot** — Send your pet on timed adventures across 5 zones, earn rarity-based loot
-- **3 Mini-Games** — Memory Match, Quick Tap, Pattern Recall with XP and token rewards
+- **6 Mini-Games** — Memory Match, Quick Tap, Pattern Recall, Color Match, Math Rush, Emoji Catch with XP and token rewards
 - **50-Level Progression** — XP system with daily/weekly quests, achievements, and level perks
 - **Pet Personality & Diary** — AI-driven personality traits that evolve based on your interactions
 - **Evolution System** — 5 evolution stages from Egg to Oracle
@@ -29,21 +29,19 @@ Nomi is a mobile-first companion app where you mint your pet as an **on-chain NF
 | Wallet Connection | Mobile Wallet Adapter (MWA) | Yes |
 | NFT Minting | Raw Metaplex Token Metadata v1 instructions | Yes |
 | Shop Purchases | SystemProgram.transfer to treasury | Yes |
-| SKR Token Claims | SPL Token mint (devnet test token) | Yes |
+| SKR Token Claims | SPL Token mint (mainnet) | Yes |
 | SKR Transfers | SPL Token transfer instructions | Yes |
 | Pet State Sync | Memo Program write | Yes |
 | Balance Fetching | RPC getBalance + parsed token accounts | Yes |
 | Transaction History | getSignaturesForAddress | Yes |
-| SOL Airdrop | requestAirdrop (devnet) | Yes |
 
 ### SKR Token Integration
 
-The app integrates with the **SKR (Seeker)** token ecosystem:
+The app integrates with the **SKR (Seeker)** token ecosystem on mainnet:
 - Mainnet mint: `SKRbvo6Gf7GondiT3BbTfuRDPqLWei4j2Qy2NPGZhW3`
-- Devnet: Creates a test SPL token with matching decimals (6) for demo
 - Earn SKR through adventures (rare/legendary loot)
 - Spend SKR in the shop on premium items
-- Real SPL token operations (create mint, create ATA, mint, transfer)
+- Real SPL token operations (create ATA, transfer)
 
 ## Tech Stack
 
@@ -56,16 +54,31 @@ The app integrates with the **SKR (Seeker)** token ecosystem:
 - **expo-av** (audio)
 - **expo-haptics** (tactile feedback)
 
-## Architecture
+## Repository layout
 
 ```
-src/
-  screens/       5 main screens (Home, Games, Shop, Profile, Mint)
-  store/         11 Zustand stores (pet, wallet, xp, shop, adventure, etc.)
-  lib/           Solana utilities (MWA, NFT mint, transactions, SKR token)
-  components/    40+ UI components (3D renderer, modals, care actions)
-  theme/         Design system and typography
-  data/          Game data (care variants, premium tiers)
+.
+├── App.tsx                  # entry + navigation gate (welcome → mint → tabs)
+├── src/
+│   ├── screens/             # Home, Games, Shop, Profile, Mint, NameInput, ...
+│   ├── components/          # 3D pet, modals, care actions, mini-games/
+│   ├── store/               # Zustand stores: pet, wallet, xp, shop, adventure,
+│   │                        #   personality, premium, notifications, ...
+│   ├── lib/                 # Solana (MWA, mint, transactions, SKR), analytics,
+│   │                        #   diary generator, deep links, push service
+│   ├── data/                # premium tiers, care variants
+│   └── theme/               # typography, colors
+├── workers/                 # Cloudflare Workers (separate deploys)
+│   ├── diary/               # Anthropic proxy for LLM diary entries
+│   └── push/                # Server-side return-push pipeline (D1 + cron)
+├── scripts/                 # GLB inspection / animation merge tooling
+├── docs/
+│   ├── UI_REDESIGN_IMPLEMENTATION.md
+│   └── marketing/           # pitch deck, demo scripts, voiceover, web pages
+├── plugins/                 # Expo config plugins (Solana MWA)
+├── assets/                  # images, audio, GLBs, textures
+├── android/ ios/            # native folders (checked in for prebuild flow)
+└── LEGAL/                   # privacy policy, terms
 ```
 
 ## Running Locally
@@ -85,7 +98,9 @@ npx expo run:android
 **Requirements:**
 - Node.js 18+
 - Android device with Phantom wallet installed
-- Connected to Solana devnet
+- Solana mainnet (RPC defaults to public mainnet-beta; set `EXPO_PUBLIC_HELIUS_API_KEY` in `.env` for higher rate limits)
+
+See `.env.example` for the full set of optional env vars (PostHog analytics, diary worker URL, push worker URL).
 
 ## Demo Flow
 
@@ -100,9 +115,9 @@ npx expo run:android
 
 ## Network
 
-- **Cluster**: Devnet (`https://api.devnet.solana.com`)
-- **Shop Treasury**: `FHE2gMqe3kk7JDqBQffFqJoBEQGp3DdeQ42K2pHswfJU`
-- All transactions viewable on [Solscan (devnet)](https://solscan.io/?cluster=devnet)
+- **Cluster**: Mainnet (Helius if `EXPO_PUBLIC_HELIUS_API_KEY` is set, else `api.mainnet-beta.solana.com`)
+- **Shop Treasury**: `uP7ZfsuXEcUq7LM9jSPeEZi74YJeaGuy3cbodknXhQz`
+- All transactions viewable on [Solscan](https://solscan.io)
 
 ## License
 

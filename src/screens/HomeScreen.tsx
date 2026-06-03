@@ -7,8 +7,10 @@ import { usePetStore, getPetNeeds } from '../store/petStore';
 import { useWalletStore } from '../store/walletStore';
 import { useShopStore } from '../store/shopStore';
 import { useAdventureStore } from '../store/adventureStore';
-import { PetRenderer, CareActions, ReflectionModal, type ActiveModel } from '../components';
+import { PetRenderer, CareActions, CooldownTicker, ReflectionModal, type ActiveModel } from '../components';
 import { XpBar } from '../components/XpBar';
+import { ResourcesBar } from '../components/ResourcesBar';
+import { NotificationBell } from '../components/notifications/NotificationBell';
 import { LevelUpModal } from '../components/LevelUpModal';
 import { LoginCalendar } from '../components/LoginCalendar';
 import { DialogueBubble } from '../components/DialogueBubble';
@@ -113,22 +115,22 @@ function MoodBadge({ moodText, isExcited, isUrgent }: { moodText: string; isExci
 
   if (isUrgent) {
     return (
-      <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+      <Animated.View style={{ transform: [{ scale: pulseAnim }], maxWidth: '100%' }}>
         <View
           className="flex-row items-center px-4 py-2.5 rounded-[14px] bg-red-50 border border-red-200"
           style={{ shadowColor: '#EF4444', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.15, shadowRadius: 6, elevation: 3 }}
         >
           <Text className="text-[14px] mr-1.5">{'\u26A0\uFE0F'}</Text>
-          <Text className="text-[12px] font-black text-red-500">{moodText}</Text>
+          <Text numberOfLines={2} style={{ flexShrink: 1, textAlign: 'center' }} className="text-[12px] font-black text-red-500">{moodText}</Text>
         </View>
       </Animated.View>
     );
   }
 
   return (
-    <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+    <Animated.View style={{ transform: [{ scale: pulseAnim }], maxWidth: '100%' }}>
       <View className={`px-4 py-2 rounded-[14px] border ${isExcited ? 'bg-pet-blue-dark border-pet-blue-dark' : 'bg-pet-blue border-pet-blue-dark'}`}>
-        <Text className="text-[12px] font-semibold text-white">{moodText}</Text>
+        <Text numberOfLines={2} style={{ textAlign: 'center' }} className="text-[12px] font-semibold text-white">{moodText}</Text>
       </View>
     </Animated.View>
   );
@@ -404,27 +406,14 @@ function ActivityGlance({ onNavigateGames }: { onNavigateGames?: () => void }) {
   );
 }
 
-function TrialBanner() {
-  const trialMode = usePetStore((s) => s.trialMode);
-  const connected = useWalletStore((s) => s.connected);
-  if (!trialMode || connected) return null;
-  return (
-    <View
-      pointerEvents="none"
-      className="absolute z-30"
-      style={{ top: 4, left: 0, right: 0, alignItems: 'center' }}
-    >
-      <View className="bg-pet-blue-dark/90 border border-white/30 px-3 py-1 rounded-full">
-        <Text className="text-white text-[10px] font-black tracking-[0.5px]">
-          TRIAL · TAP PROFILE TO MINT
-        </Text>
-      </View>
-    </View>
-  );
-}
-
-export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void } = {}) {
+export function HomeScreen({ onNavigateGames, paused = false }: { onNavigateGames?: () => void; paused?: boolean } = {}) {
   const [petReady, setPetReady] = useState(false);
+  // Stable identity — PetRenderer is memo()'d because the 3D Canvas is by far
+  // the heaviest thing on screen. An inline `onReady={() => setPetReady(true)}`
+  // was a fresh closure every render, so every HomeScreen state change (and
+  // this screen re-renders on a frequent `tick`) broke the memo and forced a
+  // full Canvas re-render. On a low-end Seeker that's the reported lag.
+  const handlePetReady = useCallback(() => setPetReady(true), []);
   const [splashVisible, setSplashVisible] = useState(true);
   const [reflectionModalVisible, setReflectionModalVisible] = useState(false);
   const [helpVisible, setHelpVisible] = useState(false);
@@ -516,14 +505,18 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
     shouldShowOnboarding().then((show) => { if (show) setShowOnboarding(true); });
   }, []);
 
-  // Login calendar auto-popup on daily first open
+  // Login calendar auto-popup on daily first open. Dependency must include
+  // lastLoginClaimDate so the popup re-fires when the user backgrounds the
+  // app overnight and reopens after UTC midnight — without it the check
+  // only ran once at mount and a user who never killed the app would miss
+  // their daily claim.
   const lastLoginClaimDate = useAdventureStore((s) => s.lastLoginClaimDate);
   useEffect(() => {
     const today = new Date().toISOString().slice(0, 10);
     if (lastLoginClaimDate !== today) {
       setLoginPopupVisible(true);
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [lastLoginClaimDate]);
 
   useEffect(() => {
     tick();
@@ -539,21 +532,30 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
     return () => sub.remove();
   }, [tick, generateDialogue, dialogueCtx]);
 
-  // Idle dialogue timer — every 45-90 seconds
+  // Idle dialogue timer — every 45-90 seconds. Uses a hoisted ref + a
+  // cancelled flag so that if the effect tears down WHILE a timeout's
+  // callback is mid-flight, the recursive re-schedule short-circuits and
+  // doesn't spawn a duplicate chain alongside the new effect's chain.
   const dialogueCtxRef = useRef(dialogueCtx);
   dialogueCtxRef.current = dialogueCtx;
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
+    let cancelled = false;
     const scheduleIdle = () => {
       const delay = 45000 + Math.random() * 45000;
-      return setTimeout(() => {
+      idleTimerRef.current = setTimeout(() => {
+        if (cancelled) return;
         if (activeModel === 'breathing' || activeModel === 'dancing') {
           generateIdleDialogue(dialogueCtxRef.current());
         }
-        idleTimerRef.current = scheduleIdle();
+        if (!cancelled) scheduleIdle();
       }, delay);
     };
-    const idleTimerRef = { current: scheduleIdle() };
-    return () => clearTimeout(idleTimerRef.current);
+    scheduleIdle();
+    return () => {
+      cancelled = true;
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    };
   }, [activeModel, generateIdleDialogue]);
 
   // Random event check — every 60 seconds
@@ -627,8 +629,9 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
       {/* Random Event Overlay */}
       <EventOverlay />
 
-      {/* Help button */}
-      <View className="absolute top-3 right-5 z-30">
+      {/* Help + Notifications */}
+      <View className="absolute top-3 right-5 z-30 flex-row items-center" style={{ gap: 10 }}>
+        <NotificationBell />
         <TouchableOpacity
           onPress={() => setHelpVisible(true)}
           activeOpacity={0.9}
@@ -645,15 +648,24 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
         </TouchableOpacity>
       </View>
 
-      {/* Trial mode banner — only visible if user opted into trial-without-wallet */}
-      <TrialBanner />
+      {/* Speech bubble at the SCREEN ROOT (not inside the scroll/sky box) so it
+          shares a stacking context with the header buttons and can sit ABOVE
+          the notification bell. pointerEvents="none" keeps the bell + info
+          button fully tappable underneath. zIndex 70 > the bell row's 30. */}
+      <View
+        pointerEvents="none"
+        style={{ position: 'absolute', top: 4, left: 0, right: 0, height: 90, zIndex: 70 }}
+        className="items-center"
+      >
+        {!isExcitedBurst && <DialogueBubble message={currentDialogue ?? needMessage} crownEquipped={equippedSkinKey === 'crown'} />}
+      </View>
 
       {/* Removed NOMI SKY CLUB label — space reclaimed */}
 
       <View className="absolute -top-8 -left-6 w-36 h-36 rounded-full bg-pet-blue-light/35" />
       <View className="absolute top-[340px] -right-10 w-44 h-44 rounded-full bg-pet-blue-light/40" />
       {showParty && (
-        <View pointerEvents="none" className="absolute inset-0 z-40 items-center">
+        <View pointerEvents="none" className="absolute inset-0 z-50 items-center">
           <Animated.View
             style={{
               opacity: partyAnim.interpolate({ inputRange: [0, 0.2, 1], outputRange: [0, 1, 0] }),
@@ -683,9 +695,12 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
             <SkyCloud className="top-20 right-10 scale-90" />
             <SkyCloud className="top-52 left-12 scale-75" />
             <View className="absolute inset-0 bg-white/35 rounded-b-[52px]" />
-            {!isExcitedBurst && <DialogueBubble message={currentDialogue ?? needMessage} crownEquipped={equippedSkinKey === 'crown'} />}
+            {/* DialogueBubble moved OUT of here to the screen root (below the
+                header buttons) — inside this ScrollView/overflow-hidden sky box
+                it was trapped in a lower stacking context and rendered behind
+                the notification bell. */}
             {anySadStat && <ThoughtBubble hunger={shownHunger} happiness={shownHappiness} energy={shownEnergy} />}
-            <PetRenderer activeModel={activeModel} onExcitedFinished={clearExcitedBurst} equippedSkin={equippedSkinKey} onReady={() => setPetReady(true)} loopAnimation={!!equippedAnimModel && activeModel === equippedAnimModel} />
+            <PetRenderer activeModel={activeModel} onExcitedFinished={clearExcitedBurst} equippedSkin={equippedSkinKey} onReady={handlePetReady} loopAnimation={!!equippedAnimModel && activeModel === equippedAnimModel} paused={paused} />
           </TouchInteractionLayer>
         </View>
 
@@ -716,7 +731,12 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
               {ownerName ? (
                 <Text className="text-[12px] text-gray-400 mt-1" style={{ fontFamily: petTypography.body }}>{ownerName}'s companion</Text>
               ) : null}
-              <View className="flex-row items-center gap-2 mt-2.5">
+              {/* Stacked, not side-by-side: mood strings are dynamic and can be
+                  long ("Nomi would commit minor crimes for snacks"). In a row
+                  the mood pill pushed the day-streak badge off the right edge
+                  and overflowed the card. Column layout keeps both fully
+                  visible at any text length. */}
+              <View className="items-center gap-2 mt-2.5 w-full">
                 <MoodBadge moodText={moodText} isExcited={isExcitedBurst} isUrgent={!!needMessage} />
                 {streakDays > 0 && (
                   <TouchableOpacity
@@ -738,6 +758,10 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
         <View className="px-6 mt-3">
           <XpBar />
         </View>
+
+        {/* Resources strip — coins, streak freezes, shards, free-item tokens,
+            active 2x XP timer. Auto-collapses when user has nothing yet. */}
+        <ResourcesBar />
 
         {/* Daily Quests — surfaces today's objectives so user knows what to do */}
         <DailyQuests />
@@ -765,6 +789,13 @@ export function HomeScreen({ onNavigateGames }: { onNavigateGames?: () => void }
             </View>
           </TouchableOpacity>
         </View>
+
+        {/* Cooldown ticker — visible whenever any care action is on cooldown.
+            Surfaces "feed in 2:34 / play in 1:09 / rest ready" so users can
+            decide whether to wait, switch to mini-games, or come back later
+            without diving into the modal first. Auto-hides when everything's
+            ready. */}
+        <CooldownTicker />
 
         <View className="px-6 mt-4 mb-2">
           <Text className="text-[17px] font-black text-gray-800">Care Panel</Text>

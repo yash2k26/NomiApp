@@ -1,4 +1,5 @@
 import {
+  ComputeBudgetProgram,
   Keypair,
   PublicKey,
   Transaction,
@@ -18,6 +19,7 @@ import {
   getAccountInfoRaw,
   getLatestBlockhashRaw,
   getMinimumBalanceForRentExemptionRaw,
+  getPriorityFeeMicroLamports,
   sendRawTransactionRaw,
   confirmTransactionRaw,
 } from './solanaClient';
@@ -87,6 +89,34 @@ export async function getSkrBalance(address: string): Promise<number> {
   } catch (err) {
     console.warn('[skrToken] getSkrBalance error:', err);
     return 0;
+  }
+}
+
+/**
+ * Like `getSkrBalance` but distinguishes "RPC failed / account missing" from
+ * "zero balance." Returns { value, ok, accountMissing } so the UI can render
+ * a meaningful state instead of just showing 0.
+ *   - ok=true, accountMissing=false → real balance
+ *   - ok=true, accountMissing=true  → wallet has no SKR account yet (true zero)
+ *   - ok=false                      → RPC failed, balance unknown
+ */
+export async function getSkrBalanceSafe(address: string): Promise<{ value: number; ok: boolean; accountMissing: boolean }> {
+  try {
+    const mint = await getActiveSkrMint();
+    const owner = new PublicKey(address);
+    const ata = findAssociatedTokenAddress(owner, mint);
+
+    const accountInfo = await getAccountInfoRaw(ata);
+    if (!accountInfo) return { value: 0, ok: true, accountMissing: true };
+
+    const data = accountInfo.data;
+    if (data.length < 72) return { value: 0, ok: true, accountMissing: false };
+
+    const rawAmount = data.readBigUInt64LE(64);
+    return { value: Number(rawAmount) / Math.pow(10, SKR_DECIMALS), ok: true, accountMissing: false };
+  } catch (err) {
+    console.warn('[skrToken] getSkrBalanceSafe failed:', (err as any)?.message ?? err);
+    return { value: 0, ok: false, accountMissing: false };
   }
 }
 
@@ -206,11 +236,14 @@ export async function transferSkr(
     const recipient = new PublicKey(recipientAddress);
     const senderAta = findAssociatedTokenAddress(payer, mint);
     const recipientAta = findAssociatedTokenAddress(recipient, mint);
-    const { blockhash, lastValidBlockHeight } = await getLatestBlockhashRaw();
 
     const rawAmount = BigInt(Math.round(amount * Math.pow(10, SKR_DECIMALS)));
 
     const tx = new Transaction();
+    try {
+      const microLamports = await getPriorityFeeMicroLamports();
+      tx.add(ComputeBudgetProgram.setComputeUnitPrice({ microLamports }));
+    } catch {}
 
     // Create recipient ATA if it doesn't exist
     const recipientAtaInfo = await getAccountInfoRaw(recipientAta);
@@ -233,6 +266,9 @@ export async function transferSkr(
     }
 
     tx.feePayer = payer;
+    // Fetch blockhash as late as possible to maximize validity window when
+    // the user takes their time on the wallet approval prompt.
+    const { blockhash, lastValidBlockHeight } = await getLatestBlockhashRaw();
     tx.recentBlockhash = blockhash;
 
     const signedTxs = await wallet.signTransactions({ transactions: [tx] });

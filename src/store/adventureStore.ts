@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { events } from '../lib/analytics';
 
 const ADVENTURE_STORAGE_KEY = 'oracle-pet-adventure';
 
@@ -90,6 +91,18 @@ export interface LootReward {
   skr: number; // SKR token reward
   shard: boolean;
   freeItem: boolean;
+}
+
+// Loot/event `coins` and `skr` are stored as small fractions — a legacy of
+// when they mapped onto on-chain SOL/SKR amounts. The actual game economy
+// (shop prices 50–1000, balance shown with thousands separators, daily caps
+// of 250/150/100) is denominated in WHOLE coins. The reveal modal already
+// scaled by 100 for display, but the credit path + toast used the raw
+// fraction — so a "+82 / +173 coins" reveal only added ~3 coins (Jordan's
+// bug report, May 2026). Display and credit MUST use this one conversion so
+// they can never diverge again.
+export function lootCoinsToDisplay(fraction: number): number {
+  return Math.round((fraction ?? 0) * 100);
 }
 
 function rollLoot(zone: AdventureZone, statsBonus: boolean): LootReward {
@@ -250,6 +263,10 @@ interface AdventureState {
   activeAdventure: ActiveAdventure | null;
   completedAdventures: number;
   pendingLoot: LootReward | null; // set when adventure completes, cleared when user opens it
+  /** Date.now() of when pendingLoot was created. Used so a stale
+   *  unclaimed loot from days ago doesn't reappear when the user comes
+   *  back. null when pendingLoot is null. */
+  pendingLootCreatedAt: number | null;
   // Evolution
   evolutionShards: number;
   evolutionStage: number; // 1-5
@@ -276,6 +293,10 @@ interface AdventureActions {
   claimAdventureLoot: () => LootReward | null;
   // Spin
   canSpinToday: () => boolean;
+  /** Authoritative free-vs-paid + cost for the NEXT spin — computed with the
+   *  same premium/level-perk logic as doSpin so the UI never charges SOL for a
+   *  spin the store treats as free (Pro = 3 free spins/day at 0 cost). */
+  getSpinState: () => { isFreeSpin: boolean; cost: number };
   doSpin: () => SpinResult | null;
   claimSpinReward: (result: SpinResult) => void;
   // Login
@@ -293,7 +314,7 @@ interface AdventureActions {
 
 type AdventureStore = AdventureState & AdventureActions;
 
-function saveAdventureState(state: AdventureState) {
+export function saveAdventureState(state: AdventureState): Promise<void> {
   const data: Record<string, any> = {};
   const keys: (keyof AdventureState)[] = [
     'activeAdventure', 'completedAdventures', 'pendingLoot',
@@ -305,13 +326,19 @@ function saveAdventureState(state: AdventureState) {
   for (const key of keys) {
     data[key] = state[key];
   }
-  AsyncStorage.setItem(ADVENTURE_STORAGE_KEY, JSON.stringify(data)).catch(() => {});
+  // Stamp pendingLoot creation time so hydrate can drop it if it's been
+  // sitting unclaimed for too long (currently >7 days). Stored as a
+  // separate top-level field rather than inside the LootReward to avoid
+  // changing the type — pulled out at hydrate.
+  data.pendingLootCreatedAt = (state as any).pendingLootCreatedAt ?? null;
+  return AsyncStorage.setItem(ADVENTURE_STORAGE_KEY, JSON.stringify(data)).catch(() => {});
 }
 
 export const useAdventureStore = create<AdventureStore>((set, get) => ({
   activeAdventure: null,
   completedAdventures: 0,
   pendingLoot: null,
+  pendingLootCreatedAt: null,
   evolutionShards: 0,
   evolutionStage: 1,
   lastSpinDate: '',
@@ -367,6 +394,8 @@ export const useAdventureStore = create<AdventureStore>((set, get) => ({
       ps.updateTraits('adventure_start');
     } catch {}
 
+    events.adventureStarted({ zone: zone.id, duration_min: Math.round(zone.durationMs / 60000) });
+
     return true;
   },
 
@@ -385,10 +414,40 @@ export const useAdventureStore = create<AdventureStore>((set, get) => ({
 
     set({
       pendingLoot: loot,
+      pendingLootCreatedAt: Date.now(),
       activeAdventure: null,
       completedAdventures: get().completedAdventures + 1,
     });
     saveAdventureState(get());
+
+    events.adventureCompleted({
+      zone: zone.id,
+      xp: loot.xp,
+      coins: loot.coins,
+      shards: loot.shard ? 1 : 0,
+    });
+
+    // Surface completion immediately. Without this, the user only finds out
+    // their adventure finished by navigating back to the AdventureCard —
+    // dead time turns into "did anything happen?" Toast fires regardless of
+    // current screen so the user can claim from anywhere via the bell.
+    try {
+      const { notify } = require('../lib/notify');
+      const rarity = (loot.rarity ?? 'common').toString();
+      const rarityLabel = rarity.charAt(0).toUpperCase() + rarity.slice(1);
+      const parts: string[] = [];
+      if (loot.xp > 0) parts.push(`+${loot.xp} XP`);
+      const totalCoins = lootCoinsToDisplay(loot.coins) + lootCoinsToDisplay(loot.skr);
+      if (totalCoins > 0) parts.push(`+${totalCoins} coins`);
+      if (loot.shard) parts.push('+1 shard');
+      if (loot.freeItem) parts.push('+1 free item');
+      notify.success(
+        `${zone.name} complete!`,
+        `${rarityLabel} loot ready · tap to claim · ${parts.join(' · ')}`,
+        { category: 'reward' },
+      );
+    } catch {}
+
     return true;
   },
 
@@ -396,27 +455,47 @@ export const useAdventureStore = create<AdventureStore>((set, get) => ({
     const { pendingLoot } = get();
     if (!pendingLoot) return null;
 
+    // Re-entry guard: clear pendingLoot FIRST. Without this, a double-tap
+    // on the claim button would award XP/coins/shards twice before the
+    // store finished updating. Setting state first means the second call
+    // hits the `if (!pendingLoot) return null` early-out above.
+    set({ pendingLoot: null, pendingLootCreatedAt: null });
+    saveAdventureState(get());
+
     // Award XP
     try {
       const xpStore = require('./xpStore').useXpStore.getState();
       xpStore.addXp(pendingLoot.xp, 'adventure');
     } catch {}
 
-    // Award coins
-    if (pendingLoot.coins > 0) {
+    // Award coins + skr to the in-app wallet (single unified game currency).
+    // Real SOL/SKR balances are chain truth — never written here.
+    // Source 'adventure' is daily-capped in walletStore to deter farming.
+    const totalCoins = lootCoinsToDisplay(pendingLoot.coins) + lootCoinsToDisplay(pendingLoot.skr);
+    if (totalCoins > 0) {
       try {
         const walletStore = require('./walletStore').useWalletStore.getState();
-        walletStore.addBalance?.(pendingLoot.coins);
+        walletStore.addAppCoins?.(totalCoins, 'adventure');
       } catch {}
     }
 
-    // Award SKR tokens
-    if (pendingLoot.skr > 0) {
-      try {
-        const walletStore = require('./walletStore').useWalletStore.getState();
-        walletStore.addSkr?.(pendingLoot.skr);
-      } catch {}
-    }
+    // Surface what the user got — coins/XP/shards in one toast. The cap
+    // notification (if hit) fires separately from walletStore.addAppCoins.
+    try {
+      const { notify } = require('../lib/notify');
+      const parts: string[] = [];
+      if (pendingLoot.xp > 0) parts.push(`+${pendingLoot.xp} XP`);
+      if (totalCoins > 0) parts.push(`+${totalCoins} coins`);
+      if (pendingLoot.shard) parts.push('+1 shard');
+      if (pendingLoot.freeItem) parts.push('+1 free item token');
+      const rarity = (pendingLoot.rarity ?? '').toString();
+      const rarityLabel = rarity ? rarity.charAt(0).toUpperCase() + rarity.slice(1) : 'Common';
+      notify.success(
+        `${rarityLabel} loot claimed`,
+        parts.join(' · '),
+        { category: 'reward' },
+      );
+    } catch {}
 
     // Award shard
     if (pendingLoot.shard) {
@@ -433,7 +512,9 @@ export const useAdventureStore = create<AdventureStore>((set, get) => ({
       ps.setCurrentDialogue(mod.getActionDialogue('adventure_complete', ps.traits, ownerName));
     } catch {}
 
-    set({ pendingLoot: null });
+    // pendingLoot was already cleared at the top of this function as a
+    // re-entry guard; the rewards have now been applied. Persist the final
+    // state (in case other actions like addXp mutated it).
     saveAdventureState(get());
     return pendingLoot;
   },
@@ -456,6 +537,26 @@ export const useAdventureStore = create<AdventureStore>((set, get) => ({
     } catch {}
     if (lastSpinDate !== today) return true; // first spin of the day
     return extraSpinsToday < (spinConfig.maxFreeSpins - 1 + spinConfig.maxPaidSpins);
+  },
+
+  getSpinState: () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const { lastSpinDate, extraSpinsToday } = get();
+    let spinConfig = { maxFreeSpins: 1, maxPaidSpins: 3, paidSpinCost: 0.2 };
+    try {
+      const { getPremiumSpinConfig } = require('./premiumStore');
+      spinConfig = getPremiumSpinConfig();
+    } catch {}
+    try {
+      const { getPerksForLevel } = require('./xpStore');
+      const level = require('./xpStore').useXpStore.getState().level;
+      spinConfig.maxFreeSpins += getPerksForLevel(level).freeSpinBonus;
+    } catch {}
+    // Mirror doSpin exactly: spinsUsedToday < totalFreeSpins ⇒ free.
+    const isNewDay = lastSpinDate !== today;
+    const spinsUsedToday = isNewDay ? 0 : extraSpinsToday + 1;
+    const isFreeSpin = spinsUsedToday < spinConfig.maxFreeSpins;
+    return { isFreeSpin, cost: isFreeSpin ? 0 : spinConfig.paidSpinCost };
   },
 
   doSpin: () => {
@@ -498,12 +599,19 @@ export const useAdventureStore = create<AdventureStore>((set, get) => ({
     }
 
     const segmentIndex = spinWheel();
-    const result = SPIN_SEGMENTS[segmentIndex];
+    const result = SPIN_SEGMENTS[segmentIndex] ?? SPIN_SEGMENTS[0];
 
-    // Only track spin usage — rewards applied on claim
+    // Track spin usage. CRITICAL: counter must increment on EVERY spin (free
+    // or paid). Previously this branched `isFreeSpin ? 0 : extraSpinsToday + 1`
+    // which reset to zero on every free spin — fine for the default 1-free
+    // case (only first spin is free), but for premium users (3 free) or any
+    // user with the level-perk free-spin bonus (maxFreeSpins >= 2), the second
+    // free spin would also reset the counter, leaving the user able to spin
+    // forever. Real revenue exploit. Now we always increment after the first
+    // spin of the day (which is gated by isNewDay above).
     set({
       lastSpinDate: today,
-      extraSpinsToday: isFreeSpin ? 0 : extraSpinsToday + 1,
+      extraSpinsToday: isNewDay ? 0 : extraSpinsToday + 1,
     });
     saveAdventureState(get());
     return result;
@@ -549,6 +657,13 @@ export const useAdventureStore = create<AdventureStore>((set, get) => ({
 
   // ── Login Calendar ──
   claimLoginReward: () => {
+    // Run the missed-day reset FIRST so the day we're about to claim is
+    // correct no matter who calls us first. Previously this relied on the
+    // caller (hydrate vs UI) invoking checkLoginCalendarReset beforehand —
+    // wrong ordering let a returning user claim a higher day's reward instead
+    // of restarting at Day 1 (or skip a day). Idempotent: no-op if no day was
+    // missed.
+    get().checkLoginCalendarReset();
     const today = new Date().toISOString().slice(0, 10);
     const { lastLoginClaimDate, currentLoginDay, loginCalendar } = get();
 
@@ -633,13 +748,27 @@ export const useAdventureStore = create<AdventureStore>((set, get) => ({
     if (lastLoginClaimDate && lastLoginClaimDate !== today) {
       const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
       if (lastLoginClaimDate !== yesterday) {
-        // Missed a day — reset!
+        // Missed a day — reset! Capture the day count we lost so we can
+        // surface it to the user. Silent wipe was the worst part of this
+        // path: a user opening the app after a 1-day gap saw "Day 1" with
+        // no explanation that their 5-day streak just got nuked.
+        const lostDays = currentLoginDay;
         set({
           loginCalendar: createFreshCalendar(),
           currentLoginDay: 0,
           loginCalendarStartDate: '',
         });
         saveAdventureState(get());
+        if (lostDays >= 2) {
+          try {
+            const { notify } = require('../lib/notify');
+            notify.warning(
+              'Login calendar reset',
+              `You missed a day, so the 7-day calendar restarted. You had reached Day ${lostDays}.`,
+              { category: 'streak' },
+            );
+          } catch {}
+        }
       }
     }
 
@@ -720,10 +849,27 @@ export const useAdventureStore = create<AdventureStore>((set, get) => ({
       if (!raw) return;
       const data = JSON.parse(raw);
 
+      // Stale-loot guard: pendingLoot is captured when an adventure
+      // completes, but if the user never claims it, the loot survives across
+      // sessions indefinitely. After 7 days the loot has likely diverged
+      // from the current game state (zone configs, balancing, items in shop)
+      // and the user has long forgotten what triggered it. Drop it silently
+      // — they didn't lose anything they were aware of.
+      const STALE_LOOT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+      let restoredLoot = data.pendingLoot ?? null;
+      let restoredLootCreatedAt: number | null = typeof data.pendingLootCreatedAt === 'number' ? data.pendingLootCreatedAt : null;
+      if (restoredLoot && restoredLootCreatedAt != null) {
+        if (Date.now() - restoredLootCreatedAt > STALE_LOOT_MAX_AGE_MS) {
+          restoredLoot = null;
+          restoredLootCreatedAt = null;
+        }
+      }
+
       set({
         activeAdventure: data.activeAdventure ?? null,
         completedAdventures: data.completedAdventures ?? 0,
-        pendingLoot: data.pendingLoot ?? null,
+        pendingLoot: restoredLoot,
+        pendingLootCreatedAt: restoredLootCreatedAt,
         evolutionShards: data.evolutionShards ?? 0,
         evolutionStage: data.evolutionStage ?? 1,
         lastSpinDate: data.lastSpinDate ?? '',

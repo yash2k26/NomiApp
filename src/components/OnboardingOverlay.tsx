@@ -16,9 +16,14 @@ interface Step {
 
 const STEPS: Step[] = [
   { emoji: '\u{1F43E}', title: 'Meet Your Pet', desc: 'Feed, play, and rest to keep Nomi happy. Watch mood and stats change in real-time.' },
-  { emoji: '\u{1F3AE}', title: 'Games & Adventures', desc: 'Play mini-games, send Nomi on adventures, and earn loot with real on-chain rewards.' },
-  { emoji: '\u{1F6CD}\uFE0F', title: 'Shop & Customize', desc: 'Buy skins and animations with SOL or SKR tokens. All purchases are on-chain.' },
-  { emoji: '\u26D3\uFE0F', title: 'Powered by Solana', desc: 'Real NFT minting, wallet integration via Mobile Wallet Adapter, and SKR token economy.' },
+  { emoji: '\u{1F3AE}', title: 'Games & Adventures', desc: 'Play mini-games, send Nomi on adventures, and earn loot rewards in your in-game wallet.' },
+  // Critical clarity slide \u2014 every new user was conflating in-game Coins with
+  // on-chain SOL/SKR tokens. The "rewards never reached my wallet" bug
+  // reports were almost entirely this confusion. Spelling it out before the
+  // user touches the shop fixes most support questions.
+  { emoji: '\u{1F4B0}', title: 'Two Wallets, Not One', desc: 'SOL and SKR are real tokens in your Solana wallet. Nomi Coins are in-game currency that lives only inside the app \u2014 you earn them from gameplay and spend them in the shop.' },
+  { emoji: '\u{1F6CD}\uFE0F', title: 'Shop & Customize', desc: 'Buy skins and animations with SOL, SKR, or Nomi Coins. Choose how you want to pay at checkout.' },
+  { emoji: '\u26D3\uFE0F', title: 'Powered by Solana', desc: 'Real NFT minting, wallet integration via Mobile Wallet Adapter, and SKR token economy. Every paid action has a Solscan link so you can verify on chain.' },
 ];
 
 export function OnboardingOverlay({ onDone }: { onDone: () => void }) {

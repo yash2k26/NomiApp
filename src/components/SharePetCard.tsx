@@ -4,6 +4,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import ViewShot, { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
+import { notify } from '../lib/notify';
+import { captureError } from '../lib/analytics';
 import { usePetStore } from '../store/petStore';
 import { useXpStore, getTitleForLevel } from '../store/xpStore';
 import { useWalletStore } from '../store/walletStore';
@@ -140,17 +142,45 @@ export function SharePetCard() {
   const cardRef = useRef<ViewShot>(null);
 
   const handleShare = useCallback(async () => {
+    let uri: string | null = null;
     try {
-      const uri = await captureRef(cardRef, {
+      uri = await captureRef(cardRef, {
         format: 'png',
         quality: 1,
         result: 'tmpfile',
       });
+    } catch (err: any) {
+      // Capture failed — usually low memory or unmounted ref. Surface
+      // something so the user doesn't think the button is broken.
+      captureError(err, { surface: 'share_capture' });
+      notify.error("Couldn't take screenshot", 'Try again in a moment, or restart the app if this keeps happening.');
+      return;
+    }
+
+    try {
+      // Sharing.isAvailableAsync handles the unsupported-platform case
+      // (some Android device variants without a share intent handler).
+      const available = await Sharing.isAvailableAsync().catch(() => false);
+      if (!available) {
+        notify.warning('Sharing unavailable', 'This device doesn\'t support the share sheet.');
+        return;
+      }
       await Sharing.shareAsync(uri, {
         mimeType: 'image/png',
         dialogTitle: `${name} - My Nomi Companion`,
       });
-    } catch {}
+    } catch (err: any) {
+      // shareAsync throws on cancel on some platforms — distinguish if we
+      // can. The expo-sharing API doesn't expose typed reasons, so we err
+      // on the side of NOT spamming the user about a cancel; only show an
+      // error when the message clearly indicates failure rather than dismiss.
+      const msg = String(err?.message ?? '');
+      const looksLikeCancel = /cancel|dismiss|abort/i.test(msg);
+      if (!looksLikeCancel) {
+        captureError(err, { surface: 'share_dialog' });
+        notify.error("Couldn't open share sheet", 'Try again in a moment.');
+      }
+    }
   }, [name]);
 
   return (

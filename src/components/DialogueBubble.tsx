@@ -75,7 +75,7 @@ export const DialogueBubble = memo(function DialogueBubble({ message, crownEquip
         transform: [{ scale: bounceAnim }],
         top: crownEquipped ? 4 : 12,
       }}
-      className="absolute left-0 right-0 z-20 items-center px-5"
+      className="absolute left-0 right-0 z-[60] items-center px-5"
     >
       <View
         className="bg-white px-4 py-2 rounded-[20px] border border-pet-blue-light/70"
@@ -84,7 +84,12 @@ export const DialogueBubble = memo(function DialogueBubble({ message, crownEquip
           shadowOffset: { width: 0, height: 4 },
           shadowOpacity: 0.12,
           shadowRadius: 8,
-          elevation: 4,
+          // Elevation must beat the header buttons (notification bell + info
+          // lightbulb sit at elevation 8). On Android elevation — not zIndex —
+          // decides draw order for overlapping views, so a lower value here
+          // let the buttons render ON TOP of the speech text and cover it.
+          elevation: 14,
+          zIndex: 60,
           maxWidth: '90%',
         }}
       >

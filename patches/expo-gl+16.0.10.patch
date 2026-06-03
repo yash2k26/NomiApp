@@ -1,0 +1,50 @@
+diff --git a/node_modules/expo-gl/build/GLView.js b/node_modules/expo-gl/build/GLView.js
+index 7d4873c..7c036ff 100644
+--- a/node_modules/expo-gl/build/GLView.js
++++ b/node_modules/expo-gl/build/GLView.js
+@@ -81,11 +81,30 @@ export class GLView extends React.Component {
+         this.nativeRef = nativeRef;
+     };
+     _onSurfaceCreate = ({ nativeEvent: { exglCtxId } }) => {
+-        const gl = getGl(exglCtxId);
+         this.exglCtxId = exglCtxId;
+-        if (this.props.onContextCreate) {
+-            this.props.onContextCreate(gl);
+-        }
++        // PATCHED (race fix): On the New Architecture (Fabric) the surface-create
++        // event can arrive BEFORE the native GL context is registered in
++        // global.__EXGLContexts, so getGl() returned undefined and
++        // configureLogging(undefined) threw "Cannot set property
++        // '__expoSetLogging' of undefined" — leaving the 3D dead and needing a
++        // Retry. Instead of reading once, poll briefly until the context is
++        // registered, then hand the real gl to the caller.
++        const emit = (attempt) => {
++            const gl = global.__EXGLContexts ? global.__EXGLContexts[String(exglCtxId)] : undefined;
++            if (gl) {
++                try { configureLogging(gl); } catch (e) { }
++                if (this.props.onContextCreate) {
++                    this.props.onContextCreate(gl);
++                }
++            } else if (attempt < 30) {
++                setTimeout(() => emit(attempt + 1), 16);
++            } else if (this.props.onContextCreate) {
++                // Genuinely unavailable after ~0.5s — hand back undefined rather
++                // than crash; the app's loading/retry UI takes over.
++                this.props.onContextCreate(gl);
++            }
++        };
++        emit(0);
+     };
+     componentWillUnmount() {
+         if (this.exglCtxId) {
+@@ -150,7 +169,9 @@ const getGl = (exglCtxId) => {
+         throw new CodedError('ERR_GL_NOT_AVAILABLE', 'GL is currently not available. (Have you enabled remote debugging? GL is not available while debugging remotely.)');
+     }
+     const gl = global.__EXGLContexts[String(exglCtxId)];
+-    configureLogging(gl);
++    // PATCHED: guard — context may not be registered yet (Fabric race). Calling
++    // configureLogging(undefined) threw "Cannot set property of undefined".
++    if (gl) configureLogging(gl);
+     return gl;
+ };
+ const getContextId = (exgl) => {

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Dimensions } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Dimensions, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { usePetStore } from '../store/petStore';
@@ -26,6 +26,21 @@ export function NameInputScreen({ onComplete }: NameInputScreenProps) {
     onComplete();
   };
 
+  // Back from this screen actually disconnects the wallet (the only previous
+  // gate). The previous "Back" label hid that — users tapped it expecting to
+  // edit a prior step and were surprised to find themselves at the connect
+  // screen. Confirm before doing it.
+  const handleBack = () => {
+    Alert.alert(
+      'Disconnect wallet?',
+      'Going back will disconnect your wallet. You\'ll need to reconnect to continue.',
+      [
+        { text: 'Stay', style: 'cancel' },
+        { text: 'Disconnect', style: 'destructive', onPress: () => disconnectWallet() },
+      ],
+    );
+  };
+
   return (
     <View className="flex-1">
       <LinearGradient
@@ -47,13 +62,13 @@ export function NameInputScreen({ onComplete }: NameInputScreenProps) {
       />
 
       <TouchableOpacity
-        onPress={disconnectWallet}
+        onPress={handleBack}
         activeOpacity={0.7}
         style={{ position: 'absolute', top: 56, left: 20, zIndex: 10 }}
       >
         <View className="flex-row items-center bg-white/15 border border-white/25 px-3 py-1.5 rounded-full">
-          <MaterialCommunityIcons name="arrow-left" size={14} color="#ffffff" style={{ marginRight: 4 }} />
-          <Text className="text-white text-[11px] font-bold tracking-[0.4px]">Back</Text>
+          <MaterialCommunityIcons name="logout" size={14} color="#ffffff" style={{ marginRight: 4 }} />
+          <Text className="text-white text-[11px] font-bold tracking-[0.4px]">Disconnect</Text>
         </View>
       </TouchableOpacity>
 

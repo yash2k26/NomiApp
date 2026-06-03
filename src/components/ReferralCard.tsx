@@ -8,57 +8,108 @@
  * wallets and credit both sides. Hackathon scope = local + share UX is enough
  * to validate the loop.
  */
-import { useState } from 'react';
-import { View, Text, TouchableOpacity, TextInput, Share, Alert } from 'react-native';
+import { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, TextInput, Share, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { useWalletStore } from '../store/walletStore';
 import { usePetStore } from '../store/petStore';
 import { petTypography } from '../theme/typography';
+import { buildReferralUrl, getPendingReferral, clearPendingReferral } from '../lib/deepLinks';
+import { events, captureError } from '../lib/analytics';
+import { submitReferralOnChain } from '../lib/referralProgram';
+import { parseTxError } from '../lib/transactionErrors';
+import { notify } from '../lib/notify';
 
 const REFERRAL_BONUS_SKR = 25;
 
 export function ReferralCard() {
   const address = useWalletStore((s) => s.address);
-  const addSkr = useWalletStore((s) => s.addSkr);
+  const authToken = useWalletStore((s) => s.authToken);
+  const addAppCoins = useWalletStore((s) => s.addAppCoins);
   const referralRedeemed = usePetStore((s) => s.referralRedeemed);
   const [code, setCode] = useState('');
   const [showInput, setShowInput] = useState(false);
+  const [redeeming, setRedeeming] = useState(false);
 
   const myCode = address ? `${address.slice(0, 6)}-${address.slice(-4)}` : '—';
   const myFullCode = address || '';
 
+  // Auto-fill from a pending deep-link referral. Open the redeem input so the
+  // user lands on it with one tap to claim.
+  useEffect(() => {
+    if (referralRedeemed) return;
+    let cancelled = false;
+    getPendingReferral().then((pending) => {
+      if (cancelled || !pending) return;
+      if (pending.toLowerCase() === myFullCode.toLowerCase()) return;
+      setCode(pending);
+      setShowInput(true);
+    });
+    return () => { cancelled = true; };
+  }, [referralRedeemed, myFullCode]);
+
   const handleShare = async () => {
     if (!myFullCode) return;
     try {
+      const link = buildReferralUrl(myFullCode);
       await Share.share({
-        message: `Hey! I'm playing Nomi 🐾 — pick up your own companion on Solana. Use my referral code to get a bonus: ${myCode}\n\noraclepet://?ref=${myFullCode}`,
+        message: `Hey! I'm playing Nomi 🐾 — pick up your own companion on Solana. Use my referral code to get a bonus: ${myCode}\n\n${link}`,
       });
+      events.shareTriggered({ surface: 'referral' });
       Haptics.selectionAsync();
     } catch {}
   };
 
-  const handleRedeem = () => {
+  const handleRedeem = async () => {
+    if (redeeming) return;
     if (referralRedeemed) {
-      Alert.alert('Already Redeemed', 'You can only redeem one referral code.');
+      notify.warning('Already redeemed', 'You can only redeem one referral code.');
       return;
     }
     const trimmed = code.trim();
     if (trimmed.length < 8) {
-      Alert.alert('Invalid Code', 'Paste your friend\'s referral code.');
+      notify.warning('Invalid code', "Paste your friend's referral code.");
       return;
     }
     if (trimmed.toLowerCase() === myFullCode.toLowerCase() || trimmed.toLowerCase() === myCode.toLowerCase()) {
-      Alert.alert('Nope', 'You can\'t redeem your own code.');
+      notify.warning('Nope', "You can't redeem your own code.");
       return;
     }
-    // Local trust — bump SKR and lock further redemption
-    addSkr(REFERRAL_BONUS_SKR);
-    usePetStore.setState({ referralRedeemed: true });
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setCode('');
-    setShowInput(false);
-    Alert.alert('Bonus Unlocked!', `+${REFERRAL_BONUS_SKR} SKR added to your wallet. Your friend will get a bonus too on their next mint.`);
+    if (!authToken || !myFullCode) {
+      notify.warning('Wallet disconnected', 'Reconnect your wallet to redeem.');
+      return;
+    }
+
+    setRedeeming(true);
+    try {
+      // Submit the redemption as an on-chain memo — Solana network fee only.
+      // The memo is the audit trail for treasury reconciliation later.
+      await submitReferralOnChain(authToken, trimmed, myFullCode);
+      // Source 'referral' is uncapped — one-time bonus per user; pass for
+      // analytics/audit trail consistency only.
+      addAppCoins(REFERRAL_BONUS_SKR, 'referral');
+      usePetStore.setState({ referralRedeemed: true });
+      events.referralRedeemed({ referrer_address: trimmed });
+      clearPendingReferral();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setCode('');
+      setShowInput(false);
+      notify.success(
+        'Bonus unlocked!',
+        `+${REFERRAL_BONUS_SKR} Nomi coins · friend gets credited on next reconcile.`,
+        { category: 'social' },
+      );
+    } catch (err: any) {
+      const parsed = parseTxError(err);
+      if (parsed.type !== 'cancelled') {
+        captureError(err, { surface: 'referral_redeem' });
+        notify.error(parsed.title, parsed.message, { category: 'social' });
+      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setRedeeming(false);
+    }
   };
 
   return (
@@ -79,7 +130,7 @@ export function ReferralCard() {
           </Text>
         </View>
         <View className="bg-white/30 px-2.5 py-1 rounded-full">
-          <Text className="text-[10px] font-bold text-white">+{REFERRAL_BONUS_SKR} SKR each</Text>
+          <Text className="text-[10px] font-bold text-white">+{REFERRAL_BONUS_SKR} coins each</Text>
         </View>
       </LinearGradient>
 
@@ -112,9 +163,13 @@ export function ReferralCard() {
                     className="text-[13px] font-semibold text-gray-700"
                   />
                 </View>
-                <TouchableOpacity onPress={handleRedeem} activeOpacity={0.8}>
-                  <View className="bg-pet-blue-dark px-4 py-2.5 rounded-2xl">
-                    <Text className="text-[11px] font-black text-white">REDEEM</Text>
+                <TouchableOpacity onPress={handleRedeem} disabled={redeeming} activeOpacity={0.8}>
+                  <View className="bg-pet-blue-dark px-4 py-2.5 rounded-2xl" style={{ minWidth: 78, alignItems: 'center' }}>
+                    {redeeming ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text className="text-[11px] font-black text-white">REDEEM</Text>
+                    )}
                   </View>
                 </TouchableOpacity>
               </View>

@@ -1,6 +1,9 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useXpStore } from './xpStore';
+import { events } from '../lib/analytics';
+
+export const STREAK_REPAIR_WINDOW_MS = 48 * 60 * 60 * 1000; // 48 hours
 
 export type PetMood = 'excited' | 'happy' | 'content' | 'tired' | 'hungry' | 'sad';
 export type PetSkin = 'default' | 'headphones';
@@ -23,7 +26,9 @@ export const COOLDOWN_DURATIONS: Record<string, number> = {
   feed: 5 * 60 * 1000,       // 5 minutes per feed variant
   play: 8 * 60 * 1000,       // 8 minutes per play variant
   rest: 10 * 60 * 1000,      // 10 minutes per rest variant
-  reflect: 4 * 60 * 60 * 1000, // 4 hours
+  reflect: 30 * 60 * 1000, // 30 minutes — short enough that the personality
+                           // and diary system (which only fire on reflect) is
+                           // actually reachable in a normal play session.
   miniGame_memory: 15 * 60 * 1000,  // 15 minutes
   miniGame_quicktap: 15 * 60 * 1000,
   miniGame_pattern: 20 * 60 * 1000,  // 20 minutes
@@ -135,11 +140,25 @@ interface PetState {
   // Streak freeze — preserve streak when missing a day
   streakFreezes: number;
   lastFreezeRefillDate: string; // ISO date when last weekly free freeze was granted
-  // Pre-mint trial mode — try the app without a wallet
-  trialMode: boolean;
-  trialStartedAt: number;
+  // Post-break repair offer — when streak resets from a meaningful length, the
+  // last value is preserved so the user can pay/spend a freeze to restore it.
+  // 0 / 0 means no offer active.
+  lastBrokenStreak: number;
+  streakBrokenAt: number; // Date.now() of break; offer expires after STREAK_REPAIR_WINDOW_MS
+  // Welcome-back bonus tracking — populated when a returning user (pet found
+  // via holdings scan, no local progress) is granted a one-time apology
+  // package. Persisted so the modal doesn't re-fire and the bonus doesn't
+  // re-apply on subsequent app launches.
+  welcomeBackBonusAppliedAt: number; // 0 if never applied
   // Referral — has the user already redeemed a friend's referral code
   referralRedeemed: boolean;
+  // Tracks which NFT we've already written a retroactive `oracle-pet:mint`
+  // memo for. Without this, the purchaseRestore flow would re-write a fresh
+  // memo on every single app open whenever the memo-lookup RPC call gets
+  // rate-limited and silently returns empty — burning real tx fees and
+  // popping a wallet prompt every launch. We saw users in the wild with 7+
+  // duplicate mint memos for the same NFT before this guard existed.
+  retroactiveMintMemoWrittenFor: string | null;
 }
 
 interface PetActions {
@@ -160,6 +179,11 @@ interface PetActions {
   clearExcitedBurst: () => void;
   // Stamina
   getStamina: () => number; // computed stamina after regen
+  // Streak-break repair offer — `applyStreakRepair` restores streakDays to the
+  // pre-break value and clears the offer; pass useFreeze: true to also consume
+  // a streak freeze (free path). Direct/paid paths handle payment in the caller.
+  applyStreakRepair: (opts?: { useFreeze?: boolean; cost_sol?: number; cost_skr?: number }) => void;
+  dismissStreakRepair: () => void;
   consumeStamina: (amount: number) => boolean; // returns false if not enough
   canAffordStamina: (action: string) => boolean;
   // Cooldowns
@@ -172,6 +196,7 @@ interface PetActions {
   performCareAction: (variantId: string) => boolean;
   // On-chain restore
   restoreFromChain: (data: { streak: number; name: string; lastActive: string }) => void;
+  restoreFromMint: (data: { mintAddress: string; mintTxSignature: string; name: string; ownerName: string }) => void;
 }
 
 type PetStore = PetState & PetActions;
@@ -222,16 +247,18 @@ const PERSISTED_KEYS: (keyof PetState)[] = [
   'skin', 'hasPet', 'lastTickAt', 'lastActiveDate', 'streakDays',
   'stamina', 'lastStaminaRegenAt', 'cooldowns', 'lastBlessingAt',
   'streakFreezes', 'lastFreezeRefillDate',
-  'trialMode', 'trialStartedAt',
+  'lastBrokenStreak', 'streakBrokenAt',
+  'welcomeBackBonusAppliedAt',
   'referralRedeemed',
+  'retroactiveMintMemoWrittenFor',
 ];
 
-export function savePetState(state: PetState) {
+export function savePetState(state: PetState): Promise<void> {
   const data: Record<string, any> = {};
   for (const key of PERSISTED_KEYS) {
     data[key] = state[key];
   }
-  AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data)).catch(() => { });
+  return AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data)).catch(() => { });
 }
 
 export async function hydratePetStore() {
@@ -318,9 +345,11 @@ export const usePetStore = create<PetStore>((set, get) => ({
   lastBlessingAt: 0,
   streakFreezes: 1, // start with one free freeze
   lastFreezeRefillDate: '',
-  trialMode: false,
-  trialStartedAt: 0,
+  lastBrokenStreak: 0,
+  streakBrokenAt: 0,
+  welcomeBackBonusAppliedAt: 0,
   referralRedeemed: false,
+  retroactiveMintMemoWrittenFor: null,
 
   setOwnerName: (ownerName: string) => {
     set({ ownerName });
@@ -333,6 +362,35 @@ export const usePetStore = create<PetStore>((set, get) => ({
 
   clearExcitedBurst: () => {
     set({ isExcitedBurst: false });
+  },
+
+  applyStreakRepair: (opts) => {
+    const { lastBrokenStreak, streakBrokenAt, streakFreezes } = get();
+    if (!lastBrokenStreak || lastBrokenStreak < 1) return;
+    if (Date.now() - streakBrokenAt > STREAK_REPAIR_WINDOW_MS) return;
+    if (opts?.useFreeze && streakFreezes < 1) return;
+
+    set({
+      streakDays: lastBrokenStreak,
+      lastBrokenStreak: 0,
+      streakBrokenAt: 0,
+      streakFreezes: opts?.useFreeze ? streakFreezes - 1 : streakFreezes,
+    });
+    savePetState(get());
+
+    try {
+      events.streakRepairUsed({
+        days_repaired: lastBrokenStreak,
+        cost_sol: opts?.cost_sol,
+        cost_skr: opts?.cost_skr,
+      });
+    } catch {}
+  },
+
+  dismissStreakRepair: () => {
+    // Clear the offer without restoring — user accepted the loss.
+    set({ lastBrokenStreak: 0, streakBrokenAt: 0 });
+    savePetState(get());
   },
 
   // ── Stamina actions ──
@@ -651,8 +709,13 @@ export const usePetStore = create<PetStore>((set, get) => ({
   },
 
   clearPet: () => {
+    // Reset every persisted field — used as the cascade-clear target on
+    // wallet disconnect, so anything we leave alone here leaks across user
+    // switches on the same device. Defaults must match the store's initial
+    // state declared at the top of create().
     set({
       id: null,
+      name: 'Nomi',
       ownerName: '',
       mintAddress: '',
       mintTxSignature: '',
@@ -665,11 +728,21 @@ export const usePetStore = create<PetStore>((set, get) => ({
       lastActiveDate: '',
       streakDays: 0,
       isExcitedBurst: false,
-      excitedPlayedAt: 0,
+      excitedPlayedAt: 0, // companion to isExcitedBurst — must reset together
       stamina: STAMINA_MAX,
       lastStaminaRegenAt: Date.now(),
       cooldowns: {},
       lastBlessingAt: 0,
+      // Streak/freeze + welcome-back + trial + referral state must reset too —
+      // otherwise User B inherits User A's freezes, "already-applied" bonus
+      // flag, and trial timer.
+      streakFreezes: 1,
+      lastFreezeRefillDate: '',
+      lastBrokenStreak: 0,
+      streakBrokenAt: 0,
+      welcomeBackBonusAppliedAt: 0,
+      referralRedeemed: false,
+      retroactiveMintMemoWrittenFor: null,
     });
     savePetState(get());
   },
@@ -744,6 +817,7 @@ export const usePetStore = create<PetStore>((set, get) => ({
 
       let consumedFreezes = 0;
       let newStreak: number;
+      let brokeFromStreak = 0; // captures the lost streak length if reset happens
       if (lastActiveDate === yesterday) {
         // No gap — streak continues
         newStreak = streakDays + 1;
@@ -754,6 +828,8 @@ export const usePetStore = create<PetStore>((set, get) => ({
       } else {
         // Not enough freezes — streak resets
         newStreak = 1;
+        // Only worth offering repair for streaks of meaningful length (>= 3 days)
+        if (streakDays >= 3) brokeFromStreak = streakDays;
       }
 
       // Weekly free freeze refill (cap at 3 stockpiled)
@@ -778,7 +854,14 @@ export const usePetStore = create<PetStore>((set, get) => ({
         happiness: clamp(state.happiness + streakBonus, 0, 100),
         streakFreezes: finalFreezes,
         lastFreezeRefillDate: bonusFreeze > 0 ? today : state.lastFreezeRefillDate,
+        ...(brokeFromStreak > 0
+          ? { lastBrokenStreak: brokeFromStreak, streakBrokenAt: now }
+          : {}),
       }));
+
+      if (brokeFromStreak > 0) {
+        try { events.streakBroken({ previous_streak: brokeFromStreak }); } catch {}
+      }
 
       // XP for daily login + streak
       const xp = useXpStore.getState();
@@ -821,5 +904,20 @@ export const usePetStore = create<PetStore>((set, get) => ({
     });
     savePetState(get());
     console.log('[petStore] restoreFromChain — restored:', data);
+  },
+
+  restoreFromMint: (data: { mintAddress: string; mintTxSignature: string; name: string; ownerName: string }) => {
+    // Mint memo restore — establishes pet identity (name, mint addr) without
+    // overwriting stats. Lets users recover ownership after reinstall.
+    const existing = get();
+    set({
+      mintAddress: data.mintAddress,
+      mintTxSignature: data.mintTxSignature,
+      name: data.name || existing.name || 'Nomi',
+      ownerName: existing.ownerName || data.ownerName || '',
+      hasPet: true,
+    });
+    savePetState(get());
+    console.log('[petStore] restoreFromMint — restored mint identity:', data.mintAddress);
   },
 }));

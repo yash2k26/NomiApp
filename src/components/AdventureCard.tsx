@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, Animated, Modal, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import { useAdventureStore, ADVENTURE_ZONES, type LootReward, type AdventureZone } from '../store/adventureStore';
+import { useAdventureStore, ADVENTURE_ZONES, lootCoinsToDisplay, type LootReward, type AdventureZone } from '../store/adventureStore';
 import { usePetStore } from '../store/petStore';
 import { useXpStore } from '../store/xpStore';
 import { petTypography } from '../theme/typography';
@@ -72,13 +72,19 @@ function LootRevealModal({ loot, visible, onClose }: { loot: LootReward | null; 
             {loot.coins > 0 && (
               <View className="flex-row justify-between py-2.5 border-b border-gray-100">
                 <Text className="text-gray-500 font-semibold">Coins</Text>
-                <Text className="font-black text-pet-blue-dark">+{loot.coins.toFixed(2)} SOL</Text>
+                {/* In-game coins, not on-chain SOL. The old "SOL" suffix
+                    here was misleading — users like Soc/Hana DM'd thinking
+                    the rewards should hit their wallets. They go to
+                    appCoins, not walletStore.balance. */}
+                <Text className="font-black text-pet-blue-dark">+{lootCoinsToDisplay(loot.coins)} coins</Text>
               </View>
             )}
             {loot.skr > 0 && (
               <View className="flex-row justify-between py-2.5 border-b border-gray-100">
-                <Text className="text-gray-500 font-semibold">SKR Tokens</Text>
-                <Text className="font-black text-purple-600">+{loot.skr.toFixed(2)} SKR</Text>
+                <Text className="text-gray-500 font-semibold">Bonus Coins</Text>
+                {/* Same — these are in-game coins, not on-chain SKR.
+                    addAppCoins handles them as a single bucket. */}
+                <Text className="font-black text-purple-600">+{lootCoinsToDisplay(loot.skr)} coins</Text>
               </View>
             )}
             {loot.shard && (
@@ -173,9 +179,20 @@ export function AdventureCard() {
     }
   }, [pendingLoot, lootModal]);
 
+  const claimInFlightRef = useRef(false);
   const handleClaimLoot = () => {
+    // Re-entry guard. claimAdventureLoot has an internal pendingLoot=null
+    // gate but the ref lock here defends against double-tap before the store
+    // setState propagates. Without this, the second tap re-fires the toast
+    // and (briefly) the haptic, even though the underlying reward only
+    // applies once.
+    if (claimInFlightRef.current) return;
+    claimInFlightRef.current = true;
     claimAdventureLoot();
     setLootModal(false);
+    // Release after the modal-close animation completes so the user can
+    // collect the next adventure's loot without an artificial delay.
+    setTimeout(() => { claimInFlightRef.current = false; }, 500);
   };
 
   const handleSelectZone = (zone: AdventureZone) => {

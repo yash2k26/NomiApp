@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { events } from '../lib/analytics';
 
 const XP_STORAGE_KEY = 'oracle-pet-xp';
 
@@ -7,6 +8,18 @@ const XP_STORAGE_KEY = 'oracle-pet-xp';
 // xpRequired(level) = 150 + (level-1)*75 + floor((level-1)/5)*100
 export function xpRequiredForLevel(level: number): number {
   return 150 + (level - 1) * 75 + Math.floor((level - 1) / 5) * 100;
+}
+
+/**
+ * Sum of xpRequiredForLevel(1..targetLevel-1) — i.e. how much totalXp a user
+ * needs to be sitting at the start of `targetLevel` with 0 XP into it. Used
+ * by the welcome-back / legacy compensation flow to grant a starting level
+ * cleanly without re-running the addXp loop.
+ */
+export function getCumulativeXpForLevel(targetLevel: number): number {
+  let total = 0;
+  for (let i = 1; i < targetLevel; i++) total += xpRequiredForLevel(i);
+  return total;
 }
 
 // ── XP Multiplier based on pet stats ──
@@ -309,7 +322,13 @@ interface XpState {
   achievements: Achievement[];
   counters: LifetimeCounters;
   lastWellnessXpAt: number; // timestamp for passive "all stats >80%" XP
-  pendingLevelUp: number | null; // level we just reached — triggers modal
+  pendingLevelUp: number | null; // current level being shown — drives modal
+  /** Queue of additional levels to surface AFTER the current pendingLevelUp
+   *  is dismissed. When the user crosses multiple level thresholds in one
+   *  XP grant (e.g. 12 → 15 after a long away session), every intermediate
+   *  level lands here so the modal can step through them — otherwise the
+   *  user only sees "Level 15!" and never learns about the 13/14 perks. */
+  pendingLevelUpQueue: number[];
 }
 
 interface XpActions {
@@ -326,11 +345,15 @@ interface XpActions {
   getXpToNextLevel: () => number;
   getLevelProgress: () => number;
   getCurrentMultiplier: () => number;
+  /** Reset to a clean initial state on wallet disconnect (cross-user privacy).
+   *  Must reset to the CORRECT shape — counters object + achievements array —
+   *  otherwise downstream `achievements.map()/.filter()` throw. */
+  resetForDisconnect: () => void;
 }
 
 type XpStore = XpState & XpActions;
 
-function saveXpState(state: XpState) {
+export function saveXpState(state: XpState): Promise<void> {
   const data = {
     totalXp: state.totalXp,
     level: state.level,
@@ -342,8 +365,13 @@ function saveXpState(state: XpState) {
     achievements: state.achievements,
     counters: state.counters,
     lastWellnessXpAt: state.lastWellnessXpAt,
+    // Persist the level-up modal queue too. Without this, a user who levels
+    // 12 → 15 while away sees the L13 modal, then if the app restarts before
+    // they dismiss to L14/L15, those modals are lost forever.
+    pendingLevelUp: state.pendingLevelUp,
+    pendingLevelUpQueue: state.pendingLevelUpQueue,
   };
-  AsyncStorage.setItem(XP_STORAGE_KEY, JSON.stringify(data)).catch(() => {});
+  return AsyncStorage.setItem(XP_STORAGE_KEY, JSON.stringify(data)).catch(() => {});
 }
 
 export const useXpStore = create<XpStore>((set, get) => ({
@@ -358,6 +386,24 @@ export const useXpStore = create<XpStore>((set, get) => ({
   counters: { feedCount: 0, playCount: 0, restCount: 0, reflectCount: 0, equipCount: 0 },
   lastWellnessXpAt: 0,
   pendingLevelUp: null,
+  pendingLevelUpQueue: [],
+
+  resetForDisconnect: () => {
+    set({
+      totalXp: 0,
+      level: 1,
+      xpInCurrentLevel: 0,
+      dailyQuests: [],
+      questDate: '',
+      weeklyQuests: [],
+      weeklyQuestDate: '',
+      achievements: DEFAULT_ACHIEVEMENTS.map((a) => ({ ...a })),
+      counters: { feedCount: 0, playCount: 0, restCount: 0, reflectCount: 0, equipCount: 0 },
+      lastWellnessXpAt: 0,
+      pendingLevelUp: null,
+      pendingLevelUpQueue: [],
+    });
+  },
 
   addXp: (amount, _source) => {
     const state = get();
@@ -378,25 +424,44 @@ export const useXpStore = create<XpStore>((set, get) => ({
 
     let xp = state.xpInCurrentLevel + scaledAmount;
     let level = state.level;
-    let pendingLevelUp: number | null = null;
-
-    // Check for level ups (could be multiple)
+    // Collect EVERY level crossed so the modal can step through each.
+    // Previously only the final level was retained, which silently swallowed
+    // perks unlocked at intermediate levels (e.g. 12 → 15 hid the L13 + L14
+    // unlocks completely).
+    const crossedLevels: number[] = [];
     while (level < MAX_LEVEL && xp >= xpRequiredForLevel(level)) {
       xp -= xpRequiredForLevel(level);
       level++;
-      pendingLevelUp = level;
+      crossedLevels.push(level);
+    }
+
+    let nextPending = state.pendingLevelUp;
+    let nextQueue = state.pendingLevelUpQueue;
+    if (crossedLevels.length > 0) {
+      const [first, ...rest] = crossedLevels;
+      // If a modal is already showing, append everything we just crossed
+      // behind it; otherwise show the first new level immediately.
+      if (state.pendingLevelUp != null) {
+        nextQueue = [...state.pendingLevelUpQueue, ...crossedLevels];
+      } else {
+        nextPending = first;
+        nextQueue = [...state.pendingLevelUpQueue, ...rest];
+      }
     }
 
     set({
       totalXp: state.totalXp + scaledAmount,
       level,
       xpInCurrentLevel: xp,
-      pendingLevelUp: pendingLevelUp ?? state.pendingLevelUp,
+      pendingLevelUp: nextPending,
+      pendingLevelUpQueue: nextQueue,
     });
     saveXpState(get());
 
     // If we just leveled up, have Nomi react in the speech bubble
-    if (pendingLevelUp && pendingLevelUp > state.level) {
+    if (crossedLevels.length > 0) {
+      const finalLevel = crossedLevels[crossedLevels.length - 1];
+      events.levelUp({ from_level: state.level, to_level: finalLevel });
       try {
         const mod = require('./personalityStore');
         const ps = mod.usePersonalityStore.getState();
@@ -489,6 +554,10 @@ export const useXpStore = create<XpStore>((set, get) => ({
     const state = get();
     const { achievements, counters, level } = state;
     let xpGained = 0;
+    // Track which achievements unlocked in this pass so we can fire feedback
+    // for each. Without this, achievements landed silently — users only
+    // discovered them by visiting Profile.
+    const newlyUnlocked: Achievement[] = [];
 
     const updated = achievements.map(a => {
       if (a.unlocked) return a;
@@ -514,7 +583,9 @@ export const useXpStore = create<XpStore>((set, get) => ({
 
       if (shouldUnlock) {
         xpGained += a.xpReward;
-        return { ...a, unlocked: true, unlockedAt: new Date().toISOString() };
+        const unlocked = { ...a, unlocked: true, unlockedAt: new Date().toISOString() };
+        newlyUnlocked.push(unlocked);
+        return unlocked;
       }
       return a;
     });
@@ -524,6 +595,32 @@ export const useXpStore = create<XpStore>((set, get) => ({
       get().addXp(xpGained, 'achievement');
     } else if (updated !== achievements) {
       set({ achievements: updated });
+    }
+
+    // Surface every unlock — toast + haptic + sound. Fires from a non-React
+    // context, so wrap everything in try/catch in case modules aren't loaded.
+    if (newlyUnlocked.length > 0) {
+      try {
+        const { notify } = require('../lib/notify');
+        const Haptics = require('expo-haptics');
+        const { playSfx } = require('../lib/soundManager');
+        for (const a of newlyUnlocked) {
+          notify.success(
+            `Achievement: ${a.title}`,
+            `${a.description} · +${a.xpReward} XP`,
+            {
+              category: 'achievement',
+              details: [
+                { label: 'Achievement', value: a.title },
+                { label: 'Reward', value: `+${a.xpReward} XP` },
+                { label: 'Category', value: a.category.charAt(0).toUpperCase() + a.category.slice(1) },
+              ],
+            },
+          );
+        }
+        Haptics.notificationAsync?.(Haptics.NotificationFeedbackType?.Success);
+        playSfx?.('reward').catch(() => {});
+      } catch {}
     }
 
     // Grant free shop items: 1 per 3 achievements unlocked
@@ -538,7 +635,17 @@ export const useXpStore = create<XpStore>((set, get) => ({
   },
 
   clearPendingLevelUp: () => {
-    set({ pendingLevelUp: null });
+    // Step the queue forward — show the next pending level, if any. Persist
+    // after each step so a force-close mid-queue doesn't lose remaining
+    // level-ups.
+    const { pendingLevelUpQueue } = get();
+    if (pendingLevelUpQueue.length > 0) {
+      const [next, ...rest] = pendingLevelUpQueue;
+      set({ pendingLevelUp: next, pendingLevelUpQueue: rest });
+    } else {
+      set({ pendingLevelUp: null });
+    }
+    saveXpState(get());
   },
 
   checkWellnessXp: (hunger, happiness, energy) => {
@@ -567,6 +674,15 @@ export const useXpStore = create<XpStore>((set, get) => ({
         return stored ? { ...def, unlocked: stored.unlocked, unlockedAt: stored.unlockedAt } : { ...def };
       });
 
+      // Merge counters with defaults rather than replace. The previous form
+      // (`data.counters ?? defaults`) wiped counters back to 0 for users
+      // upgrading from a version that hadn't introduced a counter yet — the
+      // saved object simply lacked that key. Result: a 50-feed "Caretaker"
+      // achievement re-locked on update. Now we preserve every stored
+      // counter and fill in only the ones absent from storage.
+      const defaultCounters = { feedCount: 0, playCount: 0, restCount: 0, reflectCount: 0, equipCount: 0 };
+      const mergedCounters = { ...defaultCounters, ...(data.counters ?? {}) };
+
       set({
         totalXp: data.totalXp ?? 0,
         level: data.level ?? 1,
@@ -576,8 +692,12 @@ export const useXpStore = create<XpStore>((set, get) => ({
         weeklyQuests: data.weeklyQuests ?? [],
         weeklyQuestDate: data.weeklyQuestDate ?? '',
         achievements: merged,
-        counters: data.counters ?? { feedCount: 0, playCount: 0, restCount: 0, reflectCount: 0, equipCount: 0 },
+        counters: mergedCounters,
         lastWellnessXpAt: data.lastWellnessXpAt ?? 0,
+        // Restore the level-up modal queue so a force-close mid-celebration
+        // doesn't lose pending intermediate level-ups.
+        pendingLevelUp: typeof data.pendingLevelUp === 'number' ? data.pendingLevelUp : null,
+        pendingLevelUpQueue: Array.isArray(data.pendingLevelUpQueue) ? data.pendingLevelUpQueue : [],
       });
 
       // Refresh quests if it's a new day/week

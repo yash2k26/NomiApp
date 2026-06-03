@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useCallback } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Linking } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Linking, Share } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -19,10 +19,13 @@ import { useShopStore } from '../store/shopStore';
 import { useNotificationStore } from '../store/notificationStore';
 import { ScreenHeader } from '../components/ui/ScreenHeader';
 import { SharePetCard } from '../components/SharePetCard';
+import { NotificationBell } from '../components/notifications/NotificationBell';
+import { notify } from '../lib/notify';
 import { TransactionHistoryScreen } from './TransactionHistoryScreen';
-import { getSolscanTxUrl, getSolscanNftUrl, getSolscanAddressUrl, SOLANA_NETWORK } from '../lib/solanaClient';
+import { getSolscanTxUrl, getSolscanNftUrl, getSolscanAddressUrl, SOLANA_NETWORK, getActiveRpcLabel } from '../lib/solanaClient';
 import { writeMemo } from '../lib/solanaTransactions';
 import { setMuted, isMuted } from '../lib/soundManager';
+import { usePendingTxStore } from '../store/pendingTxStore';
 
 interface InfoCardProps {
   title: string;
@@ -293,6 +296,87 @@ function TransactionHistoryCard({ address, onSeeAll }: { address: string; onSeeA
   );
 }
 
+/**
+ * Local payments log. Pulls from pendingTxStore. Shows the user every
+ * paid action this app initiated (including failures and pending mid-
+ * flight tx state), with Solscan links for verification.
+ *
+ * Complement to TransactionHistoryCard: the chain-fetched view shows only
+ * what's actually on chain, this one shows what the APP did regardless of
+ * chain state — including dropped/failed txs that never landed.
+ */
+function PaymentsLogCard() {
+  const entries = usePendingTxStore((s) => s.entries);
+
+  if (entries.length === 0) return null;
+
+  const formatTime = (ts: number) => {
+    const diff = Math.floor((Date.now() - ts) / 1000);
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    return `${Math.floor(diff / 86400)}d ago`;
+  };
+
+  const statusColor = (s: string) =>
+    s === 'failed' ? '#dc2626' : s === 'pending' ? '#f59e0b' : '#3792A6';
+
+  const statusBg = (s: string) =>
+    s === 'failed' ? 'bg-red-100' : s === 'pending' ? 'bg-amber-100' : 'bg-pet-blue-light/40';
+
+  return (
+    <View
+      className="bg-white rounded-[28px] overflow-hidden mb-5 border border-gray-100"
+      style={{ shadowColor: '#1F2E45', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.07, shadowRadius: 14, elevation: 4 }}
+    >
+      <View className="bg-pet-blue-dark px-5 py-3 flex-row items-center justify-between">
+        <View className="flex-row items-center">
+          <Text className="text-base mr-2">{'\u{1F9FE}'}</Text>
+          <Text className="text-[11px] font-black text-white tracking-[0.9px] uppercase">Payments Log</Text>
+        </View>
+        <View className="bg-white/20 px-2 py-0.5 rounded-full">
+          <Text className="text-[9px] font-black text-white">LOCAL</Text>
+        </View>
+      </View>
+      <View className="px-5 py-2">
+        {entries.slice(0, 8).map((e) => (
+          <TouchableOpacity
+            key={e.id}
+            disabled={!e.signature}
+            onPress={() => e.signature && Linking.openURL(getSolscanTxUrl(e.signature))}
+            activeOpacity={e.signature ? 0.7 : 1}
+            className="flex-row items-center py-3 border-b border-gray-100"
+          >
+            <View className={`w-7 h-7 rounded-full items-center justify-center ${statusBg(e.status)}`}>
+              <MaterialCommunityIcons
+                name={e.status === 'failed' ? 'close-circle-outline' : e.status === 'pending' ? 'clock-outline' : 'check-circle-outline'}
+                size={16}
+                color={statusColor(e.status)}
+              />
+            </View>
+            <View className="flex-1 ml-3">
+              <Text className="text-[12px] font-bold text-gray-700" numberOfLines={1}>{e.label}</Text>
+              {e.amountDisplay ? (
+                <Text className="text-[10px] text-gray-400 font-medium">{e.amountDisplay}</Text>
+              ) : null}
+              {e.status === 'failed' && e.failureMessage ? (
+                <Text className="text-[9px] text-red-500 font-medium" numberOfLines={1}>{e.failureMessage}</Text>
+              ) : null}
+            </View>
+            <View className="items-end">
+              <Text className="text-[10px] text-gray-400 font-semibold">{formatTime(e.createdAt)}</Text>
+              {e.signature ? <MaterialCommunityIcons name="open-in-new" size={12} color="#9ca3af" /> : null}
+            </View>
+          </TouchableOpacity>
+        ))}
+        <Text className="text-[10px] text-gray-400 font-semibold text-center mt-2 px-3 py-1.5">
+          Every paid action you take in this app. Includes failures so you know if a tx didn't land.
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 function CollectiblesRow() {
   const items = useShopStore((s) => s.items);
   const owned = items.filter((i) => i.owned);
@@ -336,8 +420,8 @@ function CollectiblesRow() {
 }
 
 export function ProfileScreen() {
-  const { address, balance, skrBalance, disconnectWallet, refreshBalance, refreshSkrBalance, authToken } = useWalletStore();
-  const { name, ownerName, mintAddress, mintTxSignature, skin, clearPet, streakDays, hunger, happiness, energy } = usePetStore();
+  const { address, balance, skrBalance, balanceLoadOk, skrBalanceLoadOk, appCoins, walletBrand, disconnectWallet, refreshBalance, refreshSkrBalance, authToken } = useWalletStore();
+  const { name, ownerName, mintAddress, mintTxSignature, skin, clearPet, streakDays, hunger, happiness, energy, streakFreezes } = usePetStore();
   const premium = usePremiumStore((s) => s.isPremium);
   const tier = usePremiumStore((s) => s.tier);
   const [memoLoading, setMemoLoading] = useState(false);
@@ -355,13 +439,77 @@ export function ProfileScreen() {
   }, []);
   const completedAdventures = useAdventureStore((s) => s.completedAdventures);
   const miniGamesWon = useAdventureStore((s) => s.miniGamesWon);
+  const freeItemTokens = useAdventureStore((s) => s.freeItemTokens);
+  const totalLoginDays = useAdventureStore((s) => s.totalLoginDays);
 
   const shortAddress = address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Not connected';
   const shortMintAddress = mintAddress ? `${mintAddress.slice(0, 6)}...${mintAddress.slice(-4)}` : 'N/A';
 
+  /**
+   * Pre-fill a support email with the user's wallet, recent tx history, app
+   * version, and premium tier. Saves support roundtrips — the user hands us
+   * everything we need to diagnose in one DM.
+   *
+   * mailto: works on iOS + Android. On platforms where it fails, we fall
+   * back to copying the body so the user can paste it manually.
+   */
+  const handleReportIssue = useCallback(async () => {
+    const recent = usePendingTxStore.getState().entries.slice(0, 5);
+    const tier = usePremiumStore.getState().tier;
+    const recentLines = recent.length
+      ? recent.map((e) => `- ${e.label} (${e.status}) ${e.amountDisplay ?? ''} ${e.signature ? '· ' + e.signature.slice(0, 12) + '...' : ''}`).join('\n')
+      : '(none)';
+    const body = [
+      'Describe the issue:',
+      '',
+      '',
+      '---- Diagnostics (please keep) ----',
+      `Wallet: ${address || '(not connected)'}`,
+      `Wallet brand: ${walletBrand || 'unknown'}`,
+      `Pet mint: ${mintAddress || '(none)'}`,
+      `Premium tier: ${tier}`,
+      `App version: 2.1.0`,
+      `Recent paid actions:`,
+      recentLines,
+    ].join('\n');
+    const subject = encodeURIComponent('[Nomi support] Issue report');
+    const encodedBody = encodeURIComponent(body);
+    const url = `mailto:team@talkamore.com?subject=${subject}&body=${encodedBody}`;
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+        return;
+      }
+    } catch {}
+    // Fallback — mailto failed (no email client / locked-down device).
+    // Show the body in an Alert so the user can read + copy it.
+    Alert.alert(
+      'Email not available',
+      `Please email team@talkamore.com and paste the diagnostics below:\n\n${body}`,
+    );
+  }, [address, walletBrand, mintAddress]);
+
   const handleDisconnect = () => {
-    clearPet();
-    disconnectWallet();
+    // Disconnect cascades a full local reset (pet/xp/adventure/premium/
+    // personality stores all cleared). One-tap that destruction was easy
+    // to do by accident — confirm so users who tapped expecting a UX
+    // sub-menu don't blow away their session.
+    Alert.alert(
+      'Disconnect wallet?',
+      `This will clear your local pet data on this device. Your NFT and premium tier are safe on chain — they'll come back when you reconnect this wallet.`,
+      [
+        { text: 'Stay connected', style: 'cancel' },
+        {
+          text: 'Disconnect',
+          style: 'destructive',
+          onPress: () => {
+            clearPet();
+            disconnectWallet();
+          },
+        },
+      ],
+    );
   };
 
   const handleSyncPetState = useCallback(async () => {
@@ -382,8 +530,14 @@ export function ProfileScreen() {
       setLastMemoTime(new Date().toLocaleTimeString());
       await refreshBalance();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      notify.success(
+        'Backup written',
+        'Your streak + name are saved on chain. Your future you (and any new device) can recover them anytime.',
+        { category: 'tx' },
+      );
     } catch (err: any) {
-      Alert.alert('Sync Failed', err?.message || 'Failed to write pet state on-chain.');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      notify.error('Backup failed', err?.message || 'Failed to write pet state on-chain.', { category: 'tx' });
     } finally {
       setMemoLoading(false);
     }
@@ -396,19 +550,57 @@ export function ProfileScreen() {
     try {
       const { restorePurchases } = require('../lib/purchaseRestore');
       const result = await restorePurchases(address);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      // Build a structured summary for the in-app notification center
+      // (toast + bell entry) instead of using the OS Alert. The Alert was
+      // jarring against the rest of the app's design and gave no
+      // permanent breadcrumb — users couldn't review what was restored.
       const parts: string[] = [];
-      if (result.shopItemsRestored.length > 0) parts.push(`${result.shopItemsRestored.length} shop item(s)`);
-      if (result.premiumTierRestored) parts.push(`${result.premiumTierRestored} tier`);
-      if (result.streakRestored !== null) parts.push(`${result.streakRestored}-day streak`);
-      Alert.alert(
-        'Restore Complete',
+      const details: { label: string; value: string }[] = [];
+      if (result.petRestored) {
+        parts.push('Pet identity');
+        details.push({ label: 'Pet', value: result.petRestoredFromHoldings ? 'Found via on-chain holdings' : 'Found via memo' });
+      }
+      if (result.shopItemsRestored.length > 0) {
+        parts.push(`${result.shopItemsRestored.length} shop item${result.shopItemsRestored.length === 1 ? '' : 's'}`);
+        details.push({ label: 'Items', value: `${result.shopItemsRestored.length} restored` });
+      }
+      if (result.premiumTierRestored) {
+        const label = result.premiumTierRestored.charAt(0).toUpperCase() + result.premiumTierRestored.slice(1);
+        parts.push(`${label} tier`);
+        details.push({ label: 'Premium', value: `${label} tier active` });
+      }
+      if (result.streakRestored !== null) {
+        parts.push(`${result.streakRestored}-day streak`);
+        details.push({ label: 'Streak', value: `${result.streakRestored} days` });
+      }
+
+      Haptics.notificationAsync(
         parts.length > 0
-          ? `Restored: ${parts.join(', ')}`
-          : 'No purchases found on-chain to restore.',
+          ? Haptics.NotificationFeedbackType.Success
+          : Haptics.NotificationFeedbackType.Warning,
       );
+
+      if (parts.length > 0) {
+        notify.success(
+          'Restore complete',
+          `Restored ${parts.join(' · ')}`,
+          { category: 'restore', details },
+        );
+      } else {
+        notify.info(
+          'Nothing to restore',
+          'We checked the chain and found no Nomi history for this wallet. If you minted with a different wallet, disconnect and reconnect with that one.',
+          { category: 'restore' },
+        );
+      }
     } catch (err: any) {
-      Alert.alert('Restore Failed', err?.message || 'Could not restore purchases from chain.');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      notify.error(
+        'Restore failed',
+        err?.message || 'Could not reach the chain. Try again in a moment.',
+        { category: 'restore' },
+      );
     } finally {
       setRestoreLoading(false);
     }
@@ -431,6 +623,12 @@ export function ProfileScreen() {
       <View className="absolute -top-6 -right-8 w-36 h-36 rounded-full bg-pet-blue-light/30" />
       <View className="absolute top-52 -left-10 w-44 h-44 rounded-full bg-pet-blue-light/20" />
       <View className="absolute top-[520px] -right-12 w-48 h-48 rounded-full bg-pet-blue-light/25" />
+
+      {/* Notification bell — floats top-right so users can access the
+          notification center from any screen, not just Home. */}
+      <View style={{ position: 'absolute', top: 16, right: 20, zIndex: 30 }}>
+        <NotificationBell />
+      </View>
 
       <ScrollView className="flex-1 px-6 pt-6" contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
         <ScreenHeader
@@ -466,7 +664,18 @@ export function ProfileScreen() {
         <View className="mt-1" />
 
         <InfoCard title="Wallet" icon={'\u{1F4B0}'} accent="bg-pet-blue-dark">
-          <TouchableOpacity onPress={() => address && Linking.openURL(getSolscanAddressUrl(address))} activeOpacity={0.7}>
+          {/* Tap → open in Solscan. Long-press → native share sheet (lets
+              the user copy/share without us shipping a clipboard dep).
+              Hint text below tells the user about both gestures. */}
+          <TouchableOpacity
+            onPress={() => address && Linking.openURL(getSolscanAddressUrl(address))}
+            onLongPress={() => {
+              if (!address) return;
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              Share.share({ message: address }).catch(() => {});
+            }}
+            activeOpacity={0.7}
+          >
             <View className="flex-row justify-between py-3.5 border-b border-gray-100 items-center">
               <Text className="text-[12px] font-semibold text-gray-500">Address</Text>
               <View className="flex-row items-center">
@@ -474,11 +683,18 @@ export function ProfileScreen() {
                 <MaterialCommunityIcons name="open-in-new" size={11} color="#9ca3af" />
               </View>
             </View>
+            <Text className="text-[9px] font-semibold text-gray-400 -mt-2 mb-1.5 text-right">
+              Tap to view · long-press to copy/share
+            </Text>
           </TouchableOpacity>
           <View className="flex-row justify-between py-3.5 border-b border-gray-100 items-center">
             <Text className="text-[12px] font-semibold text-gray-500">Balance</Text>
             <View className="flex-row items-center">
-              <Text className="text-[12px] font-black text-pet-blue-dark mr-2">{balance.toFixed(4)} SOL</Text>
+              {balanceLoadOk ? (
+                <Text className="text-[12px] font-black text-pet-blue-dark mr-2">{balance.toFixed(4)} SOL</Text>
+              ) : (
+                <Text className="text-[11px] font-bold text-orange-500 mr-2">Unavailable · tap retry</Text>
+              )}
               <TouchableOpacity onPress={refreshBalance} activeOpacity={0.7}>
                 <MaterialCommunityIcons name="refresh" size={14} color="#3792A6" />
               </TouchableOpacity>
@@ -487,13 +703,35 @@ export function ProfileScreen() {
           <View className="flex-row justify-between py-3.5 border-b border-gray-100 items-center">
             <Text className="text-[12px] font-semibold text-gray-500">SKR Balance</Text>
             <View className="flex-row items-center">
-              <Text className="text-[12px] font-black text-purple-600 mr-2">{skrBalance.toFixed(2)} SKR</Text>
+              {skrBalanceLoadOk ? (
+                <Text className="text-[12px] font-black text-purple-600 mr-2">{skrBalance.toFixed(2)} SKR</Text>
+              ) : (
+                <Text className="text-[11px] font-bold text-orange-500 mr-2">Unavailable · tap retry</Text>
+              )}
               <TouchableOpacity onPress={refreshSkrBalance} activeOpacity={0.7}>
                 <MaterialCommunityIcons name="refresh" size={14} color="#9333ea" />
               </TouchableOpacity>
             </View>
           </View>
+          <View className="flex-row justify-between py-3.5 border-b border-gray-100 items-center">
+            <View className="flex-row items-center">
+              <Text className="text-[12px] font-semibold text-gray-500">In-game Coins</Text>
+              <View className="ml-2 px-1.5 py-0.5 rounded-full bg-gray-100">
+                <Text className="text-[8px] font-bold text-gray-500 uppercase tracking-[0.4px]">Off-chain</Text>
+              </View>
+            </View>
+            <Text className="text-[12px] font-black text-amber-700">
+              {Math.floor(appCoins).toLocaleString()}
+            </Text>
+          </View>
           <InfoRow label="Network" value={`Solana ${SOLANA_NETWORK === 'mainnet' ? 'Mainnet' : SOLANA_NETWORK === 'devnet' ? 'Devnet' : 'Testnet'}`} valueColor="text-pet-blue-dark" />
+          {walletBrand ? (
+            <InfoRow
+              label="Wallet"
+              value={walletBrand.charAt(0).toUpperCase() + walletBrand.slice(1)}
+              valueColor="text-pet-blue-dark"
+            />
+          ) : null}
         </InfoCard>
 
         <InfoCard title="Companion" icon={'\u{1F43E}'} accent="bg-pet-blue">
@@ -521,8 +759,13 @@ export function ProfileScreen() {
           )}
           <InfoRow label="Outfit" value={skinDisplayName} valueColor="text-pet-blue" />
           <InfoRow label="Streak" value={`${streakDays} day${streakDays === 1 ? '' : 's'}`} valueColor="text-pet-blue-dark" />
+          <InfoRow label="Streak Freezes" value={`${streakFreezes} in stock`} valueColor="text-pet-blue-dark" />
           <InfoRow label="Adventures" value={`${completedAdventures} completed`} valueColor="text-pet-blue-dark" />
           <InfoRow label="Mini-Games" value={`${miniGamesWon} won`} valueColor="text-pet-blue-dark" />
+          <InfoRow label="Login Days" value={`${totalLoginDays} total`} valueColor="text-pet-blue-dark" />
+          {freeItemTokens > 0 && (
+            <InfoRow label="Free Item Tokens" value={`${freeItemTokens} unused`} valueColor="text-pet-blue-dark" />
+          )}
           <CollectiblesRow />
           <View className="py-3">
             <TouchableOpacity onPress={handleSyncPetState} disabled={memoLoading} activeOpacity={0.85}>
@@ -530,39 +773,92 @@ export function ProfileScreen() {
                 {memoLoading ? (
                   <>
                     <ActivityIndicator size="small" color="#3792A6" />
-                    <Text className="text-pet-blue-dark text-[11px] font-black ml-2">Syncing on-chain...</Text>
+                    <Text className="text-pet-blue-dark text-[11px] font-black ml-2">Saving to blockchain…</Text>
                   </>
                 ) : (
                   <>
-                    <MaterialCommunityIcons name="cloud-upload-outline" size={14} color="#3792A6" />
-                    <Text className="text-pet-blue-dark text-[11px] font-black ml-1.5 uppercase tracking-[0.5px]">Sync Pet State On-Chain</Text>
+                    <MaterialCommunityIcons name="shield-lock-outline" size={14} color="#3792A6" />
+                    <Text className="text-pet-blue-dark text-[11px] font-black ml-1.5 uppercase tracking-[0.5px]">Back Up to Blockchain</Text>
                   </>
                 )}
               </View>
             </TouchableOpacity>
+            <Text className="text-[10px] text-gray-400 font-semibold text-center mt-1.5 px-3">
+              Cloud backup runs automatically. This adds an extra on-chain snapshot of your streak and pet — costs only the network fee.
+            </Text>
             {lastMemoTime && (
-              <Text className="text-[10px] text-gray-400 font-semibold text-center mt-1.5">Last sync: {lastMemoTime}</Text>
+              <Text className="text-[10px] text-gray-400 font-semibold text-center mt-0.5">Last saved: {lastMemoTime}</Text>
             )}
-            <View style={{ height: 8 }} />
+            <View style={{ height: 12 }} />
             <TouchableOpacity onPress={handleRestorePurchases} disabled={restoreLoading} activeOpacity={0.85}>
               <View style={{ paddingVertical: 12, borderRadius: 18, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', backgroundColor: 'rgba(200,167,230,0.3)', borderWidth: 1, borderColor: 'rgba(200,167,230,0.7)' }}>
                 {restoreLoading ? (
                   <>
                     <ActivityIndicator size="small" color="#7C3AED" />
-                    <Text className="text-purple-700 text-[11px] font-black ml-2">Restoring...</Text>
+                    <Text className="text-purple-700 text-[11px] font-black ml-2">Searching the chain…</Text>
                   </>
                 ) : (
                   <>
-                    <MaterialCommunityIcons name="cloud-download-outline" size={14} color="#7C3AED" />
-                    <Text className="text-purple-700 text-[11px] font-black ml-1.5 uppercase tracking-[0.5px]">Restore Purchases From Chain</Text>
+                    <MaterialCommunityIcons name="magnify-scan" size={14} color="#7C3AED" />
+                    <Text className="text-purple-700 text-[11px] font-black ml-1.5 uppercase tracking-[0.5px]">Recover My Pet & Items</Text>
                   </>
                 )}
               </View>
             </TouchableOpacity>
+            <Text className="text-[10px] text-gray-400 font-semibold text-center mt-1.5 px-3">
+              Missing your pet, items, or premium tier? This finds them on-chain and brings them back.
+            </Text>
           </View>
         </InfoCard>
 
+        <PaymentsLogCard />
         {address && <TransactionHistoryCard address={address} onSeeAll={() => setShowTxHistory(true)} />}
+
+        {/* Transparency card \u2014 built for the technical/skeptical user who
+            wants to verify the app is talking to the right chain endpoints
+            and using their wallet correctly. Showing this earns trust from
+            the crypto-native subset of the audience for almost free. */}
+        <InfoCard title="On-chain settings" icon={'\u{1F517}'} accent="bg-pet-blue">
+          <InfoRow label="Network" value={SOLANA_NETWORK === 'mainnet' ? 'Solana Mainnet' : SOLANA_NETWORK} valueColor="text-pet-blue-dark" />
+          <InfoRow label="RPC" value={getActiveRpcLabel()} valueColor="text-gray-700" />
+          <View className="flex-row justify-between py-3.5 border-b border-gray-100 items-center">
+            <Text className="text-[12px] font-semibold text-gray-500">Wallet</Text>
+            {address ? (
+              <TouchableOpacity
+                onPress={() => Linking.openURL(getSolscanAddressUrl(address))}
+                activeOpacity={0.7}
+                className="flex-row items-center"
+              >
+                <Text className="text-[12px] font-black text-pet-blue-dark mr-1">
+                  {address.slice(0, 4)}\u2026{address.slice(-4)}
+                </Text>
+                <MaterialCommunityIcons name="open-in-new" size={11} color="#9ca3af" />
+              </TouchableOpacity>
+            ) : (
+              <Text className="text-[11px] font-bold text-gray-400">Not connected</Text>
+            )}
+          </View>
+          <View className="flex-row justify-between py-3.5 items-center">
+            <Text className="text-[12px] font-semibold text-gray-500">Nomi NFT</Text>
+            {mintAddress ? (
+              <TouchableOpacity
+                onPress={() => Linking.openURL(getSolscanNftUrl(mintAddress))}
+                activeOpacity={0.7}
+                className="flex-row items-center"
+              >
+                <Text className="text-[12px] font-black text-pet-blue-dark mr-1">
+                  {mintAddress.slice(0, 4)}\u2026{mintAddress.slice(-4)}
+                </Text>
+                <MaterialCommunityIcons name="open-in-new" size={11} color="#9ca3af" />
+              </TouchableOpacity>
+            ) : (
+              <Text className="text-[11px] font-bold text-gray-400">Not minted</Text>
+            )}
+          </View>
+          <Text className="text-[10px] text-gray-400 font-semibold text-center mt-1 px-2">
+            All paid actions go through these endpoints. Tap any value to verify on Solscan.
+          </Text>
+        </InfoCard>
 
         <InfoCard title="App" icon={'\u2699'} accent="bg-pet-blue-dark">
           <InfoRow label="Version" value="2.1.0" />
@@ -590,6 +886,17 @@ export function ProfileScreen() {
               </View>
             </TouchableOpacity>
           </View>
+          <TouchableOpacity
+            onPress={handleReportIssue}
+            activeOpacity={0.7}
+            className="flex-row justify-between items-center py-3.5"
+          >
+            <View className="flex-row items-center">
+              <MaterialCommunityIcons name="email-alert-outline" size={14} color="#EA580C" />
+              <Text className="text-[12px] font-semibold text-orange-600 ml-2">Report an issue</Text>
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={16} color="#9ca3af" />
+          </TouchableOpacity>
         </InfoCard>
 
         <TouchableOpacity onPress={handleDisconnect} activeOpacity={0.9}>

@@ -11,6 +11,8 @@ type SoundName =
   | 'levelup'
   | 'equip'
   | 'money'
+  | 'happy'
+  | 'happymoney'
   | 'gamevictory'
   | 'gameloss';
 
@@ -26,11 +28,17 @@ const MUSIC_VOLUME: Record<MusicName, number> = {
   game1: 1.0,
 };
 
-// One-shot sound effects — asset references
+// One-shot sound effects — asset references. The 'happy' and 'happymoney'
+// names are referenced from existing call sites (LevelUpModal, EventOverlay,
+// SpinWheel, PremiumCard) but never had assets, so those moments were
+// silently failing. Aliasing them to existing assets ('reward' and 'money')
+// restores the intended audio feedback without requiring new audio files.
 const SFX_ASSETS: Partial<Record<SoundName, any>> = {
   levelup: require('../../assets/Audio/Level-up.mp3'),
   reward: require('../../assets/Audio/Rewards.mp3'),
+  happy: require('../../assets/Audio/Rewards.mp3'),
   money: require('../../assets/Audio/Money.mp3'),
+  happymoney: require('../../assets/Audio/Money.mp3'),
   gamevictory: require('../../assets/Audio/Game-Victory.mp3'),
   gameloss: require('../../assets/Audio/Game-Loss.mp3'),
 };
@@ -42,6 +50,25 @@ let currentMusic: any = null;
 let currentMusicName: MusicName | null = null;
 let muted = false;
 let volume = 1.0;
+
+// Persist mute across app restarts. Without this, a user toggling mute had
+// it silently reset on every relaunch.
+const MUTE_STORAGE_KEY = 'oracle-pet-muted';
+
+export async function hydrateMuteSetting(): Promise<void> {
+  try {
+    const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+    const raw = await AsyncStorage.getItem(MUTE_STORAGE_KEY);
+    if (raw === '1') muted = true;
+  } catch {}
+}
+
+function saveMuteSetting(value: boolean): void {
+  try {
+    const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+    AsyncStorage.setItem(MUTE_STORAGE_KEY, value ? '1' : '0').catch(() => {});
+  } catch {}
+}
 
 /**
  * Try to load expo-av Audio. Returns true if successful.
@@ -232,6 +259,14 @@ export function setVolume(v: number): void {
 
 export function setMuted(m: boolean): void {
   muted = m;
+  saveMuteSetting(m);
+  // Apply immediately to currently-playing music — without this, a mute
+  // toggle wouldn't silence the running BGM track until next song change.
+  if (currentMusic) {
+    try {
+      currentMusic.setVolumeAsync(muted ? 0 : volume * (currentMusicName ? (MUSIC_VOLUME[currentMusicName] ?? 1.0) : 1.0)).catch(() => {});
+    } catch {}
+  }
 }
 
 export function isMuted(): boolean {

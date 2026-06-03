@@ -11,10 +11,28 @@ function toBase58Address(base64Address: string): string {
   return address;
 }
 
+export type WalletBrand = 'phantom' | 'solflare' | 'seeker' | 'backpack' | 'unknown';
+
 export interface WalletAuthResult {
   address: string;       // base58 Solana address
   authToken: string;     // for reauthorization
   walletUriBase: string; // deep-link URI of the wallet app
+  brand: WalletBrand;    // best-effort identification of the wallet app
+}
+
+/**
+ * Best-effort identification of which wallet app authorized us, derived from
+ * the wallet_uri_base returned by MWA. This is just for UX surfacing
+ * ("Connected via Phantom") — never used for security-sensitive decisions.
+ */
+export function detectWalletBrand(walletUriBase: string | null | undefined): WalletBrand {
+  if (!walletUriBase) return 'unknown';
+  const uri = walletUriBase.toLowerCase();
+  if (uri.includes('phantom')) return 'phantom';
+  if (uri.includes('solflare')) return 'solflare';
+  if (uri.includes('seeker') || uri.includes('solanamobile')) return 'seeker';
+  if (uri.includes('backpack')) return 'backpack';
+  return 'unknown';
 }
 
 /**
@@ -47,11 +65,14 @@ export async function connectMobileWallet(): Promise<WalletAuthResult> {
 
       console.log('[MWA] Raw account[0]:', JSON.stringify(auth.accounts[0]));
       const address = toBase58Address(auth.accounts[0].address);
+      const brand = detectWalletBrand(auth.wallet_uri_base);
+      console.log('[MWA] detected wallet brand:', brand);
 
       return {
         address,
         authToken: auth.auth_token,
         walletUriBase: auth.wallet_uri_base,
+        brand,
       };
     });
 
@@ -93,16 +114,24 @@ export async function reauthorizeMobileWallet(authToken: string): Promise<Wallet
         address,
         authToken: auth.auth_token,
         walletUriBase: auth.wallet_uri_base,
+        brand: detectWalletBrand(auth.wallet_uri_base),
       };
     });
 
     console.log('[MWA] reauthorizeMobileWallet SUCCESS in', Date.now() - startTime, 'ms — address:', result.address);
     return result;
   } catch (err: any) {
-    // Use warn instead of error — reauth failure is expected when token expires
-    // console.error triggers the red screen in dev mode
+    // Reauth failures need to surface to PostHog crash reporting. Previously
+    // we used console.warn to avoid red screens in dev — but that means
+    // production failures (token revoked on another device, wallet
+    // uninstalled, etc.) never reached our error tracking. Now we capture
+    // explicitly to PostHog and still use console.warn for the dev log.
     console.warn('[MWA] reauthorizeMobileWallet FAILED after', Date.now() - startTime, 'ms');
     console.warn('[MWA] Error:', err.message);
+    try {
+      const { captureError } = require('./analytics');
+      captureError(err, { surface: 'mwa_reauthorize', elapsed_ms: Date.now() - startTime });
+    } catch {}
     throw err;
   }
 }

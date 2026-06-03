@@ -8,6 +8,11 @@ import { useWalletStore } from '../store/walletStore';
 import { usePremiumStore } from '../store/premiumStore';
 import { XpFloatText } from './XpFloatText';
 import { CareModal } from './CareModal';
+import { events, captureError } from '../lib/analytics';
+import { transferSOL } from '../lib/solanaTransactions';
+import { SHOP_TREASURY } from '../lib/solanaClient';
+import { parseTxError } from '../lib/transactionErrors';
+import { notify } from '../lib/notify';
 import { getVariantsForAction, type CareAction } from '../data/careVariants';
 
 interface StatBarProps {
@@ -142,11 +147,15 @@ interface ActionButtonProps {
   cooldownRemaining: number;
   onSkipCooldown?: () => void;
   skipCost?: number;
+  /** True when the user has enough SOL to skip. Drives the visual state of
+   *  the skip pill — when false we dim it and label the shortage so users
+   *  don't tap-and-toast their way to the same answer. */
+  canAffordSkip?: boolean;
 }
 
 const SKIP_COOLDOWN_COST = 0.0005; // SOL — small but real cost so coins/SOL feel useful
 
-function ActionButton({ iconSource, label, bgColor, onPress, disabled, staminaCost, cooldownRemaining, onSkipCooldown, skipCost }: ActionButtonProps) {
+function ActionButton({ iconSource, label, bgColor, onPress, disabled, staminaCost, cooldownRemaining, onSkipCooldown, skipCost, canAffordSkip = true }: ActionButtonProps) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const onCooldown = cooldownRemaining > 0;
   const isDisabled = disabled || onCooldown;
@@ -193,11 +202,26 @@ function ActionButton({ iconSource, label, bgColor, onPress, disabled, staminaCo
         </View>
       </TouchableOpacity>
       {onCooldown && onSkipCooldown && (
-        <TouchableOpacity onPress={onSkipCooldown} activeOpacity={0.7} style={{ marginTop: 6 }}>
-          <View className="self-center bg-white border border-pet-blue-light/60 px-2.5 py-1 rounded-full flex-row items-center">
+        <TouchableOpacity
+          onPress={onSkipCooldown}
+          activeOpacity={canAffordSkip ? 0.7 : 1}
+          disabled={!canAffordSkip}
+          style={{ marginTop: 6, opacity: canAffordSkip ? 1 : 0.45 }}
+        >
+          <View
+            className="self-center px-2.5 py-1 rounded-full flex-row items-center"
+            style={{
+              backgroundColor: canAffordSkip ? '#FFFFFF' : '#F3F4F6',
+              borderWidth: 1,
+              borderColor: canAffordSkip ? 'rgba(159,210,224,0.6)' : '#E5E7EB',
+            }}
+          >
             <Text className="text-[9px] mr-1">⚡</Text>
-            <Text className="text-[9px] font-black text-pet-blue-dark tracking-[0.3px]">
-              SKIP {skipCost?.toFixed(4)}
+            <Text
+              className="text-[9px] font-black tracking-[0.3px]"
+              style={{ color: canAffordSkip ? '#2D6B90' : '#9CA3AF' }}
+            >
+              {canAffordSkip ? `SKIP ${skipCost?.toFixed(4)}` : `NEED ${skipCost?.toFixed(4)} SOL`}
             </Text>
           </View>
         </TouchableOpacity>
@@ -265,16 +289,22 @@ function ActionToast({ action, onDone }: { action: CareAction; onDone: () => voi
 export function CareActions() {
   const { hunger, happiness, energy, getStamina, isOnCooldown, getCooldownRemaining, skipCooldown } = usePetStore();
   const balance = useWalletStore((s) => s.balance);
-  const deductBalance = useWalletStore((s) => s.deductBalance);
+  const authToken = useWalletStore((s) => s.authToken);
+  const refreshBalance = useWalletStore((s) => s.refreshBalance);
   const needsAttention = hunger < 25 || happiness < 25 || energy < 25;
   const [xpFloat, setXpFloat] = useState<{ amount: number; key: number } | null>(null);
   const [actionToast, setActionToast] = useState<{ action: CareAction; key: number } | null>(null);
   const [careModalAction, setCareModalAction] = useState<CareAction | null>(null);
   const [, setTick] = useState(0);
+  const skipInFlightRef = useRef(false);
 
   const handleSkipCooldown = useCallback((action: CareAction) => {
     if (balance < SKIP_COOLDOWN_COST) {
-      Alert.alert('Not Enough', `Need ${SKIP_COOLDOWN_COST} SOL to skip a cooldown.`);
+      notify.warning('Not enough SOL', `Need ${SKIP_COOLDOWN_COST} SOL to skip a cooldown.`);
+      return;
+    }
+    if (!authToken) {
+      notify.warning('Wallet disconnected', 'Reconnect your wallet to skip a cooldown.');
       return;
     }
     Alert.alert(
@@ -284,18 +314,40 @@ export function CareActions() {
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Skip',
-          onPress: () => {
-            deductBalance(SKIP_COOLDOWN_COST);
-            skipCooldown(action);
+          onPress: async () => {
+            if (skipInFlightRef.current) return;
+            skipInFlightRef.current = true;
+            try {
+              // Real on-chain transfer first; cooldown only clears if the tx
+              // confirms. The previous deductBalance-only path was a no-op
+              // (local state clobbered by refreshBalance) so users were
+              // skipping for free.
+              await transferSOL(authToken, SHOP_TREASURY, SKIP_COOLDOWN_COST, `oracle-pet:skip-cooldown|${action}`);
+              skipCooldown(action);
+              events.cooldownSkipped({ action, cost_sol: SKIP_COOLDOWN_COST });
+              refreshBalance().catch(() => {});
+              notify.success(`${action} cooldown skipped`, `${SKIP_COOLDOWN_COST} SOL paid`, { category: 'tx' });
+            } catch (err: any) {
+              const parsed = parseTxError(err);
+              if (parsed.type !== 'cancelled') {
+                captureError(err, { surface: 'skip_cooldown', action });
+                notify.error(parsed.title, parsed.message, { category: 'tx' });
+              }
+            } finally {
+              skipInFlightRef.current = false;
+            }
           },
         },
       ],
     );
-  }, [balance, deductBalance, skipCooldown]);
+  }, [balance, authToken, skipCooldown, refreshBalance]);
 
-  // Re-render every second for cooldown countdowns
+  // Re-render every 5s for cooldown countdowns. Was 1s — care cooldowns
+  // are minutes long (5/8/10), so per-second updates were perceptual jitter
+  // for no real precision win. 5s matches CooldownTicker and cuts render
+  // pressure on mid-range Android dramatically.
   useEffect(() => {
-    const interval = setInterval(() => setTick(t => t + 1), 1000);
+    const interval = setInterval(() => setTick(t => t + 1), 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -335,6 +387,7 @@ export function CareActions() {
   }, []);
 
   const currentStamina = getStamina();
+  const canAffordSkip = balance >= SKIP_COOLDOWN_COST;
 
   return (
     <View className="px-6 mt-5">
@@ -425,6 +478,7 @@ export function CareActions() {
             cooldownRemaining={feedMinRemaining}
             onSkipCooldown={() => handleSkipCooldown('feed')}
             skipCost={SKIP_COOLDOWN_COST}
+            canAffordSkip={canAffordSkip}
           />
           <ActionButton
             iconSource={require('../../assets/Icons/Play.png')}
@@ -436,6 +490,7 @@ export function CareActions() {
             cooldownRemaining={playMinRemaining}
             onSkipCooldown={() => handleSkipCooldown('play')}
             skipCost={SKIP_COOLDOWN_COST}
+            canAffordSkip={canAffordSkip}
           />
           <ActionButton
             iconSource={require('../../assets/Icons/Rest.png')}
@@ -447,6 +502,7 @@ export function CareActions() {
             cooldownRemaining={restMinRemaining}
             onSkipCooldown={() => handleSkipCooldown('rest')}
             skipCost={SKIP_COOLDOWN_COST}
+            canAffordSkip={canAffordSkip}
           />
         </View>
       </View>
@@ -459,6 +515,7 @@ export function CareActions() {
           showXpFloat(xpAmount);
           if (careModalAction) {
             setActionToast({ action: careModalAction, key: Date.now() });
+            events.careAction({ action: careModalAction, xp: xpAmount });
           }
           setCareModalAction(null);
         }}

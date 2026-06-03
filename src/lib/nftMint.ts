@@ -1,4 +1,4 @@
-import { Keypair, LAMPORTS_PER_SOL, PublicKey, Transaction, SystemProgram } from '@solana/web3.js';
+import { ComputeBudgetProgram, Keypair, LAMPORTS_PER_SOL, PublicKey, Transaction, SystemProgram } from '@solana/web3.js';
 import {
   MINT_SIZE,
   TOKEN_PROGRAM_ID,
@@ -13,10 +13,11 @@ import {
   PROGRAM_ID as TOKEN_METADATA_PROGRAM_ID,
 } from '@metaplex-foundation/mpl-token-metadata';
 import { getLatestBlockhash, getMinimumBalanceForRentExemption, sendTransaction, confirmTransaction } from './solanaSdk';
-import { SHOP_TREASURY } from './solanaClient';
+import { SHOP_TREASURY, getPriorityFeeMicroLamports } from './solanaClient';
 import { withWallet } from './mobileWalletAdapter';
 
-const NFT_METADATA_URI = 'https://raw.githubusercontent.com/yash2k26/NomiApp/main/assets/nft-metadata.json';
+export const NFT_METADATA_URI = 'https://raw.githubusercontent.com/yash2k26/NomiApp/main/assets/nft-metadata.json';
+export const NFT_SYMBOL = 'OPET';
 
 // Mint price paid by the user to the project treasury (in SOL).
 // On-chain rent + network fees are additional (~0.01 SOL).
@@ -46,16 +47,20 @@ export async function mintPetNFT(
   console.log('[nftMint] mint pubkey:', mintPubkey.toBase58());
 
   // ── Phase 1: RPC calls OUTSIDE wallet session ──
-  console.log('[nftMint] Phase 1: Fetching blockhash + rent...');
-  const [blockhashResult, mintRent] = await Promise.all([
-    getLatestBlockhash(),
-    getMinimumBalanceForRentExemption(MINT_SIZE),
-  ]);
-  const { blockhash, lastValidBlockHeight } = blockhashResult;
-  console.log('[nftMint] Phase 1 done — blockhash:', blockhash, 'rent:', mintRent);
+  // Only rent gets pre-fetched here. Blockhash is intentionally deferred to
+  // inside the wallet session (right before signing) — the wallet prompt can
+  // take 5-30s on Phantom/Seeker, and if we used a blockhash from before the
+  // prompt opened, it would be near-expired by the time the user approves,
+  // making the signed tx dead on arrival when we submit. Refetching at sign
+  // time gives us the freshest possible blockhash window.
+  console.log('[nftMint] Phase 1: Fetching rent...');
+  const mintRent = await getMinimumBalanceForRentExemption(MINT_SIZE);
+  console.log('[nftMint] Phase 1 done — rent:', mintRent);
 
   // ── Phase 2: Open wallet ONLY for signing, then close it ──
   console.log('[nftMint] Phase 2: Wallet session for signing...');
+  let blockhash = '';
+  let lastValidBlockHeight = 0;
   const serializedTx = await withWallet(authToken, async (wallet, address) => {
     const payer = new PublicKey(address);
     const tokenAccount = getAssociatedTokenAddressSync(mintPubkey, payer);
@@ -78,6 +83,15 @@ export async function mintPetNFT(
     );
 
     const tx = new Transaction();
+
+    // Priority fee — small ComputeBudget instruction so the mint lands
+    // reliably during congestion. Cost is negligible (~5000 lamports total)
+    // vs the 0.15 SOL mint fee. Skipped silently if RPC can't tell us the
+    // current median.
+    try {
+      const microLamports = await getPriorityFeeMicroLamports();
+      tx.add(ComputeBudgetProgram.setComputeUnitPrice({ microLamports }));
+    } catch {}
 
     // 0. Mint fee — 0.15 SOL to project treasury
     tx.add(SystemProgram.transfer({
@@ -111,7 +125,7 @@ export async function mintPetNFT(
         createMetadataAccountArgsV3: {
           data: {
             name: petName.slice(0, 32),
-            symbol: 'OPET',
+            symbol: NFT_SYMBOL,
             uri: metadataUri.slice(0, 200),
             sellerFeeBasisPoints: 0,
             creators: null,
@@ -131,11 +145,16 @@ export async function mintPetNFT(
     ));
 
     tx.feePayer = payer;
+    // Refetch blockhash RIGHT before signing so the validity window is
+    // maximally fresh when the wallet hands the signed tx back.
+    const fresh = await getLatestBlockhash();
+    blockhash = fresh.blockhash;
+    lastValidBlockHeight = fresh.lastValidBlockHeight;
     tx.recentBlockhash = blockhash;
     tx.partialSign(mintKeypair);
 
     console.log('[nftMint] tx size:', tx.serialize({ requireAllSignatures: false, verifySignatures: false }).length, 'bytes');
-    console.log('[nftMint] Signing with wallet...');
+    console.log('[nftMint] Signing with wallet (blockhash:', blockhash.slice(0, 12), '...)');
 
     const signedTxs = await wallet.signTransactions({ transactions: [tx] });
     const serialized = signedTxs[0].serialize();

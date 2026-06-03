@@ -1,13 +1,14 @@
-import { useState } from 'react';
-import { View, Text, TouchableOpacity, Alert, ActivityIndicator, Linking, Modal } from 'react-native';
+import { useState, useRef } from 'react';
+import { View, Text, TouchableOpacity, Alert, ActivityIndicator, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { usePremiumStore } from '../store/premiumStore';
 import { useWalletStore } from '../store/walletStore';
-import { type PremiumTier, TIER_CONFIGS, TIER_ORDER, getTierOrdinal } from '../data/premiumTiers';
-import { getSolscanTxUrl } from '../lib/solanaClient';
+import { type PremiumTier, type TierCurrency, TIER_CONFIGS, TIER_ORDER, getTierOrdinal } from '../data/premiumTiers';
 import { playSfx } from '../lib/soundManager';
 import { parseTxError } from '../lib/transactionErrors';
+import { events, captureError } from '../lib/analytics';
+import { notify, truncateMid } from '../lib/notify';
 
 const TIER_PERKS: Record<Exclude<PremiumTier, 'none'>, { emoji: string; text: string }[]> = {
   plus: [
@@ -16,7 +17,7 @@ const TIER_PERKS: Record<Exclude<PremiumTier, 'none'>, { emoji: string; text: st
     { emoji: '\u{2B50}', text: '+35% XP bonus' },
     { emoji: '\u{1F3B0}', text: '3 free spins/day' },
     { emoji: '\u{1F4E6}', text: '+10% rare & legendary loot' },
-    { emoji: '\u{1F31F}', text: 'Exclusive Plus items' },
+    { emoji: '\u{1F31F}', text: 'Access to Plus-only items' },
   ],
   pro: [
     { emoji: '\u26A1', text: '3x stamina regen speed' },
@@ -24,8 +25,8 @@ const TIER_PERKS: Record<Exclude<PremiumTier, 'none'>, { emoji: string; text: st
     { emoji: '\u{2B50}', text: '+75% XP bonus' },
     { emoji: '\u{1F3B0}', text: '5 free spins/day' },
     { emoji: '\u{1F4E6}', text: '+20% rare & legendary loot' },
-    { emoji: '\u{1F451}', text: 'All accessories free' },
-    { emoji: '\u{1F48E}', text: 'Pro-exclusive items' },
+    { emoji: '\u{1F451}', text: "All today's accessories free" },
+    { emoji: '\u{1F48E}', text: 'Access to Pro-only items' },
     { emoji: '\u{1F3AE}', text: 'No mini-game cooldowns' },
   ],
 };
@@ -33,7 +34,7 @@ const TIER_PERKS: Record<Exclude<PremiumTier, 'none'>, { emoji: string; text: st
 interface TierOptionProps {
   tier: Exclude<PremiumTier, 'none'>;
   currentTier: PremiumTier;
-  onPurchase: (tier: PremiumTier) => void;
+  onPurchase: (tier: PremiumTier, currency: TierCurrency) => void;
   purchasing?: boolean;
 }
 
@@ -44,6 +45,7 @@ function TierOption({ tier, currentTier, onPurchase, purchasing }: TierOptionPro
   const cost = config.price;
   const perks = TIER_PERKS[tier];
   const isPopular = tier === 'plus';
+  const hasAlt = config.alternativePrice != null && config.alternativeCurrency != null;
 
   return (
     <View
@@ -91,30 +93,55 @@ function TierOption({ tier, currentTier, onPurchase, purchasing }: TierOptionPro
             {isActive && <Text className="text-[10px] text-green-500 font-bold">{'\u2713'}</Text>}
           </View>
         ))}
+        {tier === 'pro' && (
+          <Text className="text-[9px] text-gray-400 italic mt-1.5 leading-[12px]">
+            Future accessory drops not included \u2014 they'll be available to buy at their listed price.
+          </Text>
+        )}
 
-        {/* Purchase/upgrade button */}
+        {/* Purchase/upgrade button(s) */}
         {!isActive && !isBelow && (
           purchasing ? (
             <View style={{ marginTop: 8, paddingVertical: 14, borderRadius: 18, alignItems: 'center', backgroundColor: '#f3f4f6', borderWidth: 1, borderColor: '#e5e7eb' }}>
               <ActivityIndicator size="small" color="#3792A6" />
             </View>
           ) : (
-            <TouchableOpacity
-              onPress={() => onPurchase(tier)}
-              activeOpacity={0.85}
-              style={{ marginTop: 8 }}
-            >
-              <LinearGradient
-                colors={config.gradientColors}
-                style={{ paddingVertical: 14, borderRadius: 18, alignItems: 'center' }}
+            <View style={{ marginTop: 8 }}>
+              <TouchableOpacity
+                onPress={() => onPurchase(tier, config.currency)}
+                activeOpacity={0.85}
               >
-                <Text className="text-white font-black text-[13px] uppercase tracking-[0.5px]">
-                  {currentTier === 'none'
-                    ? `Get ${config.label} for ${cost} ${config.currency}`
-                    : `Upgrade for ${cost} ${config.currency}`}
-                </Text>
-              </LinearGradient>
-            </TouchableOpacity>
+                <LinearGradient
+                  colors={config.gradientColors}
+                  style={{ paddingVertical: 14, borderRadius: 18, alignItems: 'center' }}
+                >
+                  <Text className="text-white font-black text-[13px] uppercase tracking-[0.5px]">
+                    {currentTier === 'none'
+                      ? `Get ${config.label} for ${cost} ${config.currency}`
+                      : `Upgrade for ${cost} ${config.currency}`}
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
+              {hasAlt && (
+                <TouchableOpacity
+                  onPress={() => onPurchase(tier, config.alternativeCurrency!)}
+                  activeOpacity={0.85}
+                  style={{
+                    marginTop: 8,
+                    paddingVertical: 12,
+                    borderRadius: 16,
+                    alignItems: 'center',
+                    backgroundColor: '#fff',
+                    borderWidth: 1.5,
+                    borderColor: config.badgeColor,
+                  }}
+                >
+                  <Text style={{ color: config.badgeColor }} className="font-black text-[12px] uppercase tracking-[0.5px]">
+                    or pay {config.alternativePrice} {config.alternativeCurrency}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
           )
         )}
       </View>
@@ -128,17 +155,69 @@ export function PremiumCard() {
   const balance = useWalletStore((s) => s.balance);
   const skrBalance = useWalletStore((s) => s.skrBalance);
   const [purchasing, setPurchasing] = useState(false);
+  // Synchronous re-entry guard: setPurchasing is async (next render) so two
+  // rapid taps would both pass the `purchasing` check and queue two wallet
+  // approvals. The ref flips immediately, so the second tap exits cleanly.
+  const inFlightRef = useRef(false);
+  // Watchdog so Android outside-tap on Alert (which doesn't reliably fire
+  // onDismiss) can't deadlock the lock. The ref's only job is suppressing
+  // multi-tap within seconds. The post-Alert path has its own protection
+  // via the `purchasing` state, so the watchdog only needs to outlast the
+  // confirm-Alert lifetime. 120s comfortably covers slow Phantom approvals
+  // on weak networks (8-12s observed) plus the user reading the Alert and
+  // approving in their wallet — earlier 10s/60s windows could prematurely
+  // unlock during a real approval and let a second tap slip through to a
+  // duplicate charge. Once payment starts, `purchasing` becomes the
+  // primary block, so the longer watchdog only matters for confirmed-but-
+  // still-Alert-open scenarios.
+  const inFlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handlePurchase = (targetTier: PremiumTier) => {
-    if (purchasing) return;
+  const lockInFlight = () => {
+    inFlightRef.current = true;
+    if (inFlightTimerRef.current) clearTimeout(inFlightTimerRef.current);
+    inFlightTimerRef.current = setTimeout(() => {
+      inFlightRef.current = false;
+      inFlightTimerRef.current = null;
+    }, 120000);
+  };
+  const unlockInFlight = () => {
+    inFlightRef.current = false;
+    if (inFlightTimerRef.current) {
+      clearTimeout(inFlightTimerRef.current);
+      inFlightTimerRef.current = null;
+    }
+  };
+
+  const handlePurchase = (targetTier: PremiumTier, chosenCurrency: TierCurrency) => {
+    if (purchasing || inFlightRef.current) return;
+    lockInFlight();
     const config = TIER_CONFIGS[targetTier];
-    const cost = config.price;
-    const currency = config.currency;
+    const useAlt =
+      config.alternativeCurrency != null &&
+      chosenCurrency === config.alternativeCurrency &&
+      chosenCurrency !== config.currency;
+    const cost = useAlt ? config.alternativePrice! : config.price;
+    const currency: TierCurrency = useAlt ? config.alternativeCurrency! : config.currency;
     const userBalance = currency === 'SKR' ? skrBalance : balance;
 
     if (userBalance < cost) {
+      unlockInFlight();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert(`Not Enough ${currency}`, `You need ${cost} ${currency} but only have ${userBalance.toFixed(2)} ${currency}.`);
+      // Surface BOTH currency options if the tier has an alternative — saves
+      // the user from tapping the other button just to discover that's also
+      // out of reach.
+      const altLine =
+        config.alternativeCurrency != null &&
+        config.alternativePrice != null &&
+        config.alternativeCurrency !== config.currency
+          ? ` Or ${config.alternativePrice} ${config.alternativeCurrency} (you have ${
+              config.alternativeCurrency === 'SKR' ? skrBalance.toFixed(2) : balance.toFixed(4)
+            }).`
+          : '';
+      notify.warning(
+        `Not enough ${currency}`,
+        `${config.label} costs ${cost} ${currency}. You have ${userBalance.toFixed(2)}.${altLine}`,
+      );
       return;
     }
 
@@ -147,34 +226,54 @@ export function PremiumCard() {
       `${action} ${config.label}`,
       `${action} ${config.label} tier for ${cost} ${currency}?\nThis will open Phantom for approval.`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: 'Cancel', style: 'cancel', onPress: () => { unlockInFlight(); } },
         {
           text: `${action}!`,
           onPress: async () => {
             setPurchasing(true);
             try {
-              const txSig = await purchaseTier(targetTier);
+              const txSig = await purchaseTier(targetTier, currency);
+              events.premiumPurchase({
+                tier: targetTier as 'plus' | 'pro',
+                currency,
+                amount: cost,
+              });
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               playSfx('money').catch(() => {});
               setTimeout(() => playSfx('happymoney').catch(() => {}), 800);
-              Alert.alert(
-                'Upgrade Complete!',
-                `Welcome to ${config.label} tier!`,
-                [
-                  { text: 'View on Solscan', onPress: () => txSig && Linking.openURL(getSolscanTxUrl(txSig)) },
-                  { text: 'OK' },
-                ],
+              notify.success(
+                `Welcome to ${config.label}!`,
+                `${cost} ${currency} paid · perks active immediately`,
+                {
+                  category: 'tx',
+                  details: [
+                    { label: 'Tier', value: config.label },
+                    { label: 'Cost', value: `${cost} ${currency}` },
+                    ...(txSig ? [{ label: 'Transaction', value: truncateMid(txSig, 8, 8) }] : []),
+                  ],
+                  // Solscan link → users can verify the on-chain charge
+                  // themselves. The single biggest trust signal for crypto
+                  // users: "I paid, here's proof."
+                  solscanTxSignature: txSig || undefined,
+                },
               );
             } catch (err: any) {
               const parsed = parseTxError(err);
-              Alert.alert(parsed.title, parsed.message);
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+              if (parsed.type !== 'cancelled') {
+                captureError(err, { surface: 'premium_purchase', tier: targetTier });
+                notify.error(parsed.title, parsed.message, { category: 'tx' });
+              }
             } finally {
               setPurchasing(false);
+              unlockInFlight();
             }
           },
         },
-      ]
+      ],
+      // onDismiss may not fire reliably on Android outside-tap. We have a
+      // 10s watchdog in unlockInFlight as a backstop, but still try here.
+      { onDismiss: () => { unlockInFlight(); } },
     );
   };
 

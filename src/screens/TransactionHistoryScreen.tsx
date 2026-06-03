@@ -54,7 +54,7 @@ function TxRow({ tx }: { tx: LabeledTransaction }) {
 }
 
 export function TransactionHistoryScreen({ onBack }: { onBack: () => void }) {
-  const { transactions, isLoading, fetchHistory } = useTxHistoryStore();
+  const { transactions, isLoading, isLoadingMore, hasMore, fetchHistory, fetchMore } = useTxHistoryStore();
   const address = useWalletStore((s) => s.address);
 
   useEffect(() => {
@@ -123,6 +123,22 @@ export function TransactionHistoryScreen({ onBack }: { onBack: () => void }) {
         contentContainerStyle={{ paddingBottom: 100 }}
         refreshControl={
           <RefreshControl refreshing={isLoading} onRefresh={handleRefresh} tintColor="#3792A6" />
+        }
+        // Infinite scroll: pull the next page when the user gets near the
+        // bottom. 0.5 = trigger at half a screen from the end.
+        onEndReached={() => { if (address && hasMore) fetchMore(address); }}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={
+          isLoadingMore ? (
+            <View className="py-4 items-center">
+              <ActivityIndicator size="small" color="#3792A6" />
+              <Text className="text-[10px] text-gray-400 mt-1 font-semibold">Loading more…</Text>
+            </View>
+          ) : transactions.length > 0 && !hasMore ? (
+            <View className="py-4 items-center">
+              <Text className="text-[10px] text-gray-300 font-semibold">End of history</Text>
+            </View>
+          ) : null
         }
         ListEmptyComponent={
           isLoading ? (

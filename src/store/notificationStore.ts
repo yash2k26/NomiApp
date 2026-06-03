@@ -107,10 +107,21 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
     const state = get();
     if (!state.enabled || !state.permissionGranted) return;
 
+    const now = Date.now();
+    // Throttle: previously every app-background triggered a full
+    // cancel-and-reschedule. A user opening the app every 4 hours kept
+    // resetting the 8h "we miss you" timer to "8h from now," so it never
+    // fired and the retention loop was effectively broken. Skip if we
+    // already scheduled in the last 30 minutes — the existing schedule is
+    // close enough to current behaviour to keep.
+    const RESCHEDULE_THROTTLE_MS = 30 * 60 * 1000;
+    if (state.lastScheduledAt && now - state.lastScheduledAt < RESCHEDULE_THROTTLE_MS) {
+      return;
+    }
+
     // Cancel existing return notifications before scheduling new ones
     await Notifications.cancelAllScheduledNotificationsAsync();
 
-    const now = Date.now();
     set({ lastScheduledAt: now });
 
     // 4-hour reminder

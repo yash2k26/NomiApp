@@ -1,4 +1,5 @@
 import {
+  ComputeBudgetProgram,
   Keypair,
   LAMPORTS_PER_SOL,
   PublicKey,
@@ -9,11 +10,28 @@ import {
 import {
   connection,
   getLatestBlockhashRaw,
+  getPriorityFeeMicroLamports,
   sendRawTransactionRaw,
 } from './solanaClient';
 import { withWallet } from './mobileWalletAdapter';
 
 const MEMO_PROGRAM_ID = new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
+
+/**
+ * Add a priority-fee compute-budget instruction to a transaction. Helps it
+ * land reliably during congestion. Tiny absolute cost (~5000 lamports per tx
+ * at the default 1000 micro-lamports/CU floor) but prevents the user-facing
+ * "tx dropped" complaints we saw on busy days.
+ */
+async function addPriorityFee(tx: Transaction): Promise<void> {
+  try {
+    const microLamportsPerCU = await getPriorityFeeMicroLamports();
+    tx.add(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: microLamportsPerCU }));
+  } catch (err: any) {
+    // Non-fatal — tx just goes in at default priority.
+    console.warn('[solanaTx] addPriorityFee failed (non-fatal):', err?.message ?? err);
+  }
+}
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -54,7 +72,8 @@ async function confirmWithRetry(
     }
   }
 
-  // Fallback: check signature status
+  // Fallback: check signature status directly. If `searchTransactionHistory`
+  // returns a non-null entry, the tx landed somewhere.
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const statuses = await connection.getSignatureStatuses([signature], { searchTransactionHistory: true });
@@ -72,8 +91,20 @@ async function confirmWithRetry(
     }
   }
 
-  // Don't throw — tx was already submitted on-chain
-  console.warn('[solanaTx] could not confirm, but tx was submitted:', signature);
+  // CRITICAL: throw rather than return silently. Previously we would log a
+  // warning and return success here on the assumption that the tx "was
+  // already submitted, so it probably went through later." That assumption
+  // is wrong — if the blockhash expired before processing OR the RPC dropped
+  // the tx OR the user was rate-limited, the signature is dead and no SOL
+  // moved. Callers (premiumStore.purchaseTier, shopStore.buyItem, spin pay,
+  // etc.) then flipped local state to "purchased" and showed the user a
+  // success toast for a transaction that never landed. Real users got
+  // charged-but-not-credited (or "told they bought it but no chain proof").
+  // Now we throw, callers handle the failure, no false confirmations.
+  throw new Error(
+    `Transaction could not be confirmed on chain after ${Math.round((Date.now() - startedAt) / 1000)}s. ` +
+    `Signature ${signature.slice(0, 20)}... may have been dropped by the network. Please try again.`,
+  );
 }
 
 export async function signAndSendTransaction(
@@ -83,21 +114,26 @@ export async function signAndSendTransaction(
 ): Promise<string> {
   console.log('[solanaTx] signAndSendTransaction start');
 
-  // Phase 1: Get blockhash OUTSIDE wallet session
-  const { blockhash, lastValidBlockHeight } = await getLatestBlockhashRaw();
-  console.log('[solanaTx] blockhash fetched');
+  let blockhash = '';
+  let lastValidBlockHeight = 0;
 
-  // Phase 2: Wallet session — ONLY sign
   const serializedTx = await withWallet(authToken, async (wallet, address) => {
     const payer = new PublicKey(address);
     transaction.feePayer = payer;
+    // Priority fee prepended so the tx survives congestion. Cheap insurance.
+    await addPriorityFee(transaction);
+    // Blockhash captured at the latest possible moment to maximize validity
+    // window — wallet prompts can be slow.
+    const fresh = await getLatestBlockhashRaw();
+    blockhash = fresh.blockhash;
+    lastValidBlockHeight = fresh.lastValidBlockHeight;
     transaction.recentBlockhash = blockhash;
 
     if (additionalSigners.length > 0) {
       transaction.partialSign(...additionalSigners);
     }
 
-    console.log('[solanaTx] signAndSend — signing via wallet...');
+    console.log('[solanaTx] signAndSend — signing via wallet (blockhash:', blockhash.slice(0, 12), '...)');
     const signedTxs = await wallet.signTransactions({ transactions: [transaction] });
     const serialized = signedTxs[0].serialize();
     console.log('[solanaTx] signAndSend — signed, bytes:', serialized.length);
@@ -123,15 +159,20 @@ export async function transferSOL(
   console.log('[solanaTx] transferSOL start', { recipientAddress, amountSOL, lamports, memo: memo ?? null });
 
   try {
-    // Phase 1: Get blockhash OUTSIDE wallet session
-    const { blockhash, lastValidBlockHeight } = await getLatestBlockhashRaw();
-    console.log('[solanaTx] transferSOL blockhash fetched:', blockhash);
+    // Blockhash is captured inside the wallet session, RIGHT before signing,
+    // so the validity window is freshest at the moment the wallet returns
+    // the signed bytes. Previously we fetched the blockhash before opening
+    // the wallet — if the user took >30s to approve (common on Seeker /
+    // slow networks), the tx was dead on arrival when submitted.
+    let blockhash = '';
+    let lastValidBlockHeight = 0;
 
-    // Phase 2: Wallet session — ONLY sign (no RPC calls inside)
     const serializedTx = await withWallet(authToken, async (wallet, address) => {
       const payer = new PublicKey(address);
 
-      const tx = new Transaction().add(
+      const tx = new Transaction();
+      await addPriorityFee(tx);
+      tx.add(
         SystemProgram.transfer({
           fromPubkey: payer,
           toPubkey: new PublicKey(recipientAddress),
@@ -151,9 +192,12 @@ export async function transferSOL(
       }
 
       tx.feePayer = payer;
+      const fresh = await getLatestBlockhashRaw();
+      blockhash = fresh.blockhash;
+      lastValidBlockHeight = fresh.lastValidBlockHeight;
       tx.recentBlockhash = blockhash;
 
-      console.log('[solanaTx] transferSOL — signing via wallet...');
+      console.log('[solanaTx] transferSOL — signing via wallet (blockhash:', blockhash.slice(0, 12), '...)');
       const signedTxs = await wallet.signTransactions({ transactions: [tx] });
       const serialized = signedTxs[0].serialize();
       console.log('[solanaTx] transferSOL — signed, bytes:', serialized.length);
@@ -191,10 +235,9 @@ export async function requestAirdrop(address: string, amountSOL = 1): Promise<st
 export async function writeMemo(authToken: string, message: string): Promise<string> {
   console.log('[solanaTx] writeMemo start', { length: message.length });
 
-  // Phase 1: Get blockhash OUTSIDE wallet session
-  const { blockhash, lastValidBlockHeight } = await getLatestBlockhashRaw();
+  let blockhash = '';
+  let lastValidBlockHeight = 0;
 
-  // Phase 2: Wallet session — ONLY sign
   const serializedTx = await withWallet(authToken, async (wallet, address) => {
     const payer = new PublicKey(address);
 
@@ -206,6 +249,9 @@ export async function writeMemo(authToken: string, message: string): Promise<str
       }),
     );
     tx.feePayer = payer;
+    const fresh = await getLatestBlockhashRaw();
+    blockhash = fresh.blockhash;
+    lastValidBlockHeight = fresh.lastValidBlockHeight;
     tx.recentBlockhash = blockhash;
 
     console.log('[solanaTx] writeMemo — signing via wallet...');

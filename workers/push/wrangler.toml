@@ -1,0 +1,14 @@
+name = "nomi-push"
+main = "src/index.ts"
+compatibility_date = "2026-01-15"
+
+# Cron — fire every hour. Sweeps inactive devices and sends return pushes.
+[triggers]
+crons = ["0 * * * *"]
+
+# D1 — fill in `database_id` after `wrangler d1 create nomi-push`
+[[d1_databases]]
+binding = "DB"
+database_name = "nomi-push"
+database_id = "21705dab-fbd5-4f0f-a2d9-ba8d2381a713"
+migrations_dir = "migrations"

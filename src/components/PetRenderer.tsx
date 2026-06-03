@@ -1,5 +1,5 @@
 import React, { useRef, memo, useState, Suspense, useEffect, useCallback } from 'react';
-import { View, Text, Platform, LogBox, ActivityIndicator, Image } from 'react-native';
+import { View, Text, Platform, LogBox, ActivityIndicator, Image, TouchableOpacity } from 'react-native';
 import { Canvas, useFrame } from '@react-three/fiber/native';
 import { useGLTF, OrbitControls, useTexture } from '@react-three/drei/native';
 import * as THREE from 'three';
@@ -62,7 +62,12 @@ const OUTFIT_TEXTURE_REQUIRES: Record<string, number> = {
 };
 const OUTFIT_KEYS = Object.keys(OUTFIT_TEXTURE_REQUIRES).filter((k) => k !== DEFAULT_TEXTURE_KEY);
 
-// Preload the single model
+// Preload the model at startup so the heavy parse happens during the welcome
+// / connect screens and the GLB is cached + ready by the time Home mounts.
+// (On-device diagnostics confirmed the model parses fine — 83 nodes / 14
+// meshes / 6 anims — it's just slow; warming it early is what makes it appear
+// promptly. Removing this made the parse run cold on Home and is what caused
+// the false "Couldn't load".)
 useGLTF.preload(MODEL);
 
 // ── Crown spin component (needs useFrame) ──
@@ -268,8 +273,9 @@ function PetModel({ activeModel, onAnimationDone, equippedSkin, loopAnimation, o
       return;
     }
 
-    if (activeActionRef.current) {
-      activeActionRef.current.fadeOut(0.15);
+    const previousAction = activeActionRef.current;
+    if (previousAction) {
+      previousAction.fadeOut(0.15);
     }
 
     const action = mixer.clipAction(clip);
@@ -285,6 +291,18 @@ function PetModel({ activeModel, onAnimationDone, equippedSkin, loopAnimation, o
     action.fadeIn(0.15).play();
     activeActionRef.current = action;
 
+    // Hard-stop the faded-out action after the crossfade window completes.
+    // Without this, the previous action stays at weight=0 forever and the
+    // mixer keeps ticking it on every frame. Over a long session with many
+    // animation swaps, the CPU+GPU cost adds up — explains "freezes after
+    // 30 min" reports on slow Asian devices.
+    let stopTimer: ReturnType<typeof setTimeout> | null = null;
+    if (previousAction && previousAction !== action) {
+      stopTimer = setTimeout(() => {
+        try { previousAction.stop(); } catch {}
+      }, 200);
+    }
+
     const onFinished = () => onAnimationDone?.();
 
     if (playOnce) {
@@ -292,6 +310,7 @@ function PetModel({ activeModel, onAnimationDone, equippedSkin, loopAnimation, o
     }
 
     return () => {
+      if (stopTimer) clearTimeout(stopTimer);
       if (playOnce) {
         mixer.removeEventListener('finished', onFinished);
       }
@@ -321,14 +340,44 @@ function FallbackView() {
 }
 
 function ModelLoadingFallback() {
+  // Escalating reassurance: the GLB load can take a few seconds on first
+  // launch (cold parse, GPU upload). Static "Loading Nomi..." text held for
+  // 8s reads as "stuck" — a softer second-line message after 3s tells the
+  // user we're still working without alarming them.
+  const [phase, setPhase] = useState(0);
+  useEffect(() => {
+    const t1 = setTimeout(() => setPhase(1), 3000);
+    const t2 = setTimeout(() => setPhase(2), 8000);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, []);
+  const subtitle =
+    phase === 0 ? 'Loading Nomi...' :
+    phase === 1 ? 'Just a moment — first launch is the slowest' :
+    'Almost there — finishing up';
   return (
     <View className="absolute inset-0 items-center justify-center z-10 bg-sky-200">
       <Image source={ME_IMG} style={{ width: 100, height: 100, marginBottom: 12 }} resizeMode="contain" />
       <ActivityIndicator size="small" color="#3b82f6" />
-      <Text className="text-blue-400 text-xs mt-3 font-bold">Loading Nomi...</Text>
+      <Text className="text-blue-400 text-xs mt-3 font-bold">{subtitle}</Text>
     </View>
   );
 }
+
+function ModelLoadFailedFallback({ onRetry }: { onRetry: () => void }) {
+  return (
+    <View className="absolute inset-0 items-center justify-center z-10 bg-sky-200 px-6">
+      <Image source={ME_IMG} style={{ width: 100, height: 100, marginBottom: 12, opacity: 0.6 }} resizeMode="contain" />
+      <Text className="text-blue-700 text-sm font-black mb-1">Couldn't load Nomi's 3D model</Text>
+      <Text className="text-blue-500 text-[11px] text-center mb-4 px-4">
+        This usually clears with a quick retry. Check your connection or try restarting the app.
+      </Text>
+      <TouchableOpacity onPress={onRetry} activeOpacity={0.85} className="bg-pet-blue px-5 py-2.5 rounded-full border border-pet-blue-dark/40">
+        <Text className="text-white text-[12px] font-black tracking-[0.5px] uppercase">Retry</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 
 interface PetRendererProps {
   activeModel?: ActiveModel;
@@ -338,12 +387,50 @@ interface PetRendererProps {
   /** True when the active animation comes from an equipped shop item — forces the
    *  clip to LoopRepeat so e.g. backflip keeps looping instead of freezing. */
   loopAnimation?: boolean;
+  /** When true, the 3D render loop is stopped (Canvas frameloop="never").
+   *  Set while the Home page is scrolled off-screen in the pager so the
+   *  continuous useFrame loop doesn't keep burning CPU/GPU/battery on tabs
+   *  where the pet isn't visible — that background loop was a lag source. */
+  paused?: boolean;
 }
 
-export const PetRenderer = memo(function PetRenderer({ activeModel = 'breathing', onExcitedFinished, equippedSkin = 'default', onReady, loopAnimation }: PetRendererProps) {
+export const PetRenderer = memo(function PetRenderer({ activeModel = 'breathing', onExcitedFinished, equippedSkin = 'default', onReady, loopAnimation, paused = false }: PetRendererProps) {
   const [canvasReady, setCanvasReady] = useState(false);
+  const [modelMounted, setModelMounted] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+  // Bumping this remounts the Canvas + PetModel — used by the retry button
+  // when GLB load times out, so we get a fresh attempt rather than a hung one.
+  const [retryKey, setRetryKey] = useState(0);
   const onReadyRef = useRef(onReady);
   onReadyRef.current = onReady;
+
+  // Watchdog — VERY patient, and NO auto-reload. On-device diagnostics proved
+  // the model parses fine; it's just slow on a cold parse. The old behaviour
+  // (35s timeout + auto-reload) was catastrophic: it gave up before the slow
+  // parse finished and then CLEARED + restarted it, so a load that needed ~40s
+  // could never complete — it was thrown away and restarted every 35s. That
+  // loop is exactly why "Couldn't load" showed even though the GLB was fine.
+  // Now: we simply wait. The watchdog only exists for a genuine hang (90s),
+  // and it just shows a manual Retry — it never auto-restarts a load in flight.
+  useEffect(() => {
+    if (modelMounted || loadFailed) return;
+    const timer = setTimeout(() => {
+      if (!modelMounted) setLoadFailed(true);
+    }, 90000);
+    return () => clearTimeout(timer);
+  }, [modelMounted, loadFailed, retryKey]);
+
+  const handleRetry = () => {
+    // Manual retry only (user-initiated): clear the cache and remount for a
+    // clean attempt. Never fires automatically.
+    try {
+      (useGLTF as any).clear?.(MODEL);
+    } catch {}
+    setLoadFailed(false);
+    setModelMounted(false);
+    setCanvasReady(false);
+    setRetryKey((k) => k + 1);
+  };
 
   const excitedCallbackRef = useRef(onExcitedFinished);
   excitedCallbackRef.current = onExcitedFinished;
@@ -355,9 +442,21 @@ export const PetRenderer = memo(function PetRenderer({ activeModel = 'breathing'
 
   return (
     <View className="flex-1 bg-sky-200">
-      {!canvasReady && <ModelLoadingFallback />}
+      {/* Keep the loading splash up until the GLB has actually mounted, not
+          just until the Canvas has created. The Canvas creates in ~50ms but
+          the 42 MB GLB takes seconds to read+parse+upload. Without this,
+          the splash disappears immediately and the user stares at a blue
+          canvas with just a shadow disc — looks broken even though loading
+          is progressing fine. */}
+      {!modelMounted && !loadFailed && <ModelLoadingFallback />}
+      {loadFailed && <ModelLoadFailedFallback onRetry={handleRetry} />}
 
       <Canvas
+        key={retryKey}
+        // "never" fully stops the render loop while Home is off-screen in the
+        // pager. We don't drop to "demand" until the GLB has mounted, so the
+        // initial load still renders the frames it needs to appear.
+        frameloop={paused && modelMounted ? 'never' : 'always'}
         camera={{ position: [0, 0.3, 5.5], fov: 45 }}
         gl={{ antialias: false, powerPreference: 'low-power' }}
         onCreated={() => setCanvasReady(true)}
@@ -395,7 +494,10 @@ export const PetRenderer = memo(function PetRenderer({ activeModel = 'breathing'
             onAnimationDone={activeModel === 'excited' ? stableOnDone : undefined}
             equippedSkin={equippedSkin}
             loopAnimation={loopAnimation}
-            onModelMounted={() => onReadyRef.current?.()}
+            onModelMounted={() => {
+              setModelMounted(true);
+              onReadyRef.current?.();
+            }}
           />
         </Suspense>
       </Canvas>

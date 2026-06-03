@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -13,6 +13,9 @@ import { ScreenHeader } from '../components/ui/ScreenHeader';
 import { petTypography } from '../theme/typography';
 import { playSfx } from '../lib/soundManager';
 import { friendlyTxError } from '../lib/transactionErrors';
+import { events, captureError } from '../lib/analytics';
+import { notify } from '../lib/notify';
+import { NotificationBell } from '../components/notifications/NotificationBell';
 
 const BUTTON_RADIUS = 10;
 const PILL_RADIUS = 12;
@@ -82,7 +85,16 @@ const RARITY_BORDER: Record<ItemRarity, string> = {
   legendary: '#83B8DA',
 };
 
-function CardPrice({ item, isPremium }: { item: ShopItem; isPremium: boolean }) {
+function CardPrice({ item, freeForUser }: { item: ShopItem; freeForUser: boolean }) {
+  // Hooks MUST run unconditionally on every render \u2014 calling them after an
+  // early-return path was the source of the "Expected static flag was missing"
+  // React reconciler error users saw when opening Shop.
+  const level = useXpStore((s) => s.level);
+  const discount = getPerksForLevel(level).shopDiscount;
+  const discountPercent = Math.round(discount * 100);
+  const finalPrice = Math.round(item.price * (1 - discount) * 1000000) / 1000000;
+  const hasDiscount = discount > 0 && item.price > 0;
+
   // Show "Owned" badge once purchased
   if (item.owned) {
     return (
@@ -94,16 +106,11 @@ function CardPrice({ item, isPremium }: { item: ShopItem; isPremium: boolean }) 
     );
   }
 
-  const level = useXpStore((s) => s.level);
-  const discount = getPerksForLevel(level).shopDiscount;
-  const discountPercent = Math.round(discount * 100);
-  const finalPrice = Math.round(item.price * (1 - discount) * 1000000) / 1000000;
-  const hasDiscount = discount > 0 && item.price > 0;
-
-  if (isPremium) {
+  if (freeForUser) {
     return (
       <View className="items-center mt-3 mb-4">
         <Text className="text-[14px] font-black text-pet-blue-dark">FREE</Text>
+        <Text className="text-[9px] font-bold text-gray-400 mt-0.5 uppercase tracking-wider">Pro perk</Text>
       </View>
     );
   }
@@ -132,6 +139,12 @@ function CardPrice({ item, isPremium }: { item: ShopItem; isPremium: boolean }) 
           <Text className="text-[9px] font-bold text-purple-400 ml-1">SKR</Text>
         </View>
       )}
+      {item.coinPrice && (
+        <View className="flex-row items-center justify-center mt-1">
+          <Text className="text-[11px] font-black text-amber-600">{item.coinPrice}</Text>
+          <Text className="text-[9px] font-bold text-amber-400 ml-1">coins</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -139,7 +152,7 @@ function CardPrice({ item, isPremium }: { item: ShopItem; isPremium: boolean }) 
 function ShopCard({
   item,
   equipped,
-  isPremium,
+  freeForUser,
   purchasing,
   onBuy,
   onEquip,
@@ -147,7 +160,10 @@ function ShopCard({
 }: {
   item: ShopItem;
   equipped: boolean;
-  isPremium: boolean;
+  /** True iff the user's premium tier perks include THIS specific item id
+   *  (i.e. the item was in the catalog when they purchased Pro). New items
+   *  added later are not free even for premium users. */
+  freeForUser: boolean;
   purchasing: boolean;
   onBuy: () => void;
   onEquip: () => void;
@@ -220,7 +236,7 @@ function ShopCard({
         {item.category}
       </Text>
 
-      <CardPrice item={item} isPremium={isPremium} />
+      <CardPrice item={item} freeForUser={freeForUser} />
 
       {item.comingSoon && !item.owned ? (
         <LinearGradient
@@ -248,14 +264,14 @@ function ShopCard({
         <TouchableOpacity onPress={handlePress} activeOpacity={0.85} style={{ borderRadius: BUTTON_RADIUS }} className="overflow-hidden">
           {!item.owned ? (
             <LinearGradient
-              colors={isPremium ? ['#4AA2CB', '#3B8BB4'] : ['#48B4CD', '#66CBE1']}
+              colors={freeForUser ? ['#4AA2CB', '#3B8BB4'] : ['#48B4CD', '#66CBE1']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               className="py-3 items-center"
               style={{ borderRadius: BUTTON_RADIUS }}
             >
               <Text className="text-white text-[12px] font-black tracking-wider uppercase">
-                {isPremium ? '\u{1F48E} Claim Free' : 'Adopt'}
+                {freeForUser ? '\u{1F48E} Claim Free' : 'Adopt'}
               </Text>
             </LinearGradient>
           ) : equipped ? (
@@ -279,18 +295,22 @@ function PaymentModal({
   onClose,
   onPaySol,
   onPaySkr,
+  onPayCoins,
   solBalance,
   skrBalance,
+  coinBalance,
 }: {
   item: ShopItem | null;
   visible: boolean;
   onClose: () => void;
   onPaySol: () => void;
   onPaySkr: () => void;
+  onPayCoins: () => void;
   solBalance: number;
   skrBalance: number;
+  coinBalance: number;
 }) {
-  const [payMode, setPayMode] = useState<'choose' | 'sol' | 'skr'>('choose');
+  const [payMode, setPayMode] = useState<'choose' | 'sol' | 'skr' | 'coins'>('choose');
   if (!item) return null;
 
   // Calculate level discount
@@ -305,6 +325,7 @@ function PaymentModal({
 
   const canAffordSol = solBalance >= totalSol;
   const canAffordSkr = !!item.skrPrice && skrBalance >= item.skrPrice;
+  const canAffordCoins = !!item.coinPrice && coinBalance >= item.coinPrice;
 
   const handleClose = () => {
     setPayMode('choose');
@@ -319,6 +340,11 @@ function PaymentModal({
   const handlePaySkr = () => {
     setPayMode('choose');
     onPaySkr();
+  };
+
+  const handlePayCoins = () => {
+    setPayMode('choose');
+    onPayCoins();
   };
 
   // ── Bill / Invoice view (SOL) ──
@@ -548,7 +574,7 @@ function PaymentModal({
               onPress={() => setPayMode('skr')}
               disabled={!canAffordSkr}
               activeOpacity={0.85}
-              className="w-full mb-5"
+              className="w-full mb-3"
             >
               <View
                 className={`flex-row items-center justify-between px-5 py-4 border ${canAffordSkr ? 'bg-white border-purple-200' : 'bg-gray-50 border-gray-200'}`}
@@ -566,8 +592,48 @@ function PaymentModal({
                 <Text className={`text-[16px] font-black ${canAffordSkr ? 'text-purple-600' : 'text-gray-300'}`}>{item.skrPrice} SKR</Text>
               </View>
             </TouchableOpacity>
+          ) : null}
+
+          {/* In-app Nomi coins option — quieter chrome than SOL/SKR since it's
+              not real money. Accent stripe + amber price keep it discoverable
+              without competing with the chain-currency rows above. */}
+          {item.coinPrice ? (
+            <TouchableOpacity
+              onPress={handlePayCoins}
+              disabled={!canAffordCoins}
+              activeOpacity={0.85}
+              className="w-full mb-5"
+            >
+              <View
+                className="flex-row items-center justify-between px-5 py-4 border border-gray-200 bg-white"
+                style={{ borderRadius: 16 }}
+              >
+                <View className="flex-row items-center">
+                  <View
+                    className="w-9 h-9 rounded-full items-center justify-center mr-3"
+                    style={{ backgroundColor: '#FEF3C7' }}
+                  >
+                    <Text style={{ fontSize: 14 }}>{'\u{1FA99}'}</Text>
+                  </View>
+                  <View>
+                    <Text className={`text-[14px] font-black ${canAffordCoins ? 'text-gray-800' : 'text-gray-400'}`}>In-game Coins</Text>
+                    <Text className={`text-[11px] font-semibold ${canAffordCoins ? 'text-gray-400' : 'text-gray-300'}`}>
+                      Balance: {Math.floor(coinBalance).toLocaleString()}
+                    </Text>
+                  </View>
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text className={`text-[16px] font-black ${canAffordCoins ? 'text-amber-700' : 'text-gray-300'}`}>
+                    {item.coinPrice.toLocaleString()}
+                  </Text>
+                  <Text className={`text-[9px] font-bold uppercase tracking-[0.6px] ${canAffordCoins ? 'text-amber-700/70' : 'text-gray-300'}`}>
+                    coins
+                  </Text>
+                </View>
+              </View>
+            </TouchableOpacity>
           ) : (
-            <View className="mb-5" />
+            <View className="mb-2" />
           )}
 
           <TouchableOpacity onPress={handleClose} activeOpacity={0.85}>
@@ -587,7 +653,7 @@ function InsufficientFundsModal({
   onClose,
 }: {
   visible: boolean;
-  currency: 'SOL' | 'SKR';
+  currency: 'SOL' | 'SKR' | 'Coins';
   required: number;
   available: number;
   onClose: () => void;
@@ -909,16 +975,29 @@ export function ShopScreen() {
   const [ownershipFilter, setOwnershipFilter] = useState<OwnershipFilter>('all');
   const [showComingSoon, setShowComingSoon] = useState(true);
   const [purchasingId, setPurchasingId] = useState<string | null>(null);
+  // Synchronous re-entry guard for the payment buttons. setPurchasingId is
+  // async (next render) so two rapid taps on the same Pay button would both
+  // pass the disabled check and call doPurchase twice. shopStore.buyItem has
+  // its own module-level guard that prevents the actual double-tx, but the
+  // UI would still flicker two receipts. This ref blocks the second call
+  // before either render or storeware sees it.
+  const buyInFlightRef = useRef(false);
   const [paymentItem, setPaymentItem] = useState<ShopItem | null>(null);
   const [receiptItem, setReceiptItem] = useState<ShopItem | null>(null);
   const [receiptSuccess, setReceiptSuccess] = useState(false);
   const [receiptSkr, setReceiptSkr] = useState(false);
   const [receiptError, setReceiptError] = useState('');
-  const [fundsModal, setFundsModal] = useState<{ currency: 'SOL' | 'SKR'; required: number; available: number } | null>(null);
+  const [fundsModal, setFundsModal] = useState<{ currency: 'SOL' | 'SKR' | 'Coins'; required: number; available: number } | null>(null);
   const balance = useWalletStore((s) => s.balance);
   const skrBalance = useWalletStore((s) => s.skrBalance);
+  const appCoins = useWalletStore((s) => s.appCoins);
   const premium = usePremiumStore((s) => s.isPremium);
   const tier = usePremiumStore((s) => s.tier);
+  // Per-item free check: only items in the user's perkedItemIds snapshot are
+  // free as a tier perk. New items added to the catalog after purchase fall
+  // through to normal pricing.
+  const perkedItemIds = usePremiumStore((s) => s.perkedItemIds);
+  const isItemFree = (id: string) => perkedItemIds.includes(id);
 
   useEffect(() => {
     hydrateShop();
@@ -985,12 +1064,34 @@ export function ShopScreen() {
     });
     setPurchasingId(item.id);
     try {
-      await buyItem(item.id, withSkr);
+      const txSig = await buyItem(item.id, withSkr);
       console.log('[ShopScreen] doPurchase success', {
         itemId: item.id,
         withSkr,
+        txSig,
         elapsedMs: Date.now() - start,
       });
+      events.shopPurchase({
+        item_id: item.id,
+        currency: withSkr ? 'SKR' : 'SOL',
+        amount: withSkr ? (item.skrPrice ?? 0) : (item.price ?? 0),
+        rarity: item.rarity,
+      });
+      const amount = withSkr ? (item.skrPrice ?? 0) : (item.price ?? 0);
+      const currency = withSkr ? 'SKR' : 'SOL';
+      notify.success(
+        `${item.name} added to your closet`,
+        `${amount} ${currency} paid · tap any time in Shop to equip`,
+        {
+          category: 'tx',
+          details: [
+            { label: 'Item', value: item.name },
+            { label: 'Price', value: `${amount} ${currency}` },
+            { label: 'Rarity', value: item.rarity },
+          ],
+          solscanTxSignature: txSig || undefined,
+        },
+      );
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       playSfx('money').catch(() => {});
       setReceiptItem(item);
@@ -1004,11 +1105,57 @@ export function ShopScreen() {
         elapsedMs: Date.now() - start,
         error: err?.message,
       });
+      captureError(err, { surface: 'shop_purchase', item_id: item.id, with_skr: withSkr });
+      const friendly = friendlyTxError(err);
+      notify.error(`Couldn't buy ${item.name}`, friendly, { category: 'tx' });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setReceiptItem(item);
       setReceiptSuccess(false);
       setReceiptSkr(withSkr);
-      setReceiptError(friendlyTxError(err));
+      setReceiptError(friendly);
+    } finally {
+      setPurchasingId(null);
+    }
+  };
+
+  const doPurchaseWithCoins = async (item: ShopItem) => {
+    if (!item.coinPrice) return;
+    setPurchasingId(item.id);
+    try {
+      await buyItem(item.id, false, true);
+      events.shopPurchase({
+        item_id: item.id,
+        currency: 'coins',
+        amount: item.coinPrice,
+        rarity: item.rarity,
+      });
+      notify.success(
+        `${item.name} unlocked`,
+        `${item.coinPrice.toLocaleString()} coins spent · equip in Shop`,
+        {
+          category: 'tx',
+          details: [
+            { label: 'Item', value: item.name },
+            { label: 'Price', value: `${item.coinPrice} coins` },
+            { label: 'Rarity', value: item.rarity },
+          ],
+        },
+      );
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      playSfx('money').catch(() => {});
+      setReceiptItem(item);
+      setReceiptSuccess(true);
+      setReceiptSkr(false);
+      setReceiptError('');
+    } catch (err: any) {
+      captureError(err, { surface: 'shop_purchase_coins', item_id: item.id });
+      const friendly = friendlyTxError(err);
+      notify.error(`Couldn't buy ${item.name}`, friendly, { category: 'tx' });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setReceiptItem(item);
+      setReceiptSuccess(false);
+      setReceiptSkr(false);
+      setReceiptError(friendly);
     } finally {
       setPurchasingId(null);
     }
@@ -1021,6 +1168,7 @@ export function ShopScreen() {
 
   const handlePaySol = () => {
     if (!paymentItem) return;
+    if (buyInFlightRef.current) return;
     const lvl = useXpStore.getState().level;
     const disc = getPerksForLevel(lvl).shopDiscount;
     const discountedPrice = Math.round(paymentItem.price * (1 - disc) * 100) / 100;
@@ -1040,12 +1188,14 @@ export function ShopScreen() {
       balance,
     });
     const item = paymentItem;
+    buyInFlightRef.current = true;
     setPaymentItem(null);
-    doPurchase(item, false);
+    doPurchase(item, false).finally(() => { buyInFlightRef.current = false; });
   };
 
   const handlePaySkr = () => {
     if (!paymentItem || !paymentItem.skrPrice) return;
+    if (buyInFlightRef.current) return;
     if (skrBalance < paymentItem.skrPrice) {
       console.warn('[ShopScreen] handlePaySkr insufficient balance', {
         itemId: paymentItem.id,
@@ -1062,8 +1212,27 @@ export function ShopScreen() {
       skrBalance,
     });
     const item = paymentItem;
+    buyInFlightRef.current = true;
     setPaymentItem(null);
-    doPurchase(item, true);
+    doPurchase(item, true).finally(() => { buyInFlightRef.current = false; });
+  };
+
+  const handlePayCoins = () => {
+    if (!paymentItem || !paymentItem.coinPrice) return;
+    if (buyInFlightRef.current) return;
+    if (appCoins < paymentItem.coinPrice) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      // Use the 'Coins' label rather than 'SKR' — the user was paying with
+      // in-game coins, not the on-chain SKR token. Previously this falsely
+      // told users they were short on SKR which made them try to bridge SKR
+      // and then complain.
+      setFundsModal({ currency: 'Coins', required: paymentItem.coinPrice, available: appCoins });
+      return;
+    }
+    const item = paymentItem;
+    buyInFlightRef.current = true;
+    setPaymentItem(null);
+    doPurchaseWithCoins(item).finally(() => { buyInFlightRef.current = false; });
   };
 
   const handleEquip = (item: ShopItem) => {
@@ -1093,6 +1262,11 @@ export function ShopScreen() {
       <View className="absolute top-44 -right-12 w-52 h-52 rounded-full bg-pet-blue-light/20" />
       <Text className="absolute top-12 left-8 text-[16px] opacity-45">{'\u2728'}</Text>
       <Text className="absolute top-20 right-8 text-[14px] opacity-35">{'\u{1F31F}'}</Text>
+
+      {/* Notification bell \u2014 same global access pattern as Home/Profile. */}
+      <View style={{ position: 'absolute', top: 16, right: 20, zIndex: 30 }}>
+        <NotificationBell />
+      </View>
 
       <View className="px-6 pt-5 pb-4">
         <ScreenHeader
@@ -1216,7 +1390,7 @@ export function ShopScreen() {
                           key={item.id}
                           item={item}
                           equipped={item.category === 'Animations' ? equippedAnimationId === item.id : equippedItemId === item.id}
-                          isPremium={premium}
+                          freeForUser={isItemFree(item.id)}
                           purchasing={purchasingId === item.id}
                           onBuy={() => handleBuy(item)}
                           onEquip={() => handleEquip(item)}
@@ -1255,7 +1429,7 @@ export function ShopScreen() {
                       key={item.id}
                       item={item}
                       equipped={item.category === 'Animations' ? equippedAnimationId === item.id : equippedItemId === item.id}
-                      isPremium={premium}
+                      freeForUser={isItemFree(item.id)}
                       purchasing={purchasingId === item.id}
                       onBuy={() => handleBuy(item)}
                       onEquip={() => handleEquip(item)}
@@ -1282,8 +1456,10 @@ export function ShopScreen() {
         onClose={() => setPaymentItem(null)}
         onPaySol={handlePaySol}
         onPaySkr={handlePaySkr}
+        onPayCoins={handlePayCoins}
         solBalance={balance}
         skrBalance={skrBalance}
+        coinBalance={appCoins}
       />
 
       <ReceiptModal

@@ -110,12 +110,22 @@ function pick<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+// Active events have a max lifetime. If a stored activeEvent is older than
+// this when we hydrate, we drop it — the event has effectively expired
+// while the app was closed. 30 minutes is generous; events normally
+// resolve within seconds.
+const ACTIVE_EVENT_MAX_AGE_MS = 30 * 60 * 1000;
+
 function saveEventState(state: EventState) {
   AsyncStorage.setItem(EVENT_STORAGE_KEY, JSON.stringify({
     lastEventAt: state.lastEventAt,
     eventsSeenToday: state.eventsSeenToday,
     lastEventDate: state.lastEventDate,
     eventHistory: state.eventHistory,
+    // Persist the active event too so a user mid-interaction (e.g. tapped
+    // 3 of 5 in a multi-tap challenge) can resume after backgrounding.
+    // Was previously lost — reopening the app silently dropped progress.
+    activeEvent: state.activeEvent,
   })).catch(() => {});
 }
 
@@ -197,6 +207,14 @@ export const useEventStore = create<EventStore>((set, get) => ({
     const { activeEvent, eventHistory } = get();
     if (!activeEvent || activeEvent.resolved) return null;
 
+    // Mark resolved FIRST (clear-first re-entrancy guard, same pattern as
+    // claimAdventureLoot). Previously `resolved` was only set at the very end,
+    // after all reward grants — so a second call (rapid multi-tap, or the
+    // wait-timer path firing alongside a tap) slipped past the guard above and
+    // double-credited the event's XP/coins/shards. Setting it now closes that
+    // window: any re-entry hits the early-return.
+    set({ activeEvent: { ...activeEvent, resolved: true } });
+
     const reward = activeEvent.event.reward;
 
     // Apply rewards
@@ -205,10 +223,14 @@ export const useEventStore = create<EventStore>((set, get) => ({
       const xpStore = require('./xpStore').useXpStore.getState();
       xpStore.addXp(reward.xp, 'event');
 
-      // Coins
+      // Coins → in-app wallet (game currency, not chain SOL). 'event' source
+      // is daily-capped in walletStore.
       if (reward.coins > 0) {
         const walletStore = require('./walletStore').useWalletStore.getState();
-        walletStore.addBalance(reward.coins);
+        // Same fraction→whole-coin conversion the EventOverlay uses for
+        // display, so the credited amount matches what the user is shown.
+        const { lootCoinsToDisplay } = require('./adventureStore');
+        walletStore.addAppCoins(lootCoinsToDisplay(reward.coins), 'event');
       }
 
       // Stamina
@@ -259,6 +281,7 @@ export const useEventStore = create<EventStore>((set, get) => ({
 
   dismissEvent: () => {
     set({ activeEvent: null });
+    saveEventState(get());
   },
 
   hydrateEvents: async () => {
@@ -266,7 +289,16 @@ export const useEventStore = create<EventStore>((set, get) => ({
       const raw = await AsyncStorage.getItem(EVENT_STORAGE_KEY);
       if (!raw) return;
       const data = JSON.parse(raw);
+      // Restore activeEvent only if it's still fresh. An event from hours
+      // ago is stale — drop it to avoid showing a confusing zombie overlay.
+      let restoredActive: ActiveEvent | null = null;
+      if (data.activeEvent && typeof data.activeEvent.startedAt === 'number') {
+        if (Date.now() - data.activeEvent.startedAt < ACTIVE_EVENT_MAX_AGE_MS) {
+          restoredActive = data.activeEvent;
+        }
+      }
       set({
+        activeEvent: restoredActive,
         lastEventAt: data.lastEventAt ?? 0,
         eventsSeenToday: data.eventsSeenToday ?? 0,
         lastEventDate: data.lastEventDate ?? '',

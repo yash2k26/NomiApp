@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, Animated } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEventStore, type EventReward } from '../store/eventStore';
+import { lootCoinsToDisplay } from '../store/adventureStore';
 import { playSfx } from '../lib/soundManager';
 
 const RARITY_COLORS: Record<string, readonly [string, string]> = {
@@ -29,7 +30,10 @@ function RewardPopup({ reward, onDone }: { reward: EventReward; onDone: () => vo
 
   const rewards: string[] = [];
   if (reward.xp > 0) rewards.push(`+${reward.xp} XP`);
-  if (reward.coins > 0) rewards.push(`+${reward.coins} SOL`);
+  // In-game coins (NOT on-chain SOL). Was previously labeled "SOL" which
+  // misled users into expecting wallet transfers. Uses the same shared
+  // conversion the credit path uses, so display and credit always agree.
+  if (reward.coins > 0) rewards.push(`+${lootCoinsToDisplay(reward.coins)} coins`);
   if (reward.staminaRefill > 0) rewards.push(`+${reward.staminaRefill} Stamina`);
   if (reward.happiness > 0) rewards.push(`+${reward.happiness} Happiness`);
   if (reward.hunger > 0) rewards.push(`+${reward.hunger} Hunger`);
@@ -93,12 +97,24 @@ export function EventOverlay() {
     return () => clearTimeout(timer);
   }, [activeEvent, event, dismissEvent]);
 
+  // Re-entry guard. Without this, a rapid double-tap on the event overlay
+  // (or a multi-tap completion + an inflight wait-timer resolving on the same
+  // tick) calls resolveEvent twice before React re-renders with
+  // activeEvent.resolved=true, granting rewards twice. Ref flag is checked
+  // synchronously, so the second call short-circuits.
+  const resolveInFlightRef = useRef(false);
+
   const handleResolve = useCallback(() => {
+    if (resolveInFlightRef.current) return;
+    resolveInFlightRef.current = true;
     const reward = resolveEvent();
     if (reward) {
       setShowReward(reward);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       playSfx('reward');
+    } else {
+      // Nothing happened — release the lock so the user can try again
+      resolveInFlightRef.current = false;
     }
   }, [resolveEvent]);
 
@@ -143,6 +159,9 @@ export function EventOverlay() {
     playSfx('happy');
     setShowReward(null);
     dismissEvent();
+    // Release the guard once the entire event lifecycle is done — next event
+    // can fire normally.
+    resolveInFlightRef.current = false;
   }, [dismissEvent]);
 
   if (!isActive && !showReward) return null;

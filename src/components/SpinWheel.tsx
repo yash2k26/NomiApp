@@ -6,6 +6,11 @@ import { useAdventureStore, SPIN_SEGMENTS, type SpinResult } from '../store/adve
 import { useWalletStore } from '../store/walletStore';
 import { petTypography } from '../theme/typography';
 import { playSfx } from '../lib/soundManager';
+import { events, captureError } from '../lib/analytics';
+import { transferSOL } from '../lib/solanaTransactions';
+import { SHOP_TREASURY } from '../lib/solanaClient';
+import { parseTxError } from '../lib/transactionErrors';
+import { notify } from '../lib/notify';
 
 const SPIN_DURATION_MS = 4500;
 const SEGMENT_COUNT = SPIN_SEGMENTS.length;
@@ -410,22 +415,32 @@ function Pointer() {
 
 /* ── Main SpinWheel ── */
 export function SpinWheel() {
-  const { canSpinToday, doSpin, claimSpinReward, lastSpinDate, extraSpinsToday } = useAdventureStore();
+  const { canSpinToday, getSpinState, doSpin, claimSpinReward, extraSpinsToday } = useAdventureStore();
   const balance = useWalletStore((s) => s.balance);
+  const authToken = useWalletStore((s) => s.authToken);
+  const refreshBalance = useWalletStore((s) => s.refreshBalance);
   const spinAnim = useRef(new Animated.Value(0)).current;
   const currentRotation = useRef(0);
+  const [paying, setPaying] = useState(false);
   const [spinning, setSpinning] = useState(false);
+  // Synchronous re-entry guard. useState updates are batched and don't
+  // visibly flip until the next render, so two rapid taps would both observe
+  // `paying === false` and queue two on-chain transfers. A ref updates
+  // immediately, guaranteeing only the first tap proceeds past the guard.
+  const inFlightRef = useRef(false);
   const [showResult, setShowResult] = useState(false);
   const [result, setResult] = useState<SpinResult | null>(null);
   const [showFundsModal, setShowFundsModal] = useState(false);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const pulseLoop = useRef<Animated.CompositeAnimation | null>(null);
 
-  const today = new Date().toISOString().slice(0, 10);
-  const isFreeSpin = lastSpinDate !== today;
-  const canSpin = canSpinToday() && !spinning;
+  // Authoritative free/paid + cost from the store (premium + level perks).
+  // Previously this used `lastSpinDate !== today` (only the 1st spin free) and
+  // a hardcoded 0.002 SOL — so Pro users (3 free spins/day, 0 cost) and
+  // level-perk users were CHARGED real SOL for spins the store treats as free.
+  const { isFreeSpin, cost: PAID_SPIN_COST } = getSpinState();
+  const canSpin = canSpinToday() && !spinning && !paying;
   const paidSpinsRemaining = Math.max(0, 3 - extraSpinsToday);
-  const PAID_SPIN_COST = 0.002;
 
   useEffect(() => {
     pulseLoop.current?.stop();
@@ -443,16 +458,82 @@ export function SpinWheel() {
     return () => pulseLoop.current?.stop();
   }, [canSpin, pulseAnim]);
 
-  const handleSpin = useCallback(() => {
+  const handleSpin = useCallback(async () => {
     if (!canSpin) return;
+    // Synchronous re-entry guard — see inFlightRef declaration.
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
 
-    if (!isFreeSpin && balance < PAID_SPIN_COST) {
+    if (!isFreeSpin && PAID_SPIN_COST > 0 && balance < PAID_SPIN_COST) {
+      inFlightRef.current = false;
       setShowFundsModal(true);
       return;
     }
 
+    // Paid spins: charge real SOL on-chain BEFORE spinning. The previous
+    // implementation only mutated local balance — refreshBalance would clobber
+    // it, making paid spins effectively free. Now the spin is gated on a
+    // confirmed transfer to the shop treasury. Skipped when cost is 0 (Pro
+    // tier's extra spins are free — no pointless 0-SOL transfer/gas).
+    if (!isFreeSpin && PAID_SPIN_COST > 0) {
+      if (!authToken) {
+        inFlightRef.current = false;
+        setShowFundsModal(true);
+        return;
+      }
+      setPaying(true);
+      try {
+        await transferSOL(authToken, SHOP_TREASURY, PAID_SPIN_COST, 'oracle-pet:paid-spin');
+      } catch (err: any) {
+        const parsed = parseTxError(err);
+        if (parsed.type !== 'cancelled') {
+          captureError(err, { surface: 'spin_paid' });
+          notify.error("Spin couldn't process", parsed.message, { category: 'tx' });
+        }
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        setPaying(false);
+        inFlightRef.current = false;
+        return;
+      }
+      setPaying(false);
+      notify.success(
+        'Spin paid',
+        `${PAID_SPIN_COST} SOL · spinning the wheel…`,
+        {
+          category: 'tx',
+          details: [
+            { label: 'Cost', value: `${PAID_SPIN_COST} SOL` },
+            { label: 'Spin type', value: 'Paid daily extra' },
+          ],
+        },
+      );
+      // Background refresh — chain is the truth now.
+      refreshBalance().catch(() => {});
+    }
+
     const spinResult = doSpin();
-    if (!spinResult) return;
+    if (!spinResult) {
+      // Edge case: SOL was just transferred for a paid spin, but doSpin()
+      // returned null (state changed mid-tx — multi-device race, or fast
+      // tap between cap-check and actual spin). User paid real money for
+      // nothing. Surface this clearly so they can DM us instead of giving
+      // a 1-star review for "lost SOL". The captureError sends it to
+      // PostHog so we can verify how often this happens.
+      if (!isFreeSpin) {
+        captureError(new Error('paid-spin transferred but doSpin returned null'), {
+          surface: 'spin_paid_no_result',
+        });
+        notify.error(
+          'Spin failed after payment',
+          `${PAID_SPIN_COST} SOL was charged but the spin couldn't run. DM us your wallet — we'll refund or grant a free spin.`,
+          { category: 'tx' },
+        );
+      }
+      inFlightRef.current = false;
+      return;
+    }
+
+    events.spinStarted({ is_free: isFreeSpin, cost_sol: isFreeSpin ? 0 : PAID_SPIN_COST });
 
     setResult(spinResult);
     setSpinning(true);
@@ -472,11 +553,18 @@ export function SpinWheel() {
     }).start(() => {
       currentRotation.current = targetDeg % 360;
       setSpinning(false);
+      inFlightRef.current = false;
       setShowResult(true);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       playSfx('reward');
+      events.spinResult({
+        rarity: spinResult.rarity,
+        label: spinResult.label,
+        xp: spinResult.xp,
+        is_free: isFreeSpin,
+      });
     });
-  }, [canSpin, isFreeSpin, balance, doSpin, spinAnim]);
+  }, [canSpin, isFreeSpin, balance, authToken, doSpin, refreshBalance, spinAnim]);
 
   const rotateInterpolate = spinAnim.interpolate({
     inputRange: [0, 360],
@@ -484,13 +572,15 @@ export function SpinWheel() {
     extrapolate: 'extend',
   });
 
-  const buttonLabel = spinning
-    ? 'Spinning...'
-    : !canSpinToday()
-      ? 'No Spins Left'
-      : isFreeSpin
-        ? 'Free Spin!'
-        : 'Spin (0.002 SOL)';
+  const buttonLabel = paying
+    ? 'Confirming...'
+    : spinning
+      ? 'Spinning...'
+      : !canSpinToday()
+        ? 'No Spins Left'
+        : isFreeSpin
+          ? 'Free Spin!'
+          : 'Spin (0.002 SOL)';
 
   return (
     <View style={{ paddingHorizontal: 24, marginTop: 16 }}>
@@ -571,8 +661,36 @@ export function SpinWheel() {
       </View>
 
       <SpinResultModal result={result} visible={showResult} onClaim={() => {
-        if (result) claimSpinReward(result);
+        // Re-entry guard. Double-taps on the Claim button used to grant the
+        // same reward twice because claimSpinReward applies XP/stamina/shards
+        // directly with no internal lock. We gate on showResult first to keep
+        // the second click as a no-op.
+        if (!showResult) return;
         setShowResult(false);
+        if (result) {
+          claimSpinReward(result);
+          // Build a single concise summary of what landed in the user's
+          // inventory from this spin — pet rewards (XP), stamina, double-XP
+          // buff, free items, evolution shards.
+          const parts: string[] = [];
+          if (result.xp > 0) parts.push(`+${result.xp} XP`);
+          if (result.staminaRefill) parts.push('Stamina refilled');
+          if (result.doubleXpMinutes > 0) parts.push(`2x XP for ${result.doubleXpMinutes}m`);
+          if (result.freeItem) parts.push('+1 free item token');
+          if (result.shard) parts.push('+1 evolution shard');
+          notify.success(
+            `${result.label} claimed`,
+            parts.length ? parts.join(' · ') : 'Reward applied to your inventory.',
+            {
+              category: 'reward',
+              details: [
+                { label: 'Rarity', value: result.rarity.charAt(0).toUpperCase() + result.rarity.slice(1) },
+                { label: 'Reward', value: result.label },
+                ...(result.xp > 0 ? [{ label: 'XP', value: `+${result.xp}` }] : []),
+              ],
+            },
+          );
+        }
         playSfx('happy');
       }} />
 

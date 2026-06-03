@@ -7,6 +7,12 @@ export interface TierConfig {
   label: string;
   price: number;
   currency: TierCurrency;
+  /** Optional alternative payment for the same tier — lets users without
+   *  the primary currency still upgrade. Pro is priced in SKR primarily
+   *  (rewards token holders) but accepts SOL too so users without SKR
+   *  aren't locked out. */
+  alternativePrice?: number;
+  alternativeCurrency?: TierCurrency;
   emoji: string;
   gradientColors: [string, string];
   staminaRegenPerHour: number;
@@ -45,7 +51,7 @@ export const TIER_CONFIGS: Record<PremiumTier, TierConfig> = {
   plus: {
     tier: 'plus',
     label: 'Plus',
-    price: 0.49,
+    price: 0.35,
     currency: 'SOL',
     emoji: '\u{2B50}',
     gradientColors: ['#9381FF', '#766BD1'],
@@ -66,6 +72,8 @@ export const TIER_CONFIGS: Record<PremiumTier, TierConfig> = {
     label: 'Pro',
     price: 1799,
     currency: 'SKR',
+    alternativePrice: 0.45,
+    alternativeCurrency: 'SOL',
     emoji: '\u{1F48E}',
     gradientColors: ['#B9F2FF', '#7DF9FF'],
     staminaRegenPerHour: 30,
