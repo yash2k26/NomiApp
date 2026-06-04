@@ -31,13 +31,22 @@ export function LoginCalendar({ onClaimed }: { onClaimed?: () => void } = {}) {
     return () => anim.stop();
   }, [canClaim, pulseAnim]);
 
+  // Synchronous re-entry guard. Even though claimLoginReward has a same-day
+  // idempotency check, rapid double-tap was firing the haptic + reward SFX
+  // twice before the next render hid the button. Ref blocks the second tap
+  // synchronously.
+  const claimInFlightRef = useRef(false);
   const handleClaim = () => {
+    if (claimInFlightRef.current) return;
+    claimInFlightRef.current = true;
     const reward = claimLoginReward();
     if (reward) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       playSfx('reward').catch(() => {});
       onClaimed?.();
     }
+    // Brief delay before unlocking so the re-render hides the button first.
+    setTimeout(() => { claimInFlightRef.current = false; }, 500);
   };
 
   return (

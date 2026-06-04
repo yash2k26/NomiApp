@@ -524,7 +524,10 @@ export const useAdventureStore = create<AdventureStore>((set, get) => ({
     const today = new Date().toISOString().slice(0, 10);
     const { lastSpinDate, extraSpinsToday } = get();
     // Premium: 3 free spins, 5 paid. Free: 1 free, 3 paid.
-    let spinConfig = { maxFreeSpins: 1, maxPaidSpins: 3, paidSpinCost: 0.2 };
+    // Default cost MUST match premiumStore.getPremiumSpinConfig (0.002 SOL).
+    // Previously this fallback was 0.2 SOL (100× higher) so a transient
+    // require failure during boot could overcharge a single spin.
+    let spinConfig = { maxFreeSpins: 1, maxPaidSpins: 3, paidSpinCost: 0.002 };
     try {
       const { getPremiumSpinConfig } = require('./premiumStore');
       spinConfig = getPremiumSpinConfig();
@@ -542,7 +545,11 @@ export const useAdventureStore = create<AdventureStore>((set, get) => ({
   getSpinState: () => {
     const today = new Date().toISOString().slice(0, 10);
     const { lastSpinDate, extraSpinsToday } = get();
-    let spinConfig = { maxFreeSpins: 1, maxPaidSpins: 3, paidSpinCost: 0.2 };
+    // Default cost must match the non-Pro paid-spin price in premiumStore
+    // (0.002 SOL). Previously the fallback was 0.2 SOL — 100× the real
+    // cost — so a transient `require('./premiumStore')` failure during
+    // boot/hot-reload could charge users 0.2 SOL for a single spin.
+    let spinConfig = { maxFreeSpins: 1, maxPaidSpins: 3, paidSpinCost: 0.002 };
     try {
       const { getPremiumSpinConfig } = require('./premiumStore');
       spinConfig = getPremiumSpinConfig();
@@ -563,7 +570,8 @@ export const useAdventureStore = create<AdventureStore>((set, get) => ({
     const today = new Date().toISOString().slice(0, 10);
     const { lastSpinDate, extraSpinsToday } = get();
 
-    let spinConfig = { maxFreeSpins: 1, maxPaidSpins: 3, paidSpinCost: 0.2 };
+    // See getSpinState comment — default mirrors premiumStore (0.002 SOL).
+    let spinConfig = { maxFreeSpins: 1, maxPaidSpins: 3, paidSpinCost: 0.002 };
     try {
       const { getPremiumSpinConfig } = require('./premiumStore');
       spinConfig = getPremiumSpinConfig();
@@ -583,17 +591,19 @@ export const useAdventureStore = create<AdventureStore>((set, get) => ({
 
     if (!isNewDay && (extraSpinsToday + 1) >= maxTotal) return null;
 
-    // If not free spin, deduct SOL (premium = 0 cost)
-    // Note: on-chain transfer for paid spins is handled by the UI layer
-    // calling transferSOL before doSpin. Here we just check balance.
+    // Paid-spin payment is handled entirely by the UI layer (SpinWheel calls
+    // transferSOL BEFORE doSpin and bails out if it fails). Previously this
+    // block ALSO called walletStore.deductBalance(cost) "as a fallback",
+    // which double-debited the local balance — the user saw 0.004 SOL gone
+    // for one 0.002 SOL spin until refreshBalance arrived from chain. The
+    // user-reported "takes 0.002 SOL twice" symptom traces here. Only do a
+    // balance pre-check now; the actual deduct comes from chain refresh.
     if (!isFreeSpin && !isNewDay) {
       const cost = spinConfig.paidSpinCost;
       if (cost > 0) {
         try {
           const walletStore = require('./walletStore').useWalletStore.getState();
           if (walletStore.balance < cost) return null;
-          // Deduct locally as fallback (real deduction via transferSOL in UI)
-          walletStore.deductBalance(cost);
         } catch { return null; }
       }
     }

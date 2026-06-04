@@ -13,12 +13,20 @@ import { SOLANA_NETWORK, getSolscanAddressUrl } from '../lib/solanaClient';
 import { parseTxError, type ParsedTxError } from '../lib/transactionErrors';
 import { events, captureError } from '../lib/analytics';
 import { restorePurchases } from '../lib/purchaseRestore';
+import { detectNomiNftHolding } from '../lib/nftDetection';
 import { notify, truncateMid } from '../lib/notify';
 
 // Persisted across app restarts so a user who backgrounded the app during a
 // failed mint sees the error breadcrumb on relaunch instead of a clean Mint
 // button — preventing them from unknowingly paying twice for the same NFT.
 const MINT_ERROR_STORAGE_KEY = 'oracle-pet-mint-error';
+// Breadcrumb written BEFORE the on-chain mint and cleared after success/error.
+// If the OS kills the app while Phantom is signing, the mint may still land on
+// chain. On next launch, presence of this key (matching the connected wallet)
+// signals "you may have a paid mint we don't know about yet — wait for the
+// chain restore / holdings scan before letting the user pay again". Prevents
+// the double-0.15-SOL-mint scenario.
+const MINT_INFLIGHT_STORAGE_KEY = 'oracle-pet-mint-inflight';
 
 type MintState = 'idle' | 'confirming' | 'minting' | 'success' | 'error';
 
@@ -42,6 +50,31 @@ export function MintScreen() {
   const [txSignature, setTxSignature] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(false);
 
+  // Watchdog for the 'minting' / 'confirming' state. Previously a hung
+  // Phantom approval left the user staring at "Minting on Solana..." with
+  // no escape but force-quit (and force-quit during mint can leave a
+  // half-applied breadcrumb that the recovery flow only checks once per
+  // address change). 90s comfortably covers slow Solana confirmation —
+  // anything past that and we surface a recoverable error instead of
+  // looking frozen forever. The MINT_INFLIGHT_STORAGE_KEY breadcrumb means
+  // a real on-chain mint that DID land will still be picked up on next
+  // launch via the holdings scan.
+  useEffect(() => {
+    if (mintState !== 'minting' && mintState !== 'confirming') return;
+    const t = setTimeout(() => {
+      setMintState((current) => {
+        if (current !== 'minting' && current !== 'confirming') return current;
+        setMintError({
+          type: 'timeout',
+          title: 'Mint is taking too long',
+          message: 'No charge yet that we can see. Tap "Try Again" — or check Solscan for your wallet address before re-minting.',
+        });
+        return 'error';
+      });
+    }, 90_000);
+    return () => clearTimeout(t);
+  }, [mintState]);
+
   // Rehydrate any persisted error from a prior session. If the user
   // backgrounded the app during 'minting' or 'confirming', we couldn't
   // confirm tx outcome — show that ambiguity explicitly so they don't blindly
@@ -59,6 +92,40 @@ export function MintScreen() {
       .catch(() => {});
   }, []);
 
+  // Recovery from "OS killed the app mid-mint" — if the in-flight breadcrumb
+  // is set for the connected wallet, the mint MAY have landed on-chain while
+  // we couldn't see the result. Before letting the user pay another 0.15 SOL,
+  // do a holdings check. If a Nomi NFT shows up, restore it and clear the
+  // breadcrumb. Otherwise the mint genuinely didn't land — clear the
+  // breadcrumb and let the normal flow proceed.
+  useEffect(() => {
+    if (!address) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(MINT_INFLIGHT_STORAGE_KEY);
+        if (!raw) return;
+        const data = JSON.parse(raw);
+        if (data?.wallet !== address) {
+          await AsyncStorage.removeItem(MINT_INFLIGHT_STORAGE_KEY).catch(() => {});
+          return;
+        }
+        const detected = await detectNomiNftHolding(address);
+        if (cancelled) return;
+        if (detected) {
+          usePetStore.getState().restoreFromMint({
+            mintAddress: detected.mintAddress,
+            mintTxSignature: '',
+            name: detected.name,
+            ownerName: '',
+          });
+        }
+        await AsyncStorage.removeItem(MINT_INFLIGHT_STORAGE_KEY).catch(() => {});
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [address]);
+
   const persistMintError = (err: ParsedTxError | null) => {
     if (err) {
       AsyncStorage.setItem(MINT_ERROR_STORAGE_KEY, JSON.stringify(err)).catch(() => {});
@@ -72,32 +139,74 @@ export function MintScreen() {
     setRestoring(true);
     try {
       const result = await restorePurchases(address);
+      // Build a single status line summarizing EVERYTHING restored. Previously
+      // we surfaced only `petRestored` and silently dropped premium / shop /
+      // streak — so a user tapping restore for Pro saw "No pet found" even
+      // though their Pro tier was successfully recovered.
+      const restored: string[] = [];
+      if (result.premiumTierRestored && result.premiumTierRestored !== 'none') {
+        restored.push(`${result.premiumTierRestored} tier`);
+      }
+      if (result.shopItemsRestored.length > 0) {
+        restored.push(`${result.shopItemsRestored.length} shop item${result.shopItemsRestored.length === 1 ? '' : 's'}`);
+      }
+      if (result.streakRestored != null && result.streakRestored > 0) {
+        restored.push(`${result.streakRestored}-day streak`);
+      }
       if (result.petRestored) {
-        // Pet identity is now set; the App.tsx gate will route to HomeScreen
-        // automatically once usePetStore.hasPet flips true.
         notify.success(
           'Welcome back!',
-          result.petRestoredFromHoldings
-            ? 'Found your Nomi NFT on-chain. Restoring now…'
-            : 'Restored your pet from chain.',
+          [
+            result.petRestoredFromHoldings
+              ? 'Found your Nomi NFT on-chain.'
+              : 'Restored your pet from chain.',
+            restored.length > 0 ? `Also restored: ${restored.join(', ')}.` : null,
+          ].filter(Boolean).join(' '),
+          { category: 'restore' },
+        );
+      } else if (restored.length > 0) {
+        // Pet not found but other things were — don't lie and say "no pet
+        // found" with no acknowledgment of what DID come back.
+        notify.success(
+          'Partial restore',
+          `Restored ${restored.join(', ')}. No pet was found in this wallet — if your pet is in another wallet, switch to it.`,
           { category: 'restore' },
         );
       } else {
         notify.warning(
-          'No pet found in this wallet',
+          'Nothing found to restore',
           walletBrand
-            ? `We checked ${walletBrand}. If your pet was minted with a different wallet, disconnect and reconnect with that one.`
-            : 'If your pet was minted with a different wallet, disconnect and reconnect with that one.',
+            ? `We checked ${walletBrand}. If your purchases are tied to a different wallet, switch to it.`
+            : 'If your purchases are tied to a different wallet, switch to it.',
           { category: 'restore' },
         );
       }
     } catch (err: any) {
       captureError(err, { surface: 'manual_restore' });
-      notify.error('Restore failed', err?.message ?? 'Could not reach the chain. Try again in a moment.');
+      // Run raw err.message through a friendlier filter so we don't surface
+      // raw "WalletSignTransactionError" / RPC JSON to the user.
+      const message = friendlyRestoreError(err);
+      notify.error('Restore failed', message);
     } finally {
       setRestoring(false);
     }
   };
+
+  // Translate RPC / wallet errors into user-actionable messages. Anything not
+  // matched falls through to a clean generic — never the raw stack/JSON.
+  function friendlyRestoreError(err: any): string {
+    const msg = String(err?.message ?? '').toLowerCase();
+    if (msg.includes('network') || msg.includes('fetch') || msg.includes('timeout')) {
+      return 'Could not reach the chain. Check your connection and try again.';
+    }
+    if (msg.includes('rate limit') || msg.includes('429')) {
+      return 'Too many requests. Wait a minute and try again.';
+    }
+    if (msg.includes('rejected') || msg.includes('cancelled')) {
+      return 'Restore cancelled. Tap to try again whenever you\'re ready.';
+    }
+    return 'Could not reach the chain right now. Try again in a moment.';
+  }
 
   const openHelp = () => {
     Linking.openURL('mailto:team@talkamore.com?subject=Nomi%20app%20help').catch(() => {});
@@ -156,6 +265,16 @@ export function MintScreen() {
     try {
       setMintState('minting');
       console.log('[MintScreen] Calling mintPetNFT...');
+      // Drop the in-flight breadcrumb BEFORE awaiting Phantom — even if the
+      // OS kills us mid-wallet-prompt, we'll know on next launch to look
+      // harder at the chain before letting the user pay 0.15 SOL again.
+      try {
+        const walletAddr = useWalletStore.getState().address;
+        await AsyncStorage.setItem(
+          MINT_INFLIGHT_STORAGE_KEY,
+          JSON.stringify({ wallet: walletAddr, startedAt: Date.now() }),
+        );
+      } catch {}
       const result = await mintPetNFT(authToken, petName || 'Nomi', {
         ownerName,
         level,
@@ -166,6 +285,8 @@ export function MintScreen() {
       console.log('[MintScreen] mintAddress:', result.mintAddress);
       console.log('[MintScreen] txSignature:', result.txSignature);
 
+      // Mint settled — clear the in-flight breadcrumb.
+      AsyncStorage.removeItem(MINT_INFLIGHT_STORAGE_KEY).catch(() => {});
       // Store real on-chain mint address and tx signature
       mintPet(result.mintAddress, result.txSignature);
       setTxSignature(result.txSignature);
@@ -212,27 +333,24 @@ export function MintScreen() {
           signature: result.txSignature,
           status: 'confirmed',
         });
+        // Promote to finalized once chain reaches finalized commitment.
+        // Fire-and-forget; UI doesn't block. The nftMint helper already
+        // calls awaitFinalizedRaw; this just listens for the same result
+        // and updates the visible Profile entry.
+        const { awaitFinalizedRaw } = require('../lib/solanaClient');
+        awaitFinalizedRaw(result.txSignature)
+          .then(() => usePendingTxStore.getState().promoteToFinalized(result.txSignature))
+          .catch(() => {});
       } catch {}
 
       // Refresh balance to reflect SOL spent on fees
       await refreshBalance();
       console.log('[MintScreen] Balance refreshed');
 
-      // Write a mint memo so future reinstalls can recover the pet's identity
-      // from chain. Best-effort; failure here shouldn't block the success UI
-      // since the NFT itself is already minted.
-      try {
-        const { writeMemo } = require('../lib/solanaTransactions');
-        const mintMemoPayload = JSON.stringify({
-          mintAddress: result.mintAddress,
-          txSignature: result.txSignature,
-          name: petName || 'Nomi',
-          ownerName,
-        });
-        await writeMemo(authToken!, `oracle-pet:mint|${mintMemoPayload}`);
-      } catch (memoErr: any) {
-        console.warn('[MintScreen] Mint memo failed (non-fatal):', memoErr?.message ?? memoErr);
-      }
+      // The `oracle-pet:mint` memo is now folded into the mint tx itself
+      // (see nftMint.ts) — no second wallet prompt, no orphan-memo case if
+      // the user denies the follow-up sign, and one less gas fee. Restore
+      // still reads { mintAddress, name, ownerName } off-chain identically.
     } catch (error: any) {
       const elapsed = Date.now() - mintStart;
       console.error('[MintScreen] Mint failed after', elapsed, 'ms:', error?.message);
@@ -244,9 +362,15 @@ export function MintScreen() {
         persistMintError(parsed);
         setMintState('error');
         captureError(error, { surface: 'mint', elapsed_ms: elapsed });
+        // Don't clear MINT_INFLIGHT_STORAGE_KEY here — the on-chain outcome
+        // is ambiguous (network drop, RPC failure, false-negative confirm).
+        // The next-launch recovery effect above will reconcile via holdings.
       } else {
         setMintState('idle');
         persistMintError(null);
+        // User cancelled — definitely no on-chain tx. Clear breadcrumb so
+        // we don't unnecessarily run a holdings check on next open.
+        AsyncStorage.removeItem(MINT_INFLIGHT_STORAGE_KEY).catch(() => {});
       }
     }
   };
@@ -369,10 +493,12 @@ export function MintScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={{ color: '#B37514', fontSize: 12, fontWeight: '900', letterSpacing: 0.3 }}>
-                  Already minted with this wallet?
+                  Coming from the old Nomi? Tap restore
                 </Text>
                 <Text style={{ color: '#7A4F0D', fontSize: 11, fontWeight: '600', marginTop: 1 }}>
-                  {restoring ? 'Scanning chain for your Nomi…' : 'Tap to restore from chain — no new payment.'}
+                  {restoring
+                    ? 'Scanning chain for your Nomi…'
+                    : 'Restores your pet, shop items + Pro tier from chain. (Streak + coins start fresh on a new install.)'}
                 </Text>
               </View>
               {restoring ? (
@@ -422,6 +548,19 @@ export function MintScreen() {
                 <Text className="text-[18px] font-black text-pet-blue-dark mt-0.5">0.15 SOL</Text>
               </View>
             </View>
+            {/* Honest fee breakdown — the actual charge is ~0.16 SOL once
+                NFT account rent + metadata + master-edition rent + a small
+                priority fee are counted. Previously the price card said
+                "0.15 SOL" and the user saw ~0.16 leave their wallet with
+                no explanation. */}
+            <View className="flex-row justify-between py-1 items-center">
+              <Text className="text-[11px] font-medium text-gray-400">+ Network fees & on-chain rent</Text>
+              <Text className="text-[11px] font-medium text-gray-400">~0.01 SOL</Text>
+            </View>
+            <View className="flex-row justify-between py-2 items-center border-t border-gray-100 mt-1">
+              <Text className="text-[12px] font-bold uppercase tracking-[0.8px] text-gray-700">Total (estimated)</Text>
+              <Text className="text-[14px] font-black text-pet-blue-dark">~0.16 SOL</Text>
+            </View>
             <View className="flex-row justify-between py-3 items-center">
               <Text className="text-[12px] font-bold uppercase tracking-[0.8px] text-gray-500">Your Balance</Text>
               <View className="flex-row items-center">
@@ -446,9 +585,20 @@ export function MintScreen() {
               <MaterialCommunityIcons name="hanger" size={16} color="#4FB0C6" />
               <Text className="ml-2 text-[12px] text-gray-600 font-medium">On-chain outfits and accessories</Text>
             </View>
-            <View className="flex-row items-center">
+            <View className="flex-row items-center mb-2.5">
               <MaterialCommunityIcons name="shield-star" size={16} color="#3792A6" />
-              <Text className="ml-2 text-[12px] text-gray-600 font-medium">Verifiable on-chain</Text>
+              <Text className="ml-2 text-[12px] text-gray-600 font-medium">Verifiable on-chain — yours to keep</Text>
+            </View>
+            {/* Addresses real dApp-store feedback: multiple users (poormansol,
+                sunase, Anon Apr 30) bounced at the mint paywall, suspicious
+                of "pay to play" patterns. State plainly that this is a one-
+                time payment with no subscription, and you can transfer or
+                sell the NFT afterwards. */}
+            <View className="flex-row items-start">
+              <MaterialCommunityIcons name="check-circle-outline" size={16} color="#16a34a" style={{ marginTop: 1 }} />
+              <Text className="ml-2 text-[12px] text-green-700 font-semibold flex-1">
+                One-time payment. No subscription, no in-app currency required to play.
+              </Text>
             </View>
           </View>
 

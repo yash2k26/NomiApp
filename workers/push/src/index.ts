@@ -48,27 +48,28 @@ const BATCH_SIZE = 100;
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    if (request.method === 'OPTIONS') return cors(new Response(null, { status: 204 }));
+    const origin = request.headers.get('Origin');
+    if (request.method === 'OPTIONS') return cors(new Response(null, { status: 204 }), origin);
 
     if (env.APP_TOKEN) {
       const provided = request.headers.get('x-app-token') ?? '';
       if (provided !== env.APP_TOKEN) {
-        return cors(json({ error: 'unauthorized' }, 401));
+        return cors(json({ error: 'unauthorized' }, 401), origin);
       }
     }
 
     const url = new URL(request.url);
 
     if (request.method === 'POST' && url.pathname === '/register') {
-      return cors(await handleRegister(request, env));
+      return cors(await handleRegister(request, env), origin);
     }
     if (request.method === 'POST' && url.pathname === '/heartbeat') {
-      return cors(await handleHeartbeat(request, env));
+      return cors(await handleHeartbeat(request, env), origin);
     }
     if (request.method === 'POST' && url.pathname === '/unregister') {
-      return cors(await handleUnregister(request, env));
+      return cors(await handleUnregister(request, env), origin);
     }
-    return cors(json({ error: 'not_found' }, 404));
+    return cors(json({ error: 'not_found' }, 404), origin);
   },
 
   async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
@@ -256,9 +257,22 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
-function cors(res: Response): Response {
-  res.headers.set('Access-Control-Allow-Origin', '*');
+const PUSH_ALLOWED_ORIGINS = new Set<string>([
+  // Add admin/dashboard origins here when needed.
+]);
+
+function cors(res: Response, requestOrigin?: string | null): Response {
+  // No Origin → native app; allow. Listed browser origin → allow.
+  // Anything else → 'null' so browsers refuse cross-origin reads.
+  const allowed =
+    requestOrigin == null || requestOrigin === ''
+      ? ''
+      : PUSH_ALLOWED_ORIGINS.has(requestOrigin)
+        ? requestOrigin
+        : 'null';
+  if (allowed) res.headers.set('Access-Control-Allow-Origin', allowed);
+  res.headers.set('Vary', 'Origin');
   res.headers.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.headers.set('Access-Control-Allow-Headers', 'Content-Type');
+  res.headers.set('Access-Control-Allow-Headers', 'Content-Type, X-App-Token, X-Wallet, X-Wallet-Bytes, X-Session-Msg, X-Session-Sig');
   return res;
 }

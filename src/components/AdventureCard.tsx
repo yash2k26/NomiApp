@@ -101,6 +101,15 @@ function LootRevealModal({ loot, visible, onClose }: { loot: LootReward | null; 
             )}
           </View>
 
+          {/* Make it explicit that these are in-game coins, not on-chain
+              SOL/SKR. Real dApp-store review (ketkett, May 7): "The loot
+              he found daily is just demo or what I don't get it nothing
+              goes to my wallet ?!" — users were expecting Solana tokens
+              to hit their wallet. */}
+          <Text className="text-[10px] text-gray-400 italic text-center mb-3 px-2">
+            Coins are in-game currency, spent in the Shop. They're not on-chain tokens — your wallet balance is separate.
+          </Text>
+
           <TouchableOpacity onPress={onClose} activeOpacity={0.85} className="w-full">
             <LinearGradient colors={['#4FABC9', '#3E8AB3']} className="py-3.5 items-center" style={{ borderRadius: 18 }}>
               <Text className="text-white text-[14px] font-black uppercase tracking-[1px]">Collect!</Text>

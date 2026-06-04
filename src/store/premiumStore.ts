@@ -89,7 +89,13 @@ export const usePremiumStore = create<PremiumStore>((set, get) => ({
 
   purchaseTier: async (targetTier: PremiumTier, useCurrency?: TierCurrency) => {
     const current = get().tier;
-    if (getTierOrdinal(targetTier) <= getTierOrdinal(current)) return ''; // already at or above
+    if (getTierOrdinal(targetTier) <= getTierOrdinal(current)) {
+      // Previously returned '' — caller's success-toast block then fired a
+      // "Welcome to Plus!" notification for a no-op no-charge. Now we throw
+      // a clear, parseable error so the caller catches it like any other
+      // failure.
+      throw new Error(`You're already at ${current.toUpperCase()} tier or above.`);
+    }
 
     const config = TIER_CONFIGS[targetTier];
     // Pick primary vs. alternative pricing based on caller's currency choice.
@@ -123,6 +129,24 @@ export const usePremiumStore = create<PremiumStore>((set, get) => ({
       const { SHOP_TREASURY } = require('../lib/solanaClient');
       txSig = await transferSOL(walletStore.authToken, SHOP_TREASURY, cost, memo);
     }
+
+    // Fire-and-forget finalization check. The user's tier is activated
+    // immediately on 'confirmed' (below) so UX stays fast — this just
+    // logs/analytics whether the purchase made it to 'finalized' commitment
+    // (eliminates reorg-rollback risk for the audit log).
+    try {
+      const { awaitFinalizedRaw } = require('../lib/solanaClient');
+      awaitFinalizedRaw(txSig).then(() => {
+        console.log('[premiumStore] Pro purchase finalized:', txSig);
+      }).catch((e: any) => {
+        try {
+          const { captureError } = require('../lib/analytics');
+          captureError(new Error('premium tx did not finalize: ' + (e?.message ?? e)), {
+            surface: 'premium_finalize', signature: txSig, tier: targetTier,
+          });
+        } catch {}
+      });
+    } catch {}
 
     // CRITICAL: activate the tier the moment the transfer succeeds, BEFORE
     // any other awaits or side-effects. Previously the deductBalance +
@@ -211,6 +235,10 @@ export const usePremiumStore = create<PremiumStore>((set, get) => ({
         signature: txSig,
         status: 'confirmed',
       });
+      const { awaitFinalizedRaw } = require('../lib/solanaClient');
+      awaitFinalizedRaw(txSig)
+        .then(() => usePendingTxStore.getState().promoteToFinalized(txSig))
+        .catch(() => {});
     } catch {}
 
     // Housekeeping below — wrapped so failures here can't undo the tier
@@ -243,16 +271,28 @@ export const usePremiumStore = create<PremiumStore>((set, get) => ({
   },
 
   restoreFromChain: (tier: PremiumTier) => {
-    // Legacy migration: if a chain-restored premium tier has no perked-items
-    // snapshot yet, capture the current catalog now so the user keeps
-    // freebie access to whatever exists today. Items added in future
-    // updates remain paid.
+    // Never downgrade. Previously this unconditionally `set({ tier })` —
+    // if a stale chain scan handed us a lower tier than what's already in
+    // memory (e.g., legacy "plus" memo found before the newer "pro" memo),
+    // the user would be silently downgraded.
+    const currentTier = get().tier;
+    if (getTierOrdinal(tier) < getTierOrdinal(currentTier)) {
+      console.log('[premiumStore] restoreFromChain — skipping downgrade from', currentTier, 'to', tier);
+      return;
+    }
+    // For Pro/allShopItemsFree tiers, ALWAYS refresh the perked-items snapshot
+    // against the current catalog on restore. Previously this only ran when
+    // perkedItemIds was empty — so a user who restored Pro with a partial
+    // snapshot from a previous build stayed stuck with that partial subset.
     const existing = get().perkedItemIds;
     const config = TIER_CONFIGS[tier];
-    const perkedItemIds = config.allShopItemsFree && existing.length === 0
-      ? snapshotCatalog()
-      : existing;
-    set({ tier, isPremium: true, purchaseDate: null, perkedItemIds });
+    let perkedItemIds = existing;
+    if (config.allShopItemsFree) {
+      const fresh = snapshotCatalog();
+      if (fresh.length > 0) perkedItemIds = fresh;
+      else if (existing.length === 0) perkedItemIds = []; // shop not hydrated; will be refreshed by next snapshotPerkedItems call
+    }
+    set({ tier, isPremium: true, purchaseDate: get().purchaseDate, perkedItemIds });
     savePremiumState(get());
     console.log('[premiumStore] restoreFromChain — restored tier:', tier, 'perked:', perkedItemIds.length);
   },

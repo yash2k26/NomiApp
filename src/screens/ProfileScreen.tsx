@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Linking, Share } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -144,10 +144,20 @@ function EvolutionCard() {
   const nextStage = evolutionStage < 5 ? EVOLUTION_STAGES[evolutionStage] : null;
   const canDoEvolve = canEvolve(level);
 
+  // Synchronous re-entry guard: evolve() deducts shards. A rapid double-tap
+  // before React's next render hid the button could fire evolve() twice and
+  // deduct double the shards.
+  const evolveInFlightRef = useRef(false);
   const handleEvolve = () => {
     if (!canDoEvolve) return;
+    if (evolveInFlightRef.current) return;
+    evolveInFlightRef.current = true;
     evolve();
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    // Short cooldown — evolve mutates state which propagates to canEvolve
+    // and hides the button, but the re-render is async. Half a second is
+    // plenty to bridge the gap.
+    setTimeout(() => { evolveInFlightRef.current = false; }, 500);
   };
 
   return (
@@ -319,10 +329,19 @@ function PaymentsLogCard() {
   };
 
   const statusColor = (s: string) =>
-    s === 'failed' ? '#dc2626' : s === 'pending' ? '#f59e0b' : '#3792A6';
+    s === 'failed' ? '#dc2626'
+      : s === 'pending' ? '#f59e0b'
+      : s === 'finalized' ? '#16a34a' // green-600 — strongest visual confidence
+      : '#3792A6'; // confirmed → pet-blue
 
   const statusBg = (s: string) =>
-    s === 'failed' ? 'bg-red-100' : s === 'pending' ? 'bg-amber-100' : 'bg-pet-blue-light/40';
+    s === 'failed' ? 'bg-red-100'
+      : s === 'pending' ? 'bg-amber-100'
+      : s === 'finalized' ? 'bg-green-100'
+      : 'bg-pet-blue-light/40';
+
+  const statusLabel = (s: string) =>
+    s === 'finalized' ? 'Finalized' : s === 'confirmed' ? 'Confirmed' : s === 'pending' ? 'Pending' : 'Failed';
 
   return (
     <View
@@ -349,13 +368,23 @@ function PaymentsLogCard() {
           >
             <View className={`w-7 h-7 rounded-full items-center justify-center ${statusBg(e.status)}`}>
               <MaterialCommunityIcons
-                name={e.status === 'failed' ? 'close-circle-outline' : e.status === 'pending' ? 'clock-outline' : 'check-circle-outline'}
+                name={
+                  e.status === 'failed' ? 'close-circle-outline'
+                    : e.status === 'pending' ? 'clock-outline'
+                    : e.status === 'finalized' ? 'shield-check'
+                    : 'check-circle-outline'
+                }
                 size={16}
                 color={statusColor(e.status)}
               />
             </View>
             <View className="flex-1 ml-3">
-              <Text className="text-[12px] font-bold text-gray-700" numberOfLines={1}>{e.label}</Text>
+              <View className="flex-row items-center">
+                <Text className="text-[12px] font-bold text-gray-700 flex-1" numberOfLines={1}>{e.label}</Text>
+                <Text className="text-[9px] font-black ml-2" style={{ color: statusColor(e.status) }}>
+                  {statusLabel(e.status).toUpperCase()}
+                </Text>
+              </View>
               {e.amountDisplay ? (
                 <Text className="text-[10px] text-gray-400 font-medium">{e.amountDisplay}</Text>
               ) : null}
@@ -417,6 +446,39 @@ function CollectiblesRow() {
       </View>
     </View>
   );
+}
+
+// Translates raw Solana / wallet errors into messages a regular user can act
+// on. Without this the backup/restore toasts were surfacing strings like
+// "Transaction simulation failed: ... 0x1" and
+// "WalletSignTransactionError: User rejected the request" — meaningless to
+// anyone who hasn't read the Solana docs. Module-level so it doesn't break
+// the useCallback dep array.
+function friendlyChainError(err: any, defaultMsg: string): string {
+  const raw = String(err?.message ?? err ?? '');
+  const lower = raw.toLowerCase();
+  if (lower.includes('user rejected') || lower.includes('cancelled')) {
+    return 'You cancelled the transaction. Safe to try again anytime.';
+  }
+  if (lower.includes('insufficientfundsforrent') || lower.includes('insufficient funds for rent')) {
+    return 'Not enough SOL for the rent-exempt minimum. Top up your wallet and try again.';
+  }
+  if (lower.includes('blockhash') && (lower.includes('not found') || lower.includes('expired'))) {
+    return 'The transaction expired before confirming. Try again — it should land this time.';
+  }
+  if (lower.includes('0x1') || lower.includes('insufficient funds')) {
+    return 'Not enough SOL to cover the fee. Top up your wallet and try again.';
+  }
+  if (lower.includes('rate limit') || lower.includes('429')) {
+    return 'Too many requests right now. Wait a minute and try again.';
+  }
+  if (lower.includes('network') || lower.includes('fetch') || lower.includes('timeout')) {
+    return 'Could not reach the network. Check your connection and try again.';
+  }
+  if (lower.includes('simulation failed')) {
+    return 'The wallet rejected the transaction during pre-check. No charge was made — try again.';
+  }
+  return defaultMsg;
 }
 
 export function ProfileScreen() {
@@ -514,6 +576,21 @@ export function ProfileScreen() {
 
   const handleSyncPetState = useCallback(async () => {
     if (!authToken || memoLoading) return;
+    // Confirm before charging the network fee — the audit caught users
+    // expecting the backup to be "free" and seeing SOL leave their wallet
+    // with no second-tap safety. ~0.000005 SOL is small but real.
+    const confirmed = await new Promise<boolean>((resolve) => {
+      Alert.alert(
+        'Back up to chain?',
+        'Writes your streak + name as a tiny on-chain memo (~0.000005 SOL network fee).',
+        [
+          { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+          { text: 'Back up', onPress: () => resolve(true) },
+        ],
+        { cancelable: true, onDismiss: () => resolve(false) },
+      );
+    });
+    if (!confirmed) return;
     setMemoLoading(true);
     try {
       const syncPayload = JSON.stringify({
@@ -537,7 +614,11 @@ export function ProfileScreen() {
       );
     } catch (err: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      notify.error('Backup failed', err?.message || 'Failed to write pet state on-chain.', { category: 'tx' });
+      notify.error(
+        'Backup failed',
+        friendlyChainError(err, 'Failed to write pet state on-chain. Try again in a moment.'),
+        { category: 'tx' },
+      );
     } finally {
       setMemoLoading(false);
     }
@@ -598,7 +679,7 @@ export function ProfileScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       notify.error(
         'Restore failed',
-        err?.message || 'Could not reach the chain. Try again in a moment.',
+        friendlyChainError(err, 'Could not reach the chain. Try again in a moment.'),
         { category: 'restore' },
       );
     } finally {

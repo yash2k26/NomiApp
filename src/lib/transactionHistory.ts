@@ -41,7 +41,7 @@ export async function getTransactionHistory(
 const MEMO_PREFIX = 'oracle-pet:';
 
 export interface OraclePetPurchase {
-  type: 'shop' | 'premium' | 'sync' | 'mint';
+  type: 'shop' | 'premium' | 'sync' | 'mint' | 'streak-repair';
   itemId: string;
   timestamp: number | null;
   signature: string;
@@ -125,7 +125,7 @@ export async function getOraclePetPurchases(
         const type = body.slice(0, pipeIdx).trim();
         const payload = body.slice(pipeIdx + 1).trim();
 
-        if (type === 'shop' || type === 'premium' || type === 'sync' || type === 'mint') {
+        if (type === 'shop' || type === 'premium' || type === 'sync' || type === 'mint' || type === 'streak-repair') {
           purchases.push({
             type,
             itemId: payload,

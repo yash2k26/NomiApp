@@ -2,22 +2,29 @@ import { Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { runRpcHealthCheck } from './solanaDebugger';
 
 const HELIUS_API_KEY = process.env.EXPO_PUBLIC_HELIUS_API_KEY ?? '';
-// Mainnet (production)
-const MAINNET_URL = HELIUS_API_KEY
-  ? `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`
-  : 'https://api.mainnet-beta.solana.com';
-
-const RPC_ENDPOINTS = HELIUS_API_KEY
-  ? [MAINNET_URL, 'https://api.mainnet-beta.solana.com']
-  : ['https://api.mainnet-beta.solana.com'];
-
-// Active network (reflects RPC URL). Update this if you swap MAINNET_URL above.
+// Network is now env-driven via EXPO_PUBLIC_SOLANA_NETWORK so QA can point
+// the same APK at devnet without a code edit. Default is mainnet.
 export type SolanaNetwork = 'mainnet' | 'devnet' | 'testnet';
-export const SOLANA_NETWORK: SolanaNetwork = RPC_ENDPOINTS[0].includes('devnet')
-  ? 'devnet'
-  : RPC_ENDPOINTS[0].includes('testnet')
-    ? 'testnet'
-    : 'mainnet';
+const ENV_NETWORK = (process.env.EXPO_PUBLIC_SOLANA_NETWORK ?? 'mainnet').toLowerCase();
+export const SOLANA_NETWORK: SolanaNetwork =
+  ENV_NETWORK === 'devnet' ? 'devnet' :
+  ENV_NETWORK === 'testnet' ? 'testnet' :
+  'mainnet';
+
+const HELIUS_HOST =
+  SOLANA_NETWORK === 'devnet' ? 'devnet.helius-rpc.com' :
+  SOLANA_NETWORK === 'testnet' ? 'testnet.helius-rpc.com' :
+  'mainnet.helius-rpc.com';
+const PUBLIC_FALLBACK =
+  SOLANA_NETWORK === 'devnet' ? 'https://api.devnet.solana.com' :
+  SOLANA_NETWORK === 'testnet' ? 'https://api.testnet.solana.com' :
+  'https://api.mainnet-beta.solana.com';
+
+const HELIUS_URL = HELIUS_API_KEY ? `https://${HELIUS_HOST}/?api-key=${HELIUS_API_KEY}` : '';
+
+const RPC_ENDPOINTS = HELIUS_URL
+  ? [HELIUS_URL, PUBLIC_FALLBACK]
+  : [PUBLIC_FALLBACK];
 
 console.log('[solanaClient] Initializing web3.js RPC endpoints:', RPC_ENDPOINTS);
 
@@ -131,6 +138,57 @@ export async function getLatestBlockhashRaw(): Promise<{
 
 export async function getMinimumBalanceForRentExemptionRaw(size: number): Promise<number> {
   return withFallback('getMinimumBalanceForRentExemption', (conn) => conn.getMinimumBalanceForRentExemption(size, 'confirmed'));
+}
+
+/**
+ * Simulate a transaction BEFORE asking the wallet to sign. Catches obvious
+ * failures (insufficient funds, account constraints, program errors) without
+ * burning gas or asking the user to sign a doomed tx. Required for any path
+ * that hands a Transaction to `wallet.signTransactions`.
+ */
+export async function simulateTransactionRaw(tx: import('@solana/web3.js').Transaction): Promise<void> {
+  try {
+    const sim = await withFallback('simulateTransaction', (conn) =>
+      conn.simulateTransaction(tx, undefined, false),
+    );
+    if (sim.value.err) {
+      const logs = (sim.value.logs ?? []).slice(-4).join('\n');
+      throw new Error(
+        'Simulation failed: ' + JSON.stringify(sim.value.err) + (logs ? '\n' + logs : ''),
+      );
+    }
+  } catch (e: any) {
+    // If the simulation RPC itself fails (rate limit etc.), don't block the
+    // user — let the wallet sign and let confirmation reveal the truth. We
+    // only throw when the simulation returned a definitive error.
+    if (String(e?.message ?? '').startsWith('Simulation failed:')) throw e;
+  }
+}
+
+/**
+ * Background "wait for finalized" check, used by paths where reorg-rollback
+ * would be expensive (Pro purchase, NFT mint). Callers fire-and-forget AFTER
+ * the initial 'confirmed' confirmation so the user gets fast feedback; this
+ * resolves quietly when the tx reaches finalized commitment (~13 s on
+ * mainnet) and rejects only if the tx ends up failed or never finalized
+ * within `timeoutMs`. NOT awaited in the main flow.
+ */
+export async function awaitFinalizedRaw(signature: string, timeoutMs = 60000): Promise<void> {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    try {
+      const statuses = await withFallback('getSignatureStatuses', (conn) =>
+        conn.getSignatureStatuses([signature], { searchTransactionHistory: true })
+      );
+      const status = statuses.value[0];
+      if (status?.err) throw new Error('Tx errored before finalization');
+      if (status?.confirmationStatus === 'finalized') return;
+    } catch (e) {
+      // Transient — keep polling.
+    }
+    await delay(2000);
+  }
+  throw new Error('Finalization timed out (still confirmed but not finalized)');
 }
 
 export async function sendRawTransactionRaw(serializedTx: Uint8Array): Promise<string> {
@@ -274,9 +332,20 @@ export async function getSignaturesForAddressRaw(
  * (~5000 lamports = $0.000001 on a typical 200k CU tx).
  */
 const DEFAULT_PRIORITY_FEE_MICRO_LAMPORTS = 1000;
+// Threshold above which we surface a one-time-per-spike congestion warning
+// to the user. 50k µ-lamports/CU is "noticeably busy mainnet"; above that,
+// the user may want to know their tx might take longer or cost slightly
+// more. Still tiny in absolute terms (50k * 200k CU = 0.00001 SOL).
+const CONGESTION_WARN_THRESHOLD = 50_000;
 let cachedPriorityFee = DEFAULT_PRIORITY_FEE_MICRO_LAMPORTS;
 let cachedPriorityFeeAt = 0;
+let congestionWarningShownAt = 0;
 const PRIORITY_FEE_CACHE_MS = 60_000;
+const CONGESTION_WARN_COOLDOWN_MS = 30 * 60_000; // 30 min between warnings
+
+export function isNetworkCongested(): boolean {
+  return cachedPriorityFee >= CONGESTION_WARN_THRESHOLD;
+}
 
 export async function getPriorityFeeMicroLamports(): Promise<number> {
   if (Date.now() - cachedPriorityFeeAt < PRIORITY_FEE_CACHE_MS) {
@@ -295,6 +364,25 @@ export async function getPriorityFeeMicroLamports(): Promise<number> {
       // ones and survives the next congestion spike).
       cachedPriorityFee = Math.max(DEFAULT_PRIORITY_FEE_MICRO_LAMPORTS, median);
       cachedPriorityFeeAt = Date.now();
+
+      // Surface a one-time-per-cooldown congestion notice so users
+      // understand why their next tx might take 5-30s longer than usual.
+      // Cheap to add, no false-positives because the cache means we only
+      // fire after a real probe of the chain.
+      if (
+        cachedPriorityFee >= CONGESTION_WARN_THRESHOLD &&
+        Date.now() - congestionWarningShownAt > CONGESTION_WARN_COOLDOWN_MS
+      ) {
+        congestionWarningShownAt = Date.now();
+        try {
+          const { notify } = require('./notify');
+          notify.info(
+            'Solana is congested',
+            'Your next on-chain action may take a bit longer than usual. Priority fees are set automatically.',
+            { category: 'system' },
+          );
+        } catch {}
+      }
     }
   } catch (err: any) {
     console.warn('[solanaClient] getPriorityFee failed, using default:', err?.message ?? err);
@@ -302,5 +390,8 @@ export async function getPriorityFeeMicroLamports(): Promise<number> {
   return cachedPriorityFee;
 }
 
-export { PublicKey, LAMPORTS_PER_SOL, MAINNET_URL as DEVNET_URL };
+// Re-exported as DEVNET_URL for legacy callers — actually the active primary
+// RPC URL for the configured network (env-driven, see above).
+export { PublicKey, LAMPORTS_PER_SOL };
+export const DEVNET_URL = RPC_ENDPOINTS[0];
 export type { Connection };

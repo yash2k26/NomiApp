@@ -175,6 +175,11 @@ function ShopCard({
 
   const handlePress = () => {
     if (isLocked || item.comingSoon) return;
+    // Submit-button debounce. Without this, rapid taps during the 1-2s
+    // wallet-open window could re-enter the buy flow before the in-flight
+    // ref has propagated. The ref is the synchronous lock; this is the
+    // visual lock.
+    if (purchasing) return;
     if (!item.owned) {
       onBuy();
     } else if (equipped) {
@@ -737,9 +742,11 @@ function InsufficientFundsModal({
 function WalletConfirmModal({
   visible,
   item,
+  onCancel,
 }: {
   visible: boolean;
   item: ShopItem | null;
+  onCancel: () => void;
 }) {
   if (!item) return null;
 
@@ -790,8 +797,22 @@ function WalletConfirmModal({
           <ActivityIndicator size="large" color="#3792A6" />
 
           <Text className="text-[11px] text-gray-300 font-semibold mt-4">
-            Do not close this screen
+            Taking a while? It's safe to cancel and try again.
           </Text>
+
+          {/* Cancel escape. Previously this modal had no close path — a stuck
+              Phantom popup left the user staring at the spinner with no way
+              out but force-quit. */}
+          <TouchableOpacity
+            onPress={onCancel}
+            activeOpacity={0.7}
+            style={{ marginTop: 14, paddingVertical: 8, paddingHorizontal: 16 }}
+            hitSlop={{ top: 12, bottom: 12, left: 16, right: 16 }}
+          >
+            <Text className="text-[13px] text-gray-500 font-bold underline">
+              Cancel
+            </Text>
+          </TouchableOpacity>
         </View>
       </View>
     </Modal>
@@ -1003,6 +1024,27 @@ export function ShopScreen() {
     hydrateShop();
   }, [hydrateShop]);
 
+  // Self-dismiss the "Confirm in Wallet" modal if the wallet never responds.
+  // Without this, a wallet-app crash mid-flow left users staring at a spinner
+  // with no escape but force-quit. The underlying tx might still complete in
+  // the background; the chain memo will pick it up on next reconnect.
+  useEffect(() => {
+    if (!purchasingId) return;
+    const t = setTimeout(() => {
+      setPurchasingId((current) => {
+        if (current !== purchasingId) return current;
+        buyInFlightRef.current = false;
+        notify.warning(
+          'Wallet didn\'t respond',
+          'If your wallet already approved, the item will appear after the chain confirms.',
+          { category: 'tx' },
+        );
+        return null;
+      });
+    }, 75_000);
+    return () => clearTimeout(t);
+  }, [purchasingId]);
+
   // Filter out items locked behind a higher tier
   const TIER_TAG_MAP: Record<string, PremiumTier> = {
     plus_exclusive: 'plus',
@@ -1171,15 +1213,21 @@ export function ShopScreen() {
     if (buyInFlightRef.current) return;
     const lvl = useXpStore.getState().level;
     const disc = getPerksForLevel(lvl).shopDiscount;
-    const discountedPrice = Math.round(paymentItem.price * (1 - disc) * 100) / 100;
-    if (balance < discountedPrice) {
+    // 6-decimal precision matches shopStore.buyItem so the screen-side check
+    // and the actual charge never disagree (previously 2-decimal rounding here
+    // could show the wrong required amount in the InsufficientFunds modal).
+    // Also include a small SOL fee buffer so we don't pass the pre-check then
+    // fail in the wallet during congestion.
+    const discountedPrice = Math.round(paymentItem.price * (1 - disc) * 1000000) / 1000000;
+    const SOL_FEE_BUFFER = 0.001;
+    if (balance < discountedPrice + SOL_FEE_BUFFER) {
       console.warn('[ShopScreen] handlePaySol insufficient balance', {
         itemId: paymentItem.id,
         required: discountedPrice,
         available: balance,
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      setFundsModal({ currency: 'SOL', required: discountedPrice, available: balance });
+      setFundsModal({ currency: 'SOL', required: discountedPrice + SOL_FEE_BUFFER, available: balance });
       return;
     }
     console.log('[ShopScreen] handlePaySol proceed', {
@@ -1474,6 +1522,20 @@ export function ShopScreen() {
       <WalletConfirmModal
         visible={!!purchasingId}
         item={items.find((i) => i.id === purchasingId) ?? null}
+        onCancel={() => {
+          // Soft-cancel: clear the modal state and unwind the in-flight ref.
+          // The underlying tx might still complete (we can't stop a wallet that's
+          // already approved), but the chain memo + server ledger will restore
+          // it on the next reconnect — meanwhile the user isn't stuck staring at
+          // a spinner.
+          setPurchasingId(null);
+          buyInFlightRef.current = false;
+          notify.warning(
+            'Cancelled',
+            'If your wallet already approved, the item will appear after the chain confirms.',
+            { category: 'tx' },
+          );
+        }}
       />
 
       <InsufficientFundsModal

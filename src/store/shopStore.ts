@@ -165,12 +165,23 @@ async function saveShopState(
   equippedAnimationId: string | null,
   achievementUnlocksClaimed?: number,
   lastConnectedWallet?: string | null,
-) {
+): Promise<boolean> {
   try {
     await AsyncStorage.setItem(SHOP_STORAGE_KEY, JSON.stringify({
       ownedIds, equippedItemId, equippedAnimationId, achievementUnlocksClaimed, lastConnectedWallet,
     }));
-  } catch {}
+    return true;
+  } catch (err) {
+    // Previously swallowed silently — failures here meant a confirmed
+    // purchase was "owned" in memory but vanished on next launch. Now we
+    // surface to telemetry so we know how often it happens and callers
+    // that need durable success can await this and check the boolean.
+    try {
+      const { captureError } = require('../lib/analytics');
+      captureError(err, { surface: 'saveShopState' });
+    } catch {}
+    return false;
+  }
 }
 
 export const useShopStore = create<ShopStore>((set, get) => ({
@@ -199,22 +210,22 @@ export const useShopStore = create<ShopStore>((set, get) => ({
     const item = items.find((i) => i.id === id);
     if (!item) {
       console.warn(`${SHOP_LOG} abort: item not found`, { id });
-      return null;
+      throw new Error("That item isn't available right now.");
     }
     if (item.owned) {
       console.warn(`${SHOP_LOG} abort: item already owned`, { id, name: item.name });
-      return null;
+      throw new Error("You already own this item.");
     }
     if (item.comingSoon) {
       console.warn(`${SHOP_LOG} abort: item coming soon`, { id, name: item.name });
-      return null;
+      throw new Error("That item isn't released yet — check back soon!");
     }
 
     // Check unlock condition
     const lockState = getItemLockState(item);
     if (lockState.locked) {
       console.warn(`${SHOP_LOG} abort: item locked`, { id, reason: lockState.reason });
-      return null;
+      throw new Error(lockState.reason || "You haven't unlocked this item yet.");
     }
 
     // Premium users get items free ONLY if the item was in the catalog at
@@ -248,20 +259,40 @@ export const useShopStore = create<ShopStore>((set, get) => ({
             required: item.coinPrice,
             available: walletStore.appCoins,
           });
-          return null;
+          // Previously returned null — caller (ShopScreen.doPurchaseWithCoins)
+          // treated null as success and showed an "unlocked!" toast even though
+          // the buy failed. Now we throw so the caller's catch fires the real
+          // error message.
+          throw new Error(`Not enough coins. Need ${item.coinPrice}, you have ${walletStore.appCoins}.`);
         }
         // Grant ownership; refund the coins if anything downstream throws so
-        // we never take coins without delivering the item. (The comment used
-        // to promise this refund but there was no try/catch actually doing it.)
+        // we never take coins without delivering the item. Awaiting the save
+        // ensures the new ownership is durable BEFORE we return success —
+        // previously a force-close in the window between deduct and AsyncStorage
+        // write would persist the coin loss without persisting the item.
         try {
           const updated = items.map((i) => (i.id === id ? { ...i, owned: true } : i));
           set({ items: updated });
           const ownedIds = updated.filter((i) => i.owned).map((i) => i.id);
-          saveShopState(ownedIds, get().equippedItemId, get().equippedAnimationId);
+          const saved = await saveShopState(ownedIds, get().equippedItemId, get().equippedAnimationId);
+          if (!saved) {
+            // Persist failed. Refund the coins so the user isn't out the spend.
+            // (Yes, this means a fresh AsyncStorage failure leaves the user
+            // owning the item only in this session — but if persistence keeps
+            // failing they have bigger problems and at least their coins are
+            // safe.)
+            walletStore.addAppCoins(item.coinPrice);
+            throw new Error('Could not save your purchase. Coins refunded — try again.');
+          }
         } catch (e) {
-          walletStore.addAppCoins(item.coinPrice);
+          // Refund any catch-all. This includes the saved===false path above
+          // (already refunded), so we only refund again if the coins haven't
+          // been put back yet.
+          if ((e as any)?.message !== 'Could not save your purchase. Coins refunded — try again.') {
+            walletStore.addAppCoins(item.coinPrice);
+          }
           console.warn(`${SHOP_LOG} coin purchase failed after deduct — refunded`, e);
-          return null;
+          throw e;
         }
         console.log(`${SHOP_LOG} coin purchase completed`, {
           id,
@@ -278,7 +309,7 @@ export const useShopStore = create<ShopStore>((set, get) => ({
             required: item.skrPrice,
             available: walletStore.skrBalance,
           });
-          return null;
+          throw new Error(`Not enough SKR. Need ${item.skrPrice} SKR, you have ${walletStore.skrBalance.toFixed(2)}.`);
         }
 
         const authToken = walletStore.authToken;
@@ -291,7 +322,12 @@ export const useShopStore = create<ShopStore>((set, get) => ({
             itemId: item.id,
             itemName: item.name,
           });
-          const txSig = await transferSkr(authToken, SHOP_TREASURY, item.skrPrice);
+          // Attach `oracle-pet:shop|<id>` to the SKR transfer — the SOL path
+          // already does this, but the SKR path was sending bare transfers. A
+          // user who reinstalls + whose server-ledger row is missing would
+          // never get the item back on restore because there was no on-chain
+          // marker tying that SKR transfer to a shop item.
+          const txSig = await transferSkr(authToken, SHOP_TREASURY, item.skrPrice, `oracle-pet:shop|${item.id}`);
           chainTxSig = txSig;
           console.log(`${SHOP_LOG} SKR tx sent`, { txSig, itemId: item.id });
 
@@ -300,12 +336,20 @@ export const useShopStore = create<ShopStore>((set, get) => ({
             labelTransaction(txSig, `Bought ${item.name} (SKR)`);
           } catch {}
 
-          // Mark owned BEFORE refresh — tx already succeeded on-chain
+          // Mark owned BEFORE refresh — tx already succeeded on-chain.
+          // Await the persist so a force-close right after this point doesn't
+          // wipe the ownership flag (chain memo will eventually restore it,
+          // but the user experiences a "lost item" gap until then).
           const updated = items.map((i) => (i.id === id ? { ...i, owned: true } : i));
           set({ items: updated });
           const ownedIds = updated.filter((i) => i.owned).map((i) => i.id);
-          saveShopState(ownedIds, get().equippedItemId, get().equippedAnimationId);
+          await saveShopState(ownedIds, get().equippedItemId, get().equippedAnimationId);
 
+          // Reflect spent SKR locally NOW so a quick back-to-back second
+          // purchase can't pass the balance pre-check using the stale higher
+          // balance (the chain has it, but `refreshSkrBalance` is async). The
+          // premium-purchase path already does this; the shop path didn't.
+          walletStore.deductSkr(item.skrPrice);
           try { await walletStore.refreshSkrBalance(); } catch {}
           try { await walletStore.refreshBalance(); } catch {}
           // Record with the server ledger so future restores resolve via
@@ -331,6 +375,10 @@ export const useShopStore = create<ShopStore>((set, get) => ({
               signature: txSig,
               status: 'confirmed',
             });
+            const { awaitFinalizedRaw } = require('../lib/solanaClient');
+            awaitFinalizedRaw(txSig)
+              .then(() => usePendingTxStore.getState().promoteToFinalized(txSig))
+              .catch(() => {});
           } catch {}
           console.log(`${SHOP_LOG} SKR purchase completed`, {
             id,
@@ -359,12 +407,18 @@ export const useShopStore = create<ShopStore>((set, get) => ({
           finalPrice,
         });
 
-        if (walletStore.balance < finalPrice) {
+        // Include a small buffer for the network fee + priority fee. Without
+        // this, a user near the edge passes the pre-check then the wallet
+        // pops a rejection — confusing because the app said "you can afford
+        // this" 50ms earlier.
+        const SOL_FEE_BUFFER = 0.001;
+        if (walletStore.balance < finalPrice + SOL_FEE_BUFFER) {
           console.warn(`${SHOP_LOG} abort: insufficient SOL`, {
             required: finalPrice,
+            buffer: SOL_FEE_BUFFER,
             available: walletStore.balance,
           });
-          return null;
+          throw new Error(`Not enough SOL. Need ~${(finalPrice + SOL_FEE_BUFFER).toFixed(4)} SOL (including fees), you have ${walletStore.balance.toFixed(4)}.`);
         }
 
         // On-chain SOL transfer to shop treasury
@@ -387,11 +441,12 @@ export const useShopStore = create<ShopStore>((set, get) => ({
             labelTransaction(txSig, `Bought ${item.name}`);
           } catch {}
 
-          // Mark owned BEFORE refreshBalance — tx already succeeded on-chain
+          // Mark owned BEFORE refreshBalance — tx already succeeded on-chain.
+          // Await the persist (see SKR branch above for why).
           const updated = items.map((i) => (i.id === id ? { ...i, owned: true } : i));
           set({ items: updated });
           const ownedIds = updated.filter((i) => i.owned).map((i) => i.id);
-          saveShopState(ownedIds, get().equippedItemId, get().equippedAnimationId);
+          await saveShopState(ownedIds, get().equippedItemId, get().equippedAnimationId);
 
           try { await walletStore.refreshBalance(); } catch {}
           // Server ledger fast path (see SKR branch comment).
@@ -416,6 +471,10 @@ export const useShopStore = create<ShopStore>((set, get) => ({
               signature: txSig,
               status: 'confirmed',
             });
+            const { awaitFinalizedRaw } = require('../lib/solanaClient');
+            awaitFinalizedRaw(txSig)
+              .then(() => usePendingTxStore.getState().promoteToFinalized(txSig))
+              .catch(() => {});
           } catch {}
           console.log(`${SHOP_LOG} SOL purchase completed`, {
             id,
@@ -558,7 +617,20 @@ export const useShopStore = create<ShopStore>((set, get) => ({
     // leak items between users on the same device. Same-wallet reconnect
     // skips this reset and just re-confirms what was already there — no
     // visible flicker, no "items missing" reports.
-    const walletChanged = walletAddress != null && lastConnectedWallet != null && lastConnectedWallet !== walletAddress;
+    //
+    // Defense for upgrade-from-old-build path: if lastConnectedWallet is
+    // null (this tracking didn't exist in the build that wrote the current
+    // owned flags) AND there are already-owned items in memory, the only
+    // legitimate "null + connect" case is a truly fresh install with no
+    // items. Anything else is the prior user's data — treat as wallet change
+    // so we don't leak User A's purchases to User B on a shared device.
+    const hasInheritedOwned = items.some((i) => i.owned);
+    const walletChanged =
+      walletAddress != null &&
+      (
+        (lastConnectedWallet != null && lastConnectedWallet !== walletAddress) ||
+        (lastConnectedWallet == null && hasInheritedOwned)
+      );
     const startingItems = walletChanged
       ? items.map((i) => ({ ...i, owned: false }))
       : items;

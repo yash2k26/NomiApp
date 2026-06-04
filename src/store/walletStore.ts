@@ -93,7 +93,18 @@ interface WalletState {
   coinsEarnedToday: Record<string, number>;
   coinsEarnedDate: string;
   authToken: string;
+  // Wallet-signed session for first-party API auth (purchases ledger + state
+  // sync). Absent when the user denied the message-sign prompt at connect.
+  sessionMsg: string;
+  sessionSigB64: string;
+  sessionPubkeyB64: string;
   isConnecting: boolean;
+  // True while the MWA deauthorize round-trip is in flight. Used to block a
+  // racing reconnect attempt — without this guard a user who taps Disconnect
+  // and immediately taps Connect Wallet can have two transact() sessions
+  // overlap, which MWA can reject silently. (hg2020 dApp-store review:
+  // "Serious bug — can't log in again after logout.")
+  isDisconnecting: boolean;
   error: string | null;
 }
 
@@ -116,7 +127,14 @@ interface WalletActions {
 
 type WalletStore = WalletState & WalletActions;
 
-async function saveWalletState(address: string, authToken: string, walletBrand: string) {
+async function saveWalletState(
+  address: string,
+  authToken: string,
+  walletBrand: string,
+  sessionMsg?: string,
+  sessionSigB64?: string,
+  sessionPubkeyB64?: string,
+) {
   try {
     await AsyncStorage.setItem(
       WALLET_STORAGE_KEY,
@@ -124,7 +142,7 @@ async function saveWalletState(address: string, authToken: string, walletBrand: 
       // every app launch within the TTL skips the MWA reauth call entirely,
       // which removes the "wallet prompt every time I open the app" UX bug
       // that users were misreading as a gas fee.
-      JSON.stringify({ address, authToken, walletBrand, lastReauthAt: Date.now() }),
+      JSON.stringify({ address, authToken, walletBrand, lastReauthAt: Date.now(), sessionMsg, sessionSigB64, sessionPubkeyB64 }),
     );
   } catch {}
 }
@@ -189,10 +207,24 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
   coinsEarnedToday: {},
   coinsEarnedDate: '',
   authToken: '',
+  sessionMsg: '',
+  sessionSigB64: '',
+  sessionPubkeyB64: '',
   isConnecting: false,
+  isDisconnecting: false,
   error: null,
 
   connectWallet: async () => {
+    // Block a connect attempt that races a still-in-flight disconnect.
+    // Without this, the MWA deauthorize transact() session can overlap with
+    // a fresh authorize() session — Phantom rejects the conflict silently
+    // and the user sees nothing happen (hg2020's "can't log in after
+    // logout" report).
+    const { isDisconnecting } = get();
+    if (isDisconnecting) {
+      set({ error: 'Still disconnecting — wait a moment and try again.' });
+      return;
+    }
     set({ isConnecting: true, error: null });
     // Safety timeout: if MWA hangs (Phantom not responding, OS killed the
     // intent, etc.) the user otherwise sees a frozen "Connecting…" forever
@@ -217,10 +249,20 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
         address: result.address,
         walletBrand: result.brand,
         authToken: result.authToken,
+        sessionMsg: result.sessionMsg ?? '',
+        sessionSigB64: result.sessionSigB64 ?? '',
+        sessionPubkeyB64: result.sessionPubkeyB64 ?? '',
         isConnecting: false,
       });
 
-      saveWalletState(result.address, result.authToken, result.brand);
+      saveWalletState(
+        result.address,
+        result.authToken,
+        result.brand,
+        result.sessionMsg,
+        result.sessionSigB64,
+        result.sessionPubkeyB64,
+      );
 
       // Fetch balances in background (UI updates reactively via Zustand)
       getBalanceSafe(result.address).then(({ value, ok }) => {
@@ -252,8 +294,24 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
 
   disconnectWallet: () => {
     const { authToken, address } = get();
+    // Flag disconnect in flight. Any reconnect attempt that races this is
+    // blocked at the top of connectWallet — without that guard, the MWA
+    // deauthorize() and authorize() transact() sessions can overlap and
+    // Phantom rejects the conflict silently. hg2020 dApp-store review:
+    // "Serious bug — can't log in again after logging out." The flag clears
+    // either when deauthorize resolves (success or failure) or after a 5s
+    // safety timeout so a hung wallet app can't permanently lock reconnects.
+    set({ isDisconnecting: true });
     if (authToken) {
-      disconnectMobileWallet(authToken).catch(() => {});
+      const finish = () => {
+        try { set({ isDisconnecting: false }); } catch {}
+      };
+      const safety = setTimeout(finish, 5000);
+      disconnectMobileWallet(authToken)
+        .then(() => { clearTimeout(safety); finish(); })
+        .catch(() => { clearTimeout(safety); finish(); });
+    } else {
+      set({ isDisconnecting: false });
     }
     // Drop server-side push registration so the previous user's pushes don't
     // follow the device. Best-effort; failures are silently logged.
@@ -360,7 +418,10 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
     // Note: appCoins is intentionally NOT cleared — it's device-level game
     // currency, not wallet-bound. Reinstalling the app wipes it; disconnect
     // alone does not.
-    set({ connected: false, address: '', walletBrand: '', balance: 0, skrBalance: 0, balanceLoadOk: true, skrBalanceLoadOk: true, authToken: '', isConnecting: false, error: null });
+    // Note: isDisconnecting stays whatever the deauthorize callback set it to —
+    // do NOT force it false here, otherwise a still-in-flight deauthorize
+    // could finish AFTER a successful new connect and stomp on it.
+    set({ connected: false, address: '', walletBrand: '', balance: 0, skrBalance: 0, balanceLoadOk: true, skrBalanceLoadOk: true, authToken: '', sessionMsg: '', sessionSigB64: '', sessionPubkeyB64: '', isConnecting: false, error: null });
     AsyncStorage.removeItem(WALLET_STORAGE_KEY).catch(() => {});
   },
 
@@ -508,7 +569,7 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
     }
     if (!stored) return;
 
-    let parsed: { address?: string; authToken?: string; walletBrand?: string; lastReauthAt?: number };
+    let parsed: { address?: string; authToken?: string; walletBrand?: string; lastReauthAt?: number; sessionMsg?: string; sessionSigB64?: string; sessionPubkeyB64?: string };
     try { parsed = JSON.parse(stored); } catch { return; }
     if (!parsed.address || !parsed.authToken) return;
 
@@ -528,6 +589,9 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
         address: parsed.address,
         walletBrand: parsed.walletBrand || '',
         authToken: parsed.authToken,
+        sessionMsg: parsed.sessionMsg ?? '',
+        sessionSigB64: parsed.sessionSigB64 ?? '',
+        sessionPubkeyB64: parsed.sessionPubkeyB64 ?? '',
         error: null,
       });
       // Don't reset lastReauthAt — that would shift the TTL forward forever.
@@ -545,6 +609,22 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
 
     try {
       const result = await reauthorizeMobileWallet(parsed.authToken);
+      // Account-switch detection. The user may have changed the active account
+      // in Phantom/Solflare between sessions; reauthorize then returns a
+      // different base58 than what's stored locally. Cross-user data leak
+      // is already prevented by `lastConnectedWallet` in shopStore — this
+      // toast is the missing UI surface so the user understands WHY their
+      // items / streak / etc. look different.
+      if (parsed.address && parsed.address !== result.address) {
+        try {
+          const { notify } = require('../lib/notify');
+          notify.info(
+            'Switched wallets',
+            `Now connected as …${result.address.slice(-4)}. Your previous wallet's data stays on chain and will restore if you switch back.`,
+            { category: 'system' },
+          );
+        } catch {}
+      }
       set({
         connected: true,
         address: result.address,
@@ -586,3 +666,33 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
     }
   },
 }));
+
+/**
+ * Headers for first-party API calls (state-backup worker, purchases ledger).
+ *
+ * Prefers the wallet-signed session (cryptographic, can't be forged from an
+ * extracted APK). Falls back to the legacy `x-app-token` shared-secret if the
+ * session is unavailable — the worker accepts either. Returns an empty object
+ * if neither is present (no wallet yet / unauthenticated request).
+ */
+export function getApiAuthHeaders(): Record<string, string> {
+  const state = useWalletStore.getState();
+  const headers: Record<string, string> = {};
+  // Wallet-signed session: only attach when all four pieces are present AND
+  // the message's expiry hasn't passed.
+  if (state.sessionMsg && state.sessionSigB64 && state.sessionPubkeyB64 && state.address) {
+    const parts = state.sessionMsg.split(':');
+    const expiry = parts.length === 3 ? parseInt(parts[2], 10) : 0;
+    if (expiry && expiry > Date.now()) {
+      headers['X-Wallet'] = state.address;
+      headers['X-Wallet-Bytes'] = state.sessionPubkeyB64;
+      headers['X-Session-Msg'] = state.sessionMsg;
+      headers['X-Session-Sig'] = state.sessionSigB64;
+    }
+  }
+  // Always include the legacy token if configured — the worker accepts either,
+  // so this preserves auth on builds where the user denied the session sign.
+  const appToken = process.env.EXPO_PUBLIC_STATE_API_TOKEN;
+  if (appToken) headers['x-app-token'] = appToken;
+  return headers;
+}

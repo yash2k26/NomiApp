@@ -18,6 +18,13 @@ export interface WalletAuthResult {
   authToken: string;     // for reauthorization
   walletUriBase: string; // deep-link URI of the wallet app
   brand: WalletBrand;    // best-effort identification of the wallet app
+  // Wallet-signed session for authenticating to first-party APIs (state
+  // backup worker, purchases ledger) without relying on an APK-extractable
+  // shared secret. All three are absent if the user denies the session sign
+  // prompt — callers fall back to the legacy APP_TOKEN header in that case.
+  sessionMsg?: string;        // plaintext signed message
+  sessionSigB64?: string;     // base64 Ed25519 signature (64 bytes)
+  sessionPubkeyB64?: string;  // base64 raw pubkey (32 bytes)
 }
 
 /**
@@ -68,11 +75,45 @@ export async function connectMobileWallet(): Promise<WalletAuthResult> {
       const brand = detectWalletBrand(auth.wallet_uri_base);
       console.log('[MWA] detected wallet brand:', brand);
 
+      // Session sign — IN THE SAME transact session so we don't open a fresh
+      // wallet popup. The user sees the standard "sign message" prompt right
+      // after authorize. Failure is non-fatal: we fall back to the legacy
+      // APP_TOKEN shared-secret header for API auth.
+      let sessionMsg: string | undefined;
+      let sessionSigB64: string | undefined;
+      let sessionPubkeyB64: string | undefined;
+      try {
+        const expiryMs = Date.now() + 24 * 60 * 60 * 1000;
+        sessionMsg = `nomi-session:${address}:${expiryMs}`;
+        const msgBytes = new TextEncoder().encode(sessionMsg);
+        const signedPayloads = await wallet.signMessages({
+          addresses: [auth.accounts[0].address],
+          payloads: [msgBytes],
+        });
+        const signed = signedPayloads?.[0];
+        if (signed && signed.byteLength >= 64) {
+          const sig = signed.slice(signed.byteLength - 64);
+          const { PublicKey } = require('@solana/web3.js');
+          const pubBytes: Uint8Array = new PublicKey(address).toBytes();
+          sessionSigB64 = Buffer.from(sig).toString('base64');
+          sessionPubkeyB64 = Buffer.from(pubBytes).toString('base64');
+          console.log('[MWA] session signed (24h validity)');
+        } else {
+          sessionMsg = undefined;
+        }
+      } catch (sessionErr: any) {
+        console.warn('[MWA] session sign skipped (non-fatal):', sessionErr?.message ?? sessionErr);
+        sessionMsg = undefined;
+      }
+
       return {
         address,
         authToken: auth.auth_token,
         walletUriBase: auth.wallet_uri_base,
         brand,
+        sessionMsg,
+        sessionSigB64,
+        sessionPubkeyB64,
       };
     });
 

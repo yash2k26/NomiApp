@@ -41,12 +41,13 @@ function fetchWithTimeout(input: string, init?: RequestInit): Promise<Response> 
   // Attach the shared app-token header so the state worker accepts the call.
   // Worker treats this as advisory until APP_TOKEN secret is set there — once
   // set, missing/wrong header returns 401. Token is read from .env at build
-  // time; if not set the worker still works (back-compat path).
-  const token = process.env.EXPO_PUBLIC_STATE_API_TOKEN;
+  // Prefer wallet-signed session (cryptographic) over the legacy shared
+  // secret. getApiAuthHeaders attaches whichever is available.
+  const { getApiAuthHeaders } = require('../store/walletStore');
   const headers: Record<string, string> = {
     ...(init?.headers as Record<string, string> | undefined),
+    ...getApiAuthHeaders(),
   };
-  if (token) headers['X-App-Token'] = token;
   return fetch(input, { ...init, headers, signal: controller.signal }).finally(() => clearTimeout(id));
 }
 

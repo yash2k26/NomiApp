@@ -3,7 +3,34 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useXpStore } from './xpStore';
 import { events } from '../lib/analytics';
 
-export const STREAK_REPAIR_WINDOW_MS = 48 * 60 * 60 * 1000; // 48 hours
+// 48h was the original window. The audit caught that a long-streak user who
+// breaks at the start of a busy work week can lose the repair offer entirely.
+// Now scaled by streak length so a 60-day streak gets a full week to come back.
+export const STREAK_REPAIR_WINDOW_MS = 48 * 60 * 60 * 1000; // legacy export — default
+
+export function getStreakRepairWindowMs(brokenFromStreak: number): number {
+  if (brokenFromStreak >= 60) return 7 * 24 * 60 * 60 * 1000; // 7 days
+  if (brokenFromStreak >= 30) return 5 * 24 * 60 * 60 * 1000; // 5 days
+  return 48 * 60 * 60 * 1000; // 48 hours
+}
+
+// Local-timezone date string. The previous code used `toISOString().slice(0,10)`
+// which is UTC — so a PST user opening the app at 4pm (midnight UTC) would
+// silently roll over the date and lose a day off their streak. This returns
+// the user's local-calendar date instead.
+function getLocalDateString(d: Date = new Date()): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+// Parse a YYYY-MM-DD string as a local date (matching getLocalDateString) so
+// daysMissed math doesn't double-count the UTC vs local skew.
+function parseLocalDateMs(s: string): number {
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(y, (m ?? 1) - 1, d ?? 1).getTime();
+}
 
 export type PetMood = 'excited' | 'happy' | 'content' | 'tired' | 'hungry' | 'sad';
 export type PetSkin = 'default' | 'headphones';
@@ -182,7 +209,12 @@ interface PetActions {
   // Streak-break repair offer — `applyStreakRepair` restores streakDays to the
   // pre-break value and clears the offer; pass useFreeze: true to also consume
   // a streak freeze (free path). Direct/paid paths handle payment in the caller.
-  applyStreakRepair: (opts?: { useFreeze?: boolean; cost_sol?: number; cost_skr?: number }) => void;
+  /** Returns true on success, false on silent no-op (window expired / no
+   *  freezes / no broken streak). Awaits the AsyncStorage persist before
+   *  resolving so callers can show "Streak restored" only after the change
+   *  is actually durable. Callers must check before showing success toasts
+   *  or charging on-chain. */
+  applyStreakRepair: (opts?: { useFreeze?: boolean; cost_sol?: number; cost_skr?: number }) => Promise<boolean>;
   dismissStreakRepair: () => void;
   consumeStamina: (amount: number) => boolean; // returns false if not enough
   canAffordStamina: (action: string) => boolean;
@@ -253,12 +285,27 @@ const PERSISTED_KEYS: (keyof PetState)[] = [
   'retroactiveMintMemoWrittenFor',
 ];
 
-export function savePetState(state: PetState): Promise<void> {
+/**
+ * Persists pet state. Resolves true on success, false on failure (NEVER
+ * rejects, so non-awaiting callers don't get unhandled promise rejections).
+ * Failures previously vanished entirely; now they emit a telemetry event so
+ * we can spot storage corruption in the wild, and callers who care (the
+ * streak repair modal) can check the boolean and surface a warning.
+ */
+export function savePetState(state: PetState): Promise<boolean> {
   const data: Record<string, any> = {};
   for (const key of PERSISTED_KEYS) {
     data[key] = state[key];
   }
-  return AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data)).catch(() => { });
+  return AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+    .then(() => true)
+    .catch((err) => {
+      try {
+        const { captureError } = require('../lib/analytics');
+        captureError(err, { surface: 'savePetState' });
+      } catch {}
+      return false;
+    });
 }
 
 export async function hydratePetStore() {
@@ -364,11 +411,16 @@ export const usePetStore = create<PetStore>((set, get) => ({
     set({ isExcitedBurst: false });
   },
 
-  applyStreakRepair: (opts) => {
+  applyStreakRepair: async (opts) => {
+    // Returns true ONLY when the repair was applied AND persisted. Previously
+    // the persist was fire-and-forget so the modal could dismiss with a
+    // success toast while the AsyncStorage write was still in flight — if
+    // the write failed, both the freeze deduction and the streak restore
+    // were lost on next launch but the user already saw "Streak restored".
     const { lastBrokenStreak, streakBrokenAt, streakFreezes } = get();
-    if (!lastBrokenStreak || lastBrokenStreak < 1) return;
-    if (Date.now() - streakBrokenAt > STREAK_REPAIR_WINDOW_MS) return;
-    if (opts?.useFreeze && streakFreezes < 1) return;
+    if (!lastBrokenStreak || lastBrokenStreak < 1) return false;
+    if (Date.now() - streakBrokenAt > getStreakRepairWindowMs(lastBrokenStreak)) return false;
+    if (opts?.useFreeze && streakFreezes < 1) return false;
 
     set({
       streakDays: lastBrokenStreak,
@@ -376,7 +428,23 @@ export const usePetStore = create<PetStore>((set, get) => ({
       streakBrokenAt: 0,
       streakFreezes: opts?.useFreeze ? streakFreezes - 1 : streakFreezes,
     });
-    savePetState(get());
+    const saved = await savePetState(get());
+    if (!saved) {
+      // Persist failed. The in-memory state is updated, so the user sees the
+      // restore for this session, but on next launch the streak will revert.
+      // Surface telemetry; callers will still see `true` because the apply
+      // succeeded — the user's payment was honored — but we have a paper
+      // trail if they complain about losing it later.
+      try {
+        const { captureError } = require('../lib/analytics');
+        captureError(new Error('streak-repair persist failed'), {
+          surface: 'applyStreakRepair',
+          used_freeze: !!opts?.useFreeze,
+          cost_sol: opts?.cost_sol,
+          cost_skr: opts?.cost_skr,
+        });
+      } catch {}
+    }
 
     try {
       events.streakRepairUsed({
@@ -385,6 +453,7 @@ export const usePetStore = create<PetStore>((set, get) => ({
         cost_skr: opts?.cost_skr,
       });
     } catch {}
+    return true;
   },
 
   dismissStreakRepair: () => {
@@ -753,30 +822,37 @@ export const usePetStore = create<PetStore>((set, get) => ({
     const elapsedMs = now - lastTickAt;
     const elapsedHours = elapsedMs / (1000 * 60 * 60);
 
-    // Skip tiny intervals (< 6 minutes)
-    if (elapsedHours < 0.1) return;
+    // Skip tiny intervals (< 6 minutes) for stat decay / stamina regen — but
+    // NOT for the date-based daily-streak block below. Previously this early
+    // return meant a user who opened the app at 23:58 then again at 00:01
+    // (elapsed ~3 min, but a new calendar day) silently skipped the streak
+    // advance until a later open. The streak block is calendar-date driven,
+    // not elapsed-time driven, so it must run regardless.
+    const skipDecay = elapsedHours < 0.1;
 
-    // Stat decay: happiness drops FASTEST (loneliness), hunger next, energy slowest
-    // ~5 pts/hr happiness, ~3 pts/hr hunger, ~2 pts/hr energy
-    // Capped at 40 max decay so the pet is never completely zeroed after a long absence
-    const happinessDecay = Math.min(elapsedHours * 5, 40);
-    const hungerDecay = Math.min(elapsedHours * 3, 40);
-    const energyDecay = Math.min(elapsedHours * 2, 40);
+    if (!skipDecay) {
+      // Stat decay: happiness drops FASTEST (loneliness), hunger next, energy slowest
+      // ~5 pts/hr happiness, ~3 pts/hr hunger, ~2 pts/hr energy
+      // Capped at 40 max decay so the pet is never completely zeroed after a long absence
+      const happinessDecay = Math.min(elapsedHours * 5, 40);
+      const hungerDecay = Math.min(elapsedHours * 3, 40);
+      const energyDecay = Math.min(elapsedHours * 2, 40);
 
-    // Stamina regen
-    const regen = computeRegenedStamina(stamina, lastStaminaRegenAt);
+      // Stamina regen
+      const regen = computeRegenedStamina(stamina, lastStaminaRegenAt);
 
-    set((state) => ({
-      hunger: clamp(state.hunger - hungerDecay, 0, 100),
-      happiness: clamp(state.happiness - happinessDecay, 0, 100),
-      energy: clamp(state.energy - energyDecay, 0, 100),
-      lastTickAt: now,
-      stamina: regen.stamina,
-      lastStaminaRegenAt: regen.lastRegenAt,
-    }));
+      set((state) => ({
+        hunger: clamp(state.hunger - hungerDecay, 0, 100),
+        happiness: clamp(state.happiness - happinessDecay, 0, 100),
+        energy: clamp(state.energy - energyDecay, 0, 100),
+        lastTickAt: now,
+        stamina: regen.stamina,
+        lastStaminaRegenAt: regen.lastRegenAt,
+      }));
+    }
 
     // Generate diary entry if away 2+ hours
-    if (elapsedHours >= 2) {
+    if (!skipDecay && elapsedHours >= 2) {
       try {
         const ps = require('./personalityStore').usePersonalityStore.getState();
         const state = get();
@@ -800,18 +876,23 @@ export const usePetStore = create<PetStore>((set, get) => ({
       } catch {}
     }
 
-    // Daily streak tracking
-    const today = new Date().toISOString().slice(0, 10);
+    // Daily streak tracking — LOCAL DATE, not UTC. Previously a PST user
+    // opening the app at 4pm would silently roll over to the next UTC day
+    // and lose a day of streak. Now mirrors the user's calendar.
+    const today = getLocalDateString();
     if (today !== lastActiveDate) {
       const yd = new Date(now); yd.setDate(yd.getDate() - 1);
-      const yesterday = yd.toISOString().slice(0, 10);
+      const yesterday = getLocalDateString(yd);
 
-      // Compute days missed since last visit (excluding today's visit)
+      // Compute days missed since last visit (excluding today's visit) —
+      // parsing the stored date as LOCAL so the subtraction matches the
+      // calendar, not UTC. Off-by-one from DST is still possible but bounded
+      // to one day per transition.
       const { streakFreezes, lastFreezeRefillDate } = get();
       let daysMissed = 0;
       if (lastActiveDate && lastActiveDate !== yesterday) {
-        const lastMs = new Date(lastActiveDate + 'T00:00:00Z').getTime();
-        const todayMs = new Date(today + 'T00:00:00Z').getTime();
+        const lastMs = parseLocalDateMs(lastActiveDate);
+        const todayMs = parseLocalDateMs(today);
         daysMissed = Math.max(0, Math.floor((todayMs - lastMs) / (1000 * 60 * 60 * 24)) - 1);
       }
 
@@ -819,33 +900,40 @@ export const usePetStore = create<PetStore>((set, get) => ({
       let newStreak: number;
       let brokeFromStreak = 0; // captures the lost streak length if reset happens
       if (lastActiveDate === yesterday) {
-        // No gap — streak continues
+        // No gap — streak continues, today was earned
         newStreak = streakDays + 1;
       } else if (lastActiveDate && daysMissed > 0 && streakFreezes >= daysMissed) {
-        // Use freezes to cover gap, streak continues
+        // Use freezes to cover gap, streak continues (today still counts as earned —
+        // the user IS opening the app today, freezes covered the missed days)
         consumedFreezes = daysMissed;
         newStreak = streakDays + 1;
       } else {
-        // Not enough freezes — streak resets
+        // Not enough freezes — streak resets. Lowered threshold from 3 to 1
+        // so even short streaks get the repair offer (the freeze path is free).
         newStreak = 1;
-        // Only worth offering repair for streaks of meaningful length (>= 3 days)
-        if (streakDays >= 3) brokeFromStreak = streakDays;
+        if (streakDays >= 1) brokeFromStreak = streakDays;
       }
 
-      // Weekly free freeze refill (cap at 3 stockpiled)
-      const FREEZE_CAP = 3;
+      // Weekly free freeze refill. The audit flagged a bug here: the cap of 3
+      // was being applied to ALL freezes via Math.min, which silently deleted
+      // freezes the user had PAID for above the cap. Now the cap only gates the
+      // weekly free grant — purchased freezes stack above it.
+      const FREEZE_CAP = 3;             // ceiling for the WEEKLY free grant
+      const FREEZE_HARD_MAX = 99;       // safety ceiling overall
       const REFILL_INTERVAL_DAYS = 7;
+      const remainingAfterConsume = streakFreezes - consumedFreezes;
+      const eligibleForBonus = remainingAfterConsume < FREEZE_CAP;
       let bonusFreeze = 0;
       if (!lastFreezeRefillDate) {
-        bonusFreeze = 1;
+        if (eligibleForBonus) bonusFreeze = 1;
       } else {
-        const lastRefillMs = new Date(lastFreezeRefillDate + 'T00:00:00Z').getTime();
-        const todayMs = new Date(today + 'T00:00:00Z').getTime();
+        const lastRefillMs = parseLocalDateMs(lastFreezeRefillDate);
+        const todayMs = parseLocalDateMs(today);
         const daysSinceRefill = Math.floor((todayMs - lastRefillMs) / (1000 * 60 * 60 * 24));
-        if (daysSinceRefill >= REFILL_INTERVAL_DAYS) bonusFreeze = 1;
+        if (daysSinceRefill >= REFILL_INTERVAL_DAYS && eligibleForBonus) bonusFreeze = 1;
       }
 
-      const finalFreezes = Math.min(FREEZE_CAP, streakFreezes - consumedFreezes + bonusFreeze);
+      const finalFreezes = Math.min(FREEZE_HARD_MAX, remainingAfterConsume + bonusFreeze);
       const streakBonus = Math.min(newStreak * 2, 10);
 
       set((state) => ({
@@ -853,11 +941,27 @@ export const usePetStore = create<PetStore>((set, get) => ({
         streakDays: newStreak,
         happiness: clamp(state.happiness + streakBonus, 0, 100),
         streakFreezes: finalFreezes,
+        // Only update refill-date when we actually granted a bonus — previously
+        // updating it on every tick burned the weekly grant even when capped.
         lastFreezeRefillDate: bonusFreeze > 0 ? today : state.lastFreezeRefillDate,
         ...(brokeFromStreak > 0
           ? { lastBrokenStreak: brokeFromStreak, streakBrokenAt: now }
           : {}),
       }));
+
+      // User-visible feedback when a freeze actually saved the streak. Previously
+      // freezes vanished silently and users had no way to know they'd been
+      // protected — only that "Day 12" was still on the badge somehow.
+      if (consumedFreezes > 0) {
+        try {
+          const { notify } = require('../lib/notify');
+          notify.success(
+            `Freeze saved your ${newStreak}-day streak`,
+            `Used ${consumedFreezes} · ${finalFreezes} left`,
+            { category: 'streak' },
+          );
+        } catch {}
+      }
 
       if (brokeFromStreak > 0) {
         try { events.streakBroken({ previous_streak: brokeFromStreak }); } catch {}

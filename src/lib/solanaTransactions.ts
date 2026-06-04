@@ -12,6 +12,7 @@ import {
   getLatestBlockhashRaw,
   getPriorityFeeMicroLamports,
   sendRawTransactionRaw,
+  simulateTransactionRaw,
 } from './solanaClient';
 import { withWallet } from './mobileWalletAdapter';
 
@@ -134,6 +135,7 @@ export async function signAndSendTransaction(
     }
 
     console.log('[solanaTx] signAndSend — signing via wallet (blockhash:', blockhash.slice(0, 12), '...)');
+    await simulateTransactionRaw(transaction);
     const signedTxs = await wallet.signTransactions({ transactions: [transaction] });
     const serialized = signedTxs[0].serialize();
     console.log('[solanaTx] signAndSend — signed, bytes:', serialized.length);
@@ -198,6 +200,7 @@ export async function transferSOL(
       tx.recentBlockhash = blockhash;
 
       console.log('[solanaTx] transferSOL — signing via wallet (blockhash:', blockhash.slice(0, 12), '...)');
+      await simulateTransactionRaw(tx);
       const signedTxs = await wallet.signTransactions({ transactions: [tx] });
       const serialized = signedTxs[0].serialize();
       console.log('[solanaTx] transferSOL — signed, bytes:', serialized.length);
@@ -255,6 +258,7 @@ export async function writeMemo(authToken: string, message: string): Promise<str
     tx.recentBlockhash = blockhash;
 
     console.log('[solanaTx] writeMemo — signing via wallet...');
+    await simulateTransactionRaw(tx);
     const signedTxs = await wallet.signTransactions({ transactions: [tx] });
     return signedTxs[0].serialize();
   });

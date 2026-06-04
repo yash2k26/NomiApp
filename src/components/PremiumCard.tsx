@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Alert, ActivityIndicator, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -9,6 +9,7 @@ import { playSfx } from '../lib/soundManager';
 import { parseTxError } from '../lib/transactionErrors';
 import { events, captureError } from '../lib/analytics';
 import { notify, truncateMid } from '../lib/notify';
+import { restorePurchases } from '../lib/purchaseRestore';
 
 const TIER_PERKS: Record<Exclude<PremiumTier, 'none'>, { emoji: string; text: string }[]> = {
   plus: [
@@ -109,22 +110,28 @@ function TierOption({ tier, currentTier, onPurchase, purchasing }: TierOptionPro
             <View style={{ marginTop: 8 }}>
               <TouchableOpacity
                 onPress={() => onPurchase(tier, config.currency)}
+                disabled={purchasing}
                 activeOpacity={0.85}
+                style={{ opacity: purchasing ? 0.6 : 1 }}
               >
                 <LinearGradient
                   colors={config.gradientColors}
-                  style={{ paddingVertical: 14, borderRadius: 18, alignItems: 'center' }}
+                  style={{ paddingVertical: 14, borderRadius: 18, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' }}
                 >
-                  <Text className="text-white font-black text-[13px] uppercase tracking-[0.5px]">
-                    {currentTier === 'none'
-                      ? `Get ${config.label} for ${cost} ${config.currency}`
-                      : `Upgrade for ${cost} ${config.currency}`}
+                  {purchasing ? <ActivityIndicator size="small" color="#fff" /> : null}
+                  <Text className="text-white font-black text-[13px] uppercase tracking-[0.5px]" style={{ marginLeft: purchasing ? 8 : 0 }}>
+                    {purchasing
+                      ? 'Processing…'
+                      : currentTier === 'none'
+                        ? `Get ${config.label} for ${cost} ${config.currency}`
+                        : `Upgrade for ${cost} ${config.currency}`}
                   </Text>
                 </LinearGradient>
               </TouchableOpacity>
               {hasAlt && (
                 <TouchableOpacity
                   onPress={() => onPurchase(tier, config.alternativeCurrency!)}
+                  disabled={purchasing}
                   activeOpacity={0.85}
                   style={{
                     marginTop: 8,
@@ -134,6 +141,7 @@ function TierOption({ tier, currentTier, onPurchase, purchasing }: TierOptionPro
                     backgroundColor: '#fff',
                     borderWidth: 1.5,
                     borderColor: config.badgeColor,
+                    opacity: purchasing ? 0.6 : 1,
                   }}
                 >
                   <Text style={{ color: config.badgeColor }} className="font-black text-[12px] uppercase tracking-[0.5px]">
@@ -154,22 +162,19 @@ export function PremiumCard() {
   const purchaseTier = usePremiumStore((s) => s.purchaseTier);
   const balance = useWalletStore((s) => s.balance);
   const skrBalance = useWalletStore((s) => s.skrBalance);
+  const walletAddress = useWalletStore((s) => s.address);
   const [purchasing, setPurchasing] = useState(false);
+  const [restoring, setRestoring] = useState(false);
   // Synchronous re-entry guard: setPurchasing is async (next render) so two
   // rapid taps would both pass the `purchasing` check and queue two wallet
   // approvals. The ref flips immediately, so the second tap exits cleanly.
   const inFlightRef = useRef(false);
-  // Watchdog so Android outside-tap on Alert (which doesn't reliably fire
-  // onDismiss) can't deadlock the lock. The ref's only job is suppressing
-  // multi-tap within seconds. The post-Alert path has its own protection
-  // via the `purchasing` state, so the watchdog only needs to outlast the
-  // confirm-Alert lifetime. 120s comfortably covers slow Phantom approvals
-  // on weak networks (8-12s observed) plus the user reading the Alert and
-  // approving in their wallet — earlier 10s/60s windows could prematurely
-  // unlock during a real approval and let a second tap slip through to a
-  // duplicate charge. Once payment starts, `purchasing` becomes the
-  // primary block, so the longer watchdog only matters for confirmed-but-
-  // still-Alert-open scenarios.
+  // Watchdog: 60s covers a realistic Phantom approval (8-12s observed) plus
+  // the user reading the Alert. Previously 120s — that locked users out for
+  // 2 full minutes if Phantom died, with no escape but force-quitting NomiApp.
+  // The new confirm-wallet modal also has its OWN escape (Cancel button +
+  // self-dismiss after 75s), so the watchdog is now a soft backstop, not the
+  // primary unlock path.
   const inFlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const lockInFlight = () => {
@@ -178,13 +183,63 @@ export function PremiumCard() {
     inFlightTimerRef.current = setTimeout(() => {
       inFlightRef.current = false;
       inFlightTimerRef.current = null;
-    }, 120000);
+    }, 60000);
   };
   const unlockInFlight = () => {
     inFlightRef.current = false;
     if (inFlightTimerRef.current) {
       clearTimeout(inFlightTimerRef.current);
       inFlightTimerRef.current = null;
+    }
+  };
+
+  // Self-dismiss the "Confirm in Wallet" modal if the wallet never responds.
+  // Without this, a user whose Phantom died mid-flow has no escape but to
+  // force-quit NomiApp (the modal had no close button + no max duration).
+  useEffect(() => {
+    if (!purchasing) return;
+    const t = setTimeout(() => {
+      if (purchasing) {
+        setPurchasing(false);
+        unlockInFlight();
+        notify.warning(
+          'Wallet didn\'t respond',
+          'No charge — try again, or check Solscan if you already approved.',
+          { category: 'tx' },
+        );
+      }
+    }, 75_000);
+    return () => clearTimeout(t);
+  }, [purchasing]);
+
+  const handleRestore = async () => {
+    if (!walletAddress || restoring || purchasing) return;
+    setRestoring(true);
+    try {
+      const result = await restorePurchases(walletAddress);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (result.premiumTierRestored && result.premiumTierRestored !== 'none') {
+        notify.success(
+          `${TIER_CONFIGS[result.premiumTierRestored].label} restored`,
+          'Your premium perks are active again.',
+          { category: 'tx' },
+        );
+      } else {
+        notify.info(
+          'No premium found on chain',
+          'No matching purchase found for this wallet. If you paid from another wallet, connect that one.',
+          { category: 'tx' },
+        );
+      }
+    } catch (err: any) {
+      captureError(err, { surface: 'premium_restore' });
+      notify.error(
+        'Restore failed',
+        'Could not reach the chain right now. Check your connection and try again.',
+        { category: 'tx' },
+      );
+    } finally {
+      setRestoring(false);
     }
   };
 
@@ -341,6 +396,33 @@ export function PremiumCard() {
             purchasing={purchasing}
           />
         ))}
+
+        {/* In-card "Restore Purchases" link. A reinstalled Pro user landing on
+            this screen previously saw "Get Plus / Get Pro" with no way to
+            recover what they already paid for — easy to double-pay. The link
+            is intentionally subtle so happy users aren't tempted to tap it
+            instead of buying. */}
+        {tier === 'none' && (
+          <TouchableOpacity
+            onPress={handleRestore}
+            disabled={restoring || purchasing}
+            activeOpacity={0.6}
+            style={{ alignItems: 'center', paddingVertical: 8, marginTop: 2 }}
+          >
+            {restoring ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <ActivityIndicator size="small" color="#9381FF" />
+                <Text className="text-[12px] text-gray-500 ml-2 font-semibold">
+                  Checking on-chain…
+                </Text>
+              </View>
+            ) : (
+              <Text className="text-[12px] text-gray-500 font-semibold">
+                Already paid? <Text className="text-pet-blue underline">Restore purchases</Text>
+              </Text>
+            )}
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Full-screen wallet confirmation overlay */}
@@ -387,8 +469,24 @@ export function PremiumCard() {
             <ActivityIndicator size="large" color="#9381FF" />
 
             <Text className="text-[11px] text-gray-300 font-semibold mt-5">
-              Do not close this screen
+              Taking a while? It's safe to cancel and try again.
             </Text>
+
+            {/* Cancel escape. Previously this modal had no close path — if
+                Phantom died or never responded, the user's only option was
+                to force-quit NomiApp. Now they can bail out cleanly. */}
+            <TouchableOpacity
+              onPress={() => {
+                setPurchasing(false);
+                unlockInFlight();
+              }}
+              activeOpacity={0.7}
+              style={{ marginTop: 16, paddingVertical: 8, paddingHorizontal: 16 }}
+            >
+              <Text className="text-[13px] text-gray-500 font-bold underline">
+                Cancel
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>

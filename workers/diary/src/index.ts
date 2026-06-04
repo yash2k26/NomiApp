@@ -47,13 +47,14 @@ const ILLUSTRATIONS: Record<string, string> = {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    if (request.method === 'OPTIONS') return cors(new Response(null, { status: 204 }));
-    if (request.method !== 'POST') return cors(json({ error: 'method_not_allowed' }, 405));
+    const origin = request.headers.get('Origin');
+    if (request.method === 'OPTIONS') return cors(new Response(null, { status: 204 }), origin);
+    if (request.method !== 'POST') return cors(json({ error: 'method_not_allowed' }, 405), origin);
 
     if (env.APP_TOKEN) {
       const provided = request.headers.get('x-app-token') ?? '';
       if (provided !== env.APP_TOKEN) {
-        return cors(json({ error: 'unauthorized' }, 401));
+        return cors(json({ error: 'unauthorized' }, 401), origin);
       }
     }
 
@@ -61,11 +62,11 @@ export default {
     try {
       body = await request.json();
     } catch {
-      return cors(json({ error: 'invalid_json' }, 400));
+      return cors(json({ error: 'invalid_json' }, 400), origin);
     }
 
     if (!body.mood || typeof body.hunger !== 'number') {
-      return cors(json({ error: 'missing_fields' }, 400));
+      return cors(json({ error: 'missing_fields' }, 400), origin);
     }
 
     // Cheap rate limit by IP if KV is bound. 30 req/hr per IP.
@@ -73,7 +74,7 @@ export default {
       const ip = request.headers.get('cf-connecting-ip') ?? 'unknown';
       const key = `rl:${ip}:${Math.floor(Date.now() / 3600000)}`;
       const count = parseInt((await env.RATE_LIMIT.get(key)) ?? '0', 10);
-      if (count >= 30) return cors(json({ error: 'rate_limited' }, 429));
+      if (count >= 30) return cors(json({ error: 'rate_limited' }, 429), origin);
       await env.RATE_LIMIT.put(key, String(count + 1), { expirationTtl: 3700 });
     }
 
@@ -99,22 +100,23 @@ export default {
       if (!res.ok) {
         const errText = await res.text();
         console.warn('anthropic error', res.status, errText);
-        return cors(json({ error: 'upstream_failed', status: res.status }, 502));
+        return cors(json({ error: 'upstream_failed', status: res.status }, 502), origin);
       }
 
       const data = (await res.json()) as { content?: { type: string; text: string }[] };
       const text = data.content?.find((b) => b.type === 'text')?.text?.trim();
-      if (!text) return cors(json({ error: 'empty_response' }, 502));
+      if (!text) return cors(json({ error: 'empty_response' }, 502), origin);
 
       return cors(
         json({
           text,
           illustration: ILLUSTRATIONS[body.mood] ?? '\u{1F4D6}',
         }),
+        origin,
       );
     } catch (err: any) {
       console.warn('worker error', err?.message ?? err);
-      return cors(json({ error: 'worker_error' }, 500));
+      return cors(json({ error: 'worker_error' }, 500), origin);
     }
   },
 };
@@ -176,9 +178,20 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
-function cors(res: Response): Response {
-  res.headers.set('Access-Control-Allow-Origin', '*');
+const DIARY_ALLOWED_ORIGINS = new Set<string>([
+  // Empty by default — native app calls don't send an Origin header.
+]);
+
+function cors(res: Response, requestOrigin?: string | null): Response {
+  const allowed =
+    requestOrigin == null || requestOrigin === ''
+      ? ''
+      : DIARY_ALLOWED_ORIGINS.has(requestOrigin)
+        ? requestOrigin
+        : 'null';
+  if (allowed) res.headers.set('Access-Control-Allow-Origin', allowed);
+  res.headers.set('Vary', 'Origin');
   res.headers.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.headers.set('Access-Control-Allow-Headers', 'Content-Type');
+  res.headers.set('Access-Control-Allow-Headers', 'Content-Type, X-App-Token, X-Wallet, X-Wallet-Bytes, X-Session-Msg, X-Session-Sig');
   return res;
 }

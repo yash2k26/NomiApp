@@ -11,6 +11,10 @@ LogBox.ignoreLogs(['EXGL: gl.pixelStorei()', 'THREE.THREE.Clock']);
 const ME_IMG = require('../../assets/Icons/Me.png');
 
 // Single GLB with pet + accessories + ALL animations baked in.
+// require() at module load means Metro bundles the GLB into the APK at
+// build time — no over-the-network fetch on first launch. Audit verified.
+// Compression / Meshopt are intentionally NOT applied here (gltfpack
+// destroyed UV coords in a prior incident); the 42 MB size is accepted.
 const MODEL = require('../../assets/pets/nomi-combined.glb');
 
 type GLTFResult = GLTF & {

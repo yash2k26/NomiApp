@@ -1,8 +1,8 @@
 import { useState, useRef } from 'react';
-import { View, Text, TouchableOpacity, Modal, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, Modal, ActivityIndicator, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import { usePetStore } from '../store/petStore';
+import { usePetStore, getStreakRepairWindowMs } from '../store/petStore';
 import { useWalletStore } from '../store/walletStore';
 import { petTypography } from '../theme/typography';
 import { transferSOL } from '../lib/solanaTransactions';
@@ -19,6 +19,7 @@ type Mode = 'idle' | 'paying';
 
 export function StreakRepairModal({ visible, onDismiss }: { visible: boolean; onDismiss: () => void }) {
   const lostStreak = usePetStore((s) => s.lastBrokenStreak);
+  const streakBrokenAt = usePetStore((s) => s.streakBrokenAt);
   const freezes = usePetStore((s) => s.streakFreezes);
   const applyStreakRepair = usePetStore((s) => s.applyStreakRepair);
   const dismissStreakRepair = usePetStore((s) => s.dismissStreakRepair);
@@ -40,18 +41,50 @@ export function StreakRepairModal({ visible, onDismiss }: { visible: boolean; on
   const useFreeze = () => {
     if (freezes < 1) return;
     if (repairInFlightRef.current) return;
-    repairInFlightRef.current = true;
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    applyStreakRepair({ useFreeze: true });
-    notify.success(`Streak restored: ${lostStreak} days`, 'Used 1 streak freeze. Keep it going!', { category: 'streak' });
-    onDismiss();
-    // No need to reset the ref — modal is closing and component will unmount.
+    // Confirmation before consuming a freeze — they're a real, finite resource.
+    // The audit caught users tapping this by accident and losing one with no
+    // warning.
+    Alert.alert(
+      'Use 1 streak freeze?',
+      `Restore your ${lostStreak}-day streak. You have ${freezes} freeze${freezes === 1 ? '' : 's'}.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Use freeze',
+          style: 'default',
+          onPress: async () => {
+            if (repairInFlightRef.current) return;
+            repairInFlightRef.current = true;
+            const ok = await applyStreakRepair({ useFreeze: true });
+            if (ok) {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              notify.success(`Streak restored: ${lostStreak} days`, 'Used 1 streak freeze. Keep it going!', { category: 'streak' });
+            } else {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+              notify.warning('Repair window expired', "We couldn't restore the streak — start a fresh one!", { category: 'streak' });
+            }
+            onDismiss();
+          },
+        },
+      ],
+    );
   };
 
   const payWith = async (currency: 'SOL' | 'SKR') => {
     if (repairInFlightRef.current) return;
     if (!authToken) {
       notify.warning('Wallet disconnected', 'Reconnect your wallet to repair the streak.');
+      return;
+    }
+    // CRITICAL pre-check: never charge real SOL/SKR for a repair we can't
+    // apply. If the repair window expired between the modal opening and the
+    // user tapping pay, or the broken-streak state was cleared elsewhere,
+    // abort BEFORE the transfer. Previously we'd take the user's money and
+    // then silently no-op the local repair.
+    if (!lostStreak || lostStreak < 1 || Date.now() - streakBrokenAt > getStreakRepairWindowMs(lostStreak)) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      notify.warning('Repair window expired', "We can't restore this streak anymore — start a fresh one!", { category: 'streak' });
+      onDismiss();
       return;
     }
     const cost = currency === 'SOL' ? REPAIR_COST_SOL : REPAIR_COST_SKR;
@@ -65,17 +98,54 @@ export function StreakRepairModal({ visible, onDismiss }: { visible: boolean; on
       return;
     }
 
+    // Confirm before charging real money. The audit caught users hitting Pay
+    // by accident and seeing real SOL leave their wallet with no second-tap
+    // safety net.
+    const confirmed = await new Promise<boolean>((resolve) => {
+      Alert.alert(
+        `Pay ${cost} ${currency}?`,
+        `This will charge ${cost} ${currency}${currency === 'SOL' ? ' + a small network fee' : ''} to restore your ${lostStreak}-day streak.`,
+        [
+          { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+          { text: `Pay ${cost} ${currency}`, style: 'destructive', onPress: () => resolve(true) },
+        ],
+        { cancelable: true, onDismiss: () => resolve(false) },
+      );
+    });
+    if (!confirmed) return;
+
     repairInFlightRef.current = true;
     setMode('paying');
     try {
+      let applied: boolean;
       if (currency === 'SOL') {
         await transferSOL(authToken, SHOP_TREASURY, REPAIR_COST_SOL, `oracle-pet:streak-repair`);
-        applyStreakRepair({ cost_sol: REPAIR_COST_SOL });
+        applied = await applyStreakRepair({ cost_sol: REPAIR_COST_SOL });
         await refreshBalance().catch(() => {});
       } else {
         await transferSkr(authToken, SHOP_TREASURY, REPAIR_COST_SKR, `oracle-pet:streak-repair`);
-        applyStreakRepair({ cost_skr: REPAIR_COST_SKR });
+        applied = await applyStreakRepair({ cost_skr: REPAIR_COST_SKR });
         await refreshSkrBalance().catch(() => {});
+      }
+      if (!applied) {
+        // The pre-check passed but the apply failed — race (state cleared
+        // mid-tx) or window crossed during the wallet prompt. User has paid
+        // on-chain. Surface this loudly + capture to analytics so we can
+        // help them manually if it ever happens. The on-chain memo we wrote
+        // (`oracle-pet:streak-repair`) is the audit trail.
+        captureError(new Error('applyStreakRepair returned false after on-chain payment'), {
+          surface: 'streak_repair_race',
+          currency,
+          lost_streak: lostStreak,
+        });
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        notify.warning(
+          'Payment landed — streak not restored',
+          'The repair window closed during the transfer. Your ' + currency + ' was sent; reach out and we will help.',
+          { category: 'streak' },
+        );
+        onDismiss();
+        return;
       }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       notify.success(
@@ -170,6 +240,9 @@ export function StreakRepairModal({ visible, onDismiss }: { visible: boolean; on
                 end={{ x: 1, y: 0 }}
                 style={{ paddingVertical: 14, borderRadius: 16, alignItems: 'center' }}
               >
+                <Text style={{ color: '#fff', fontSize: 10, letterSpacing: 1.6, fontFamily: petTypography.strong, marginBottom: 2 }}>
+                  FREE · RECOMMENDED
+                </Text>
                 <Text style={{ color: '#fff', fontSize: 14, fontFamily: petTypography.strong, letterSpacing: 0.8 }}>
                   Use Streak Freeze ({freezes} left)
                 </Text>

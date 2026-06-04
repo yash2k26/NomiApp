@@ -21,7 +21,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
  */
 
 export type TxKind = 'mint' | 'premium' | 'shop' | 'spin' | 'care' | 'streak-repair' | 'other';
-export type TxStatus = 'pending' | 'confirmed' | 'failed';
+// 'finalized' means the tx has reached commitment=finalized (≥32 blocks deep,
+// reorg-impossible). The chain-confirmation path returns at `confirmed`; a
+// background poll can later promote `confirmed` → `finalized`. UI surfaces a
+// subtle finalized indicator for the technical user without making casual
+// users wait. Failures during finalization promotion don't downgrade the
+// row — `confirmed` is already final-enough for casual UX.
+export type TxStatus = 'pending' | 'confirmed' | 'finalized' | 'failed';
 
 export interface PendingTxEntry {
   id: string;
@@ -47,6 +53,10 @@ interface PendingTxState {
   entries: PendingTxEntry[];
   addEntry: (input: { kind: TxKind; label: string; amountDisplay?: string; signature?: string; status?: TxStatus }) => string;
   updateEntry: (id: string, patch: Partial<Pick<PendingTxEntry, 'signature' | 'status' | 'failureMessage' | 'amountDisplay' | 'label'>>) => void;
+  /** Promote the matching tx (by signature) to `finalized`. No-op if not
+   *  found or already failed. Used by the fire-and-forget awaitFinalizedRaw
+   *  poll after the chain reaches finalized commitment (~13s on mainnet). */
+  promoteToFinalized: (signature: string) => void;
   removeEntry: (id: string) => void;
   clearAll: () => void;
   hydrate: () => Promise<void>;
@@ -86,6 +96,20 @@ export const usePendingTxStore = create<PendingTxState>((set, get) => ({
 
   updateEntry: (id, patch) => {
     const next = get().entries.map((e) => (e.id === id ? { ...e, ...patch, updatedAt: Date.now() } : e));
+    set({ entries: next });
+    save(next);
+  },
+
+  promoteToFinalized: (signature) => {
+    if (!signature) return;
+    const next = get().entries.map((e) => {
+      // Only promote successful confirmations. Don't accidentally flip a
+      // 'failed' row to 'finalized' if a slow status response arrives late.
+      if (e.signature === signature && e.status === 'confirmed') {
+        return { ...e, status: 'finalized' as TxStatus, updatedAt: Date.now() };
+      }
+      return e;
+    });
     set({ entries: next });
     save(next);
   },

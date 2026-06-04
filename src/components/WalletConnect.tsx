@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, Linking, Image, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useWalletStore } from '../store/walletStore';
@@ -12,6 +13,16 @@ const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 export function WalletConnect() {
   const { connectWallet, isConnecting, error } = useWalletStore();
 
+  // Show a "still waiting" hint after 8 seconds so the user knows the app
+  // hasn't frozen — and a Cancel link they can use to escape a hung
+  // Phantom approval without force-quitting NomiApp.
+  const [showStillWaiting, setShowStillWaiting] = useState(false);
+  useEffect(() => {
+    if (!isConnecting) { setShowStillWaiting(false); return; }
+    const t = setTimeout(() => setShowStillWaiting(true), 8_000);
+    return () => clearTimeout(t);
+  }, [isConnecting]);
+
   // Reusable: lets the user retry after errors AND get help when stuck.
   // Previously a "no wallet found" error was a dead-end if Phantom was
   // installed afterwards — they had to force-close. Now connectWallet is
@@ -19,6 +30,25 @@ export function WalletConnect() {
   const retry = () => {
     if (isConnecting) return;
     connectWallet();
+  };
+  const cancelConnect = () => {
+    // Soft cancel: flip the local isConnecting state by calling the store's
+    // setter pattern. The walletStore doesn't expose a direct cancel, but
+    // setting an error message clears isConnecting in connectWallet's catch.
+    // Simplest cross-store approach: re-run hydrateWallet which resets state.
+    try {
+      const ws = useWalletStore.getState() as any;
+      // Manually reset isConnecting so the spinner clears even if the
+      // pending MWA transaction is still resolving in the background. The
+      // background promise's .then/.catch will be a no-op against the new
+      // state because connectWallet uses the store's own isConnecting flag
+      // internally only at start, not as a tx-cancel signal.
+      if (typeof ws.cancelConnect === 'function') {
+        ws.cancelConnect();
+      } else {
+        useWalletStore.setState({ isConnecting: false, error: 'Cancelled. Tap to try again whenever you\'re ready.' });
+      }
+    } catch {}
   };
   const openHelp = () => {
     Linking.openURL('mailto:team@talkamore.com?subject=Nomi%20wallet%20connect%20help').catch(() => {});
@@ -169,14 +199,21 @@ export function WalletConnect() {
             }}
           >
             {isConnecting ? (
-              <View className="flex-row items-center">
-                <ActivityIndicator color="#3A8BB5" size="small" />
-                <Text
-                  className="text-[#3A8BB5] text-[16px] ml-2.5 uppercase tracking-[1px]"
-                  style={{ fontFamily: petTypography.strong }}
-                >
-                  Connecting...
-                </Text>
+              <View className="items-center">
+                <View className="flex-row items-center">
+                  <ActivityIndicator color="#3A8BB5" size="small" />
+                  <Text
+                    className="text-[#3A8BB5] text-[16px] ml-2.5 uppercase tracking-[1px]"
+                    style={{ fontFamily: petTypography.strong }}
+                  >
+                    Connecting...
+                  </Text>
+                </View>
+                {showStillWaiting && (
+                  <Text className="text-[10px] text-gray-500 mt-1.5">
+                    Make sure your wallet app is open.
+                  </Text>
+                )}
               </View>
             ) : (
               <Text
@@ -188,6 +225,14 @@ export function WalletConnect() {
             )}
           </View>
         </TouchableOpacity>
+
+        {showStillWaiting && isConnecting && (
+          <TouchableOpacity onPress={cancelConnect} activeOpacity={0.6} className="mt-3 items-center" hitSlop={{ top: 12, bottom: 12, left: 16, right: 16 }}>
+            <Text className="text-[12px] text-white/80 font-bold underline">
+              Cancel
+            </Text>
+          </TouchableOpacity>
+        )}
 
         {/* Fine print */}
         <Text

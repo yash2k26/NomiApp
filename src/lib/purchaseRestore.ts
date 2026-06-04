@@ -25,6 +25,11 @@ export interface RestoreResult {
    *  if no memos at all (brand new mint with no further activity). */
   earliestMemoTimestamp: number | null;
   totalFound: number;
+  /** True iff the server ledger has a `welcome-back` row for this wallet —
+   *  i.e. the legacy-user bonus was already granted at some point. Used
+   *  server-side as the authoritative idempotency check so a reinstall
+   *  whose post-bonus state-push failed can't re-grant the bonus. */
+  welcomeBackEverGranted: boolean;
 }
 
 /**
@@ -93,9 +98,16 @@ export async function restorePurchases(userAddress: string): Promise<RestoreResu
   // (or mint is missing), since premium is the paid entitlement worth the
   // extra RPC cost. Paying users whose premium was already found in the fast
   // scan skip this entirely.
+  // Gate ONLY on premium. The original `!hasPremium && !hasMint` failed m7ou
+  // (mint recent, premium deep → no scan → Pro lost). The `!hasPremium ||
+  // !hasMint` fix that followed over-triggered for legitimate premium-without-
+  // mint users on heavy wallets (full 6000-sig scan every reconnect).
+  // `!hasPremium` covers the real failure mode (paid premium that didn't
+  // appear in the fast window) without penalizing users who already have
+  // their premium in fast-scan range. Mint-recovery is still covered by the
+  // holdings-scan fallback in `restorePurchases` further below.
   const hasPremium = purchases.some((p) => p.type === 'premium');
-  const hasMint = purchases.some((p) => p.type === 'mint');
-  if (!hasPremium || !hasMint) {
+  if (!hasPremium) {
     try {
       // No stopWhenFound: when a deep rescue is warranted we scan the full
       // window and collect EVERY oracle-pet memo. Shop-item purchases also
@@ -133,6 +145,32 @@ export async function restorePurchases(userAddress: string): Promise<RestoreResu
     // lastConnectedWallet is updated and a future swap correctly detects
     // the wallet change.
     useShopStore.getState().restoreFromChain([], userAddress);
+  }
+
+  // Streak-freeze recovery from chain memos. Freezes are consumable — they
+  // don't carry an `owned` flag — so they were previously lost on reinstall
+  // even though the chain memos prove the user paid for them. We can't
+  // perfectly reconstruct "how many were left when you stopped playing"
+  // from chain alone (the consumption isn't on-chain), but we CAN
+  // conservatively grant the lifetime purchase count when local state is
+  // clearly fresh (current count == 0). Subsequent reconnects from the
+  // same wallet keep the local count (no re-grant).
+  try {
+    const freezeMemos = shopPurchases.filter((p) => p.itemId === 'streak-freeze');
+    const freezePurchaseCount = freezeMemos.length;
+    const petState = usePetStore.getState();
+    if (freezePurchaseCount > 0 && petState.streakFreezes === 0) {
+      // Cap the grant at a sensible value (10) — wallets with dozens of
+      // freeze memos likely used most of them between reinstalls; granting
+      // 50 freezes at once would be the wrong correction.
+      const grant = Math.min(freezePurchaseCount, 10);
+      const { savePetState } = require('../store/petStore');
+      usePetStore.setState({ streakFreezes: grant });
+      await savePetState(usePetStore.getState());
+      console.log(`[purchaseRestore] streak-freezes restored from chain memos: ${grant} (of ${freezePurchaseCount} lifetime purchases)`);
+    }
+  } catch (err) {
+    console.warn('[purchaseRestore] streak-freeze chain restore failed (non-fatal):', err);
   }
 
   // Determine highest premium tier. The new memo format is
@@ -279,5 +317,11 @@ export async function restorePurchases(userAddress: string): Promise<RestoreResu
     petRestoredFromHoldings,
     earliestMemoTimestamp,
     totalFound: purchases.length,
+    // Ledger has the authoritative idempotency record. If the welcome-back
+    // bonus was ever granted, a row with kind='welcome-back' is present.
+    // `ledger` could be null (worker unreachable) — in that case we DON'T
+    // claim it was granted (eligibility downstream will additionally check
+    // the local `welcomeBackBonusAppliedAt`).
+    welcomeBackEverGranted: (ledger ?? []).some((row) => row.kind === 'welcome-back'),
   };
 }

@@ -1,4 +1,4 @@
-import { ComputeBudgetProgram, Keypair, LAMPORTS_PER_SOL, PublicKey, Transaction, SystemProgram } from '@solana/web3.js';
+import { ComputeBudgetProgram, Keypair, LAMPORTS_PER_SOL, PublicKey, Transaction, SystemProgram, TransactionInstruction } from '@solana/web3.js';
 import {
   MINT_SIZE,
   TOKEN_PROGRAM_ID,
@@ -13,11 +13,23 @@ import {
   PROGRAM_ID as TOKEN_METADATA_PROGRAM_ID,
 } from '@metaplex-foundation/mpl-token-metadata';
 import { getLatestBlockhash, getMinimumBalanceForRentExemption, sendTransaction, confirmTransaction } from './solanaSdk';
-import { SHOP_TREASURY, getPriorityFeeMicroLamports } from './solanaClient';
+import { SHOP_TREASURY, getPriorityFeeMicroLamports, simulateTransactionRaw } from './solanaClient';
 import { withWallet } from './mobileWalletAdapter';
 
-export const NFT_METADATA_URI = 'https://raw.githubusercontent.com/yash2k26/NomiApp/main/assets/nft-metadata.json';
+// Metadata URI is env-overridable so production mints can point at Arweave /
+// IPFS (decentralized + permanent) instead of the GitHub default which is a
+// single point of failure for "Unknown NFT" display in wallets if github.com
+// is down or rate-limits.
+export const NFT_METADATA_URI =
+  process.env.EXPO_PUBLIC_NFT_METADATA_URI ||
+  'https://raw.githubusercontent.com/yash2k26/NomiApp/main/assets/nft-metadata.json';
 export const NFT_SYMBOL = 'OPET';
+// Optional verified-collection support. When this env is set, every new mint
+// declares `collection: { key, verified: false }` in its metadata so wallets
+// group it; the collection's update authority can then run verify_collection
+// in a follow-up tx to flip verified=true.
+const NFT_COLLECTION_MINT = process.env.EXPO_PUBLIC_NFT_COLLECTION_MINT || '';
+const MEMO_PROGRAM_ID = new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
 
 // Mint price paid by the user to the project treasury (in SOL).
 // On-chain rent + network fees are additional (~0.01 SOL).
@@ -119,6 +131,11 @@ export async function mintPetNFT(
     tx.add(createMintToInstruction(mintPubkey, tokenAccount, payer, 1));
 
     // 5. Create metadata
+    // URI cap dropped 200 → 150 to leave more headroom under the 1232-byte
+    // legacy-tx limit now that the mint memo is part of the same tx.
+    const collection = NFT_COLLECTION_MINT
+      ? { key: new PublicKey(NFT_COLLECTION_MINT), verified: false }
+      : null;
     tx.add(createCreateMetadataAccountV3Instruction(
       { metadata: metadataPda, mint: mintPubkey, mintAuthority: payer, payer, updateAuthority: payer },
       {
@@ -126,10 +143,10 @@ export async function mintPetNFT(
           data: {
             name: petName.slice(0, 32),
             symbol: NFT_SYMBOL,
-            uri: metadataUri.slice(0, 200),
+            uri: metadataUri.slice(0, 150),
             sellerFeeBasisPoints: 0,
             creators: null,
-            collection: null,
+            collection,
             uses: null,
           },
           isMutable: true,
@@ -144,6 +161,24 @@ export async function mintPetNFT(
       { createMasterEditionArgs: { maxSupply: 0 } },
     ));
 
+    // 7. oracle-pet:mint memo — folded INTO the mint tx so it's atomic with
+    // the mint (no second wallet prompt, no orphan-memo case if the user
+    // denies the second sign). Restore reads { mintAddress, name, ownerName }
+    // from the JSON payload; txSignature isn't included because we can't know
+    // it pre-sign, and restore falls back to the signature of the memo-
+    // containing tx, which IS this same mint tx.
+    const ownerName = (attributes?.ownerName ?? '').slice(0, 32);
+    const memoPayload = JSON.stringify({
+      mintAddress: mintPubkey.toBase58(),
+      name: petName.slice(0, 32),
+      ownerName,
+    });
+    tx.add(new TransactionInstruction({
+      keys: [{ pubkey: payer, isSigner: true, isWritable: false }],
+      programId: MEMO_PROGRAM_ID,
+      data: Buffer.from(`oracle-pet:mint|${memoPayload}`, 'utf-8'),
+    }));
+
     tx.feePayer = payer;
     // Refetch blockhash RIGHT before signing so the validity window is
     // maximally fresh when the wallet hands the signed tx back.
@@ -155,6 +190,11 @@ export async function mintPetNFT(
 
     console.log('[nftMint] tx size:', tx.serialize({ requireAllSignatures: false, verifySignatures: false }).length, 'bytes');
     console.log('[nftMint] Signing with wallet (blockhash:', blockhash.slice(0, 12), '...)');
+
+    // Simulate BEFORE the wallet prompt — catches doomed mints (rent
+    // shortfall, blockhash already too old, account ownership wrong, etc.)
+    // before we ask the user to sign and burn gas on a guaranteed failure.
+    await simulateTransactionRaw(tx);
 
     const signedTxs = await wallet.signTransactions({ transactions: [tx] });
     const serialized = signedTxs[0].serialize();
@@ -172,6 +212,17 @@ export async function mintPetNFT(
   console.log('[nftMint] Confirming...');
   await confirmTransaction(txSig, blockhash, lastValidBlockHeight);
   console.log('[nftMint] ========== mintPetNFT SUCCESS ==========');
+
+  // Fire-and-forget: also await finalization so the audit log can confirm
+  // there was no reorg-rollback of the mint. UI doesn't wait.
+  try {
+    const { awaitFinalizedRaw } = require('./solanaClient');
+    awaitFinalizedRaw(txSig).then(() => {
+      console.log('[nftMint] finalized:', txSig);
+    }).catch((e: any) => {
+      console.warn('[nftMint] mint did not finalize within timeout:', e?.message);
+    });
+  } catch {}
 
   return {
     mintAddress: mintPubkey.toBase58(),

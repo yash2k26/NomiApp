@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Modal, Animated, Easing, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, Modal, Animated, Easing, Dimensions, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { useAdventureStore, SPIN_SEGMENTS, type SpinResult } from '../store/adventureStore';
@@ -479,6 +479,24 @@ export function SpinWheel() {
       if (!authToken) {
         inFlightRef.current = false;
         setShowFundsModal(true);
+        return;
+      }
+      // Confirm before charging real SOL — the audit caught users tapping
+      // Spin expecting it to still be free (their daily free spin already
+      // used) and getting charged with no second-tap safety.
+      const confirmed = await new Promise<boolean>((resolve) => {
+        Alert.alert(
+          `Pay ${PAID_SPIN_COST} SOL for an extra spin?`,
+          `Your free spin is used up for today. This will charge ${PAID_SPIN_COST} SOL + a small network fee.`,
+          [
+            { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+            { text: `Pay ${PAID_SPIN_COST} SOL`, style: 'destructive', onPress: () => resolve(true) },
+          ],
+          { cancelable: true, onDismiss: () => resolve(false) },
+        );
+      });
+      if (!confirmed) {
+        inFlightRef.current = false;
         return;
       }
       setPaying(true);

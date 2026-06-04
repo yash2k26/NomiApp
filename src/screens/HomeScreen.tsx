@@ -183,12 +183,19 @@ function StreakCalendarModal({
   visible,
   onClose,
   streakDays,
+  lastActiveDate,
 }: {
   visible: boolean;
   onClose: () => void;
   streakDays: number;
+  lastActiveDate: string;
 }) {
   const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  // If lastActiveDate isn't today, the user hasn't earned today yet — don't
+  // paint today's cell as completed. Previously today was always highlighted
+  // even before any action was taken, which confused users.
+  const earnedToday = lastActiveDate === todayStr;
   const month = today.toLocaleString('default', { month: 'long' });
   const year = today.getFullYear();
   const first = new Date(year, today.getMonth(), 1);
@@ -196,13 +203,18 @@ function StreakCalendarModal({
   const daysInMonth = new Date(year, today.getMonth() + 1, 0).getDate();
   const highlighted = new Set<number>();
 
-  for (let i = 0; i < streakDays; i++) {
+  // Start `i` at 0 if today is earned, 1 if not — so the loop walks backward
+  // from yesterday when today hasn't been completed yet.
+  const startOffset = earnedToday ? 0 : 1;
+  for (let i = startOffset; i < streakDays + startOffset; i++) {
     const d = new Date(today);
     d.setDate(today.getDate() - i);
     if (d.getMonth() === today.getMonth() && d.getFullYear() === year) {
       highlighted.add(d.getDate());
     }
   }
+  const daysInThisMonth = highlighted.size;
+  const crossesMonths = streakDays > daysInThisMonth;
 
   const cells: (number | null)[] = [];
   for (let i = 0; i < startWeekday; i++) cells.push(null);
@@ -225,9 +237,15 @@ function StreakCalendarModal({
 
           <View className="px-5 py-4">
             <Text className="text-center text-gray-800 font-black text-base mb-1">{month} {year}</Text>
-            <Text className="text-center text-gray-500 text-xs mb-4">
+            <Text className="text-center text-gray-500 text-xs mb-1">
               Current streak: <Text className="font-bold text-pet-blue-dark">{Math.max(streakDays, 0)} day{streakDays === 1 ? '' : 's'}</Text>
             </Text>
+            {crossesMonths && (
+              <Text className="text-center text-gray-400 text-[10px] mb-3">
+                {daysInThisMonth} of {streakDays} streak days fall in this month
+              </Text>
+            )}
+            {!crossesMonths && <View className="mb-3" />}
 
             <View className="flex-row justify-between mb-2">
               {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
@@ -316,8 +334,34 @@ function LoadingSplash({ done = false, onExitComplete }: { done?: boolean; onExi
         >
           Preparing Nomi's world...
         </Text>
+        {/* After 8s, reassure the user the app isn't frozen. The 3D model is
+            ~40 MB and the first parse can take 20-30s on mid-range Android.
+            Real dApp-store review (arbitrum, May 1): "app takes 1 minute to
+            load in splash screen". We can't shrink the model (gltfpack/
+            Meshopt break UVs), so the next-best fix is honest messaging. */}
+        <SplashWaitHint />
       </View>
     </Animated.View>
+  );
+}
+
+function SplashWaitHint() {
+  const [stage, setStage] = useState<0 | 1 | 2>(0);
+  useEffect(() => {
+    const t1 = setTimeout(() => setStage(1), 8_000);
+    const t2 = setTimeout(() => setStage(2), 18_000);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, []);
+  if (stage === 0) return null;
+  return (
+    <Text
+      className="text-gray-400 text-[10px] mt-2 px-8 text-center"
+      style={{ fontFamily: petTypography.body }}
+    >
+      {stage === 1
+        ? "Loading Nomi's 3D model…"
+        : "Still loading — the first launch is slow. Future opens will be much faster."}
+    </Text>
   );
 }
 
@@ -440,6 +484,9 @@ export function HomeScreen({ onNavigateGames, paused = false }: { onNavigateGame
     triggerExcitedBurst,
     streakDays,
   } = usePetStore();
+  const streakFreezes = usePetStore((s) => s.streakFreezes);
+  const lastBrokenStreak = usePetStore((s) => s.lastBrokenStreak);
+  const lastActiveDate = usePetStore((s) => s.lastActiveDate);
 
   const { equippedItemId, equippedAnimationId, items: shopItems, unequipItem } = useShopStore();
   const equippedItem = equippedItemId ? shopItems.find((i) => i.id === equippedItemId) : null;
@@ -523,10 +570,25 @@ export function HomeScreen({ onNavigateGames, paused = false }: { onNavigateGame
     // Generate initial dialogue on open
     const hoursSince = (Date.now() - usePetStore.getState().lastTickAt) / (1000 * 60 * 60);
     generateDialogue({ ...dialogueCtx(), hoursSinceLastOpen: hoursSince, isFirstOpenToday: true });
+    // Initial balance fetch — previously only ran on cold start via App.tsx,
+    // so opening the app after a wallet-external SOL transfer left the
+    // header showing the stale pre-transfer balance.
+    try {
+      const ws = require('../store/walletStore').useWalletStore.getState();
+      ws.refreshBalance?.().catch?.(() => {});
+      ws.refreshSkrBalance?.().catch?.(() => {});
+    } catch {}
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active') {
         tick();
         generateDialogue(dialogueCtx());
+        // Foreground refresh — pick up wallet-external transfers that
+        // happened while the app was backgrounded.
+        try {
+          const ws = require('../store/walletStore').useWalletStore.getState();
+          ws.refreshBalance?.().catch?.(() => {});
+          ws.refreshSkrBalance?.().catch?.(() => {});
+        } catch {}
       }
     });
     return () => sub.remove();
@@ -586,7 +648,10 @@ export function HomeScreen({ onNavigateGames, paused = false }: { onNavigateGame
   }, [equippedSkinKey, anySadStat, unequipItem]);
 
   useEffect(() => {
-    if (streakDays > prevStreakRef.current) {
+    // Only celebrate when the user actually CONTINUED a streak — not on a
+    // fresh 0→1 start. Previously this fired a "Streak Saved!" animation on
+    // every brand-new Day 1 even though there was nothing to save.
+    if (streakDays > prevStreakRef.current && prevStreakRef.current >= 1) {
       setShowParty(true);
       partyAnim.setValue(0);
       Animated.timing(partyAnim, {
@@ -739,15 +804,31 @@ export function HomeScreen({ onNavigateGames, paused = false }: { onNavigateGame
               <View className="items-center gap-2 mt-2.5 w-full">
                 <MoodBadge moodText={moodText} isExcited={isExcitedBurst} isUrgent={!!needMessage} />
                 {streakDays > 0 && (
-                  <TouchableOpacity
-                    onPress={() => setStreakVisible(true)}
-                    activeOpacity={0.9}
-                    className="flex-row items-center bg-pet-blue px-3.5 py-2 rounded-[14px] border border-pet-blue-dark/40"
-                  >
-                    <Text className="text-[11px] font-semibold text-white">
-                      {'\u{1F525}'} {streakDays > 1 ? `${streakDays} day streak` : 'Day 1'}
-                    </Text>
-                  </TouchableOpacity>
+                  <View className="flex-row items-center gap-2">
+                    <TouchableOpacity
+                      onPress={() => setStreakVisible(true)}
+                      activeOpacity={0.9}
+                      className="flex-row items-center bg-pet-blue px-3.5 py-2 rounded-[14px] border border-pet-blue-dark/40"
+                    >
+                      <Text className="text-[11px] font-semibold text-white">
+                        {'\u{1F525}'} {
+                          streakDays > 1
+                            ? `${streakDays} day streak`
+                            : lastBrokenStreak > 0
+                              ? 'Starting over · Day 1'
+                              : 'Day 1 of your streak'
+                        }
+                      </Text>
+                    </TouchableOpacity>
+                    {streakFreezes > 0 && (
+                      <View className="flex-row items-center bg-white/90 px-2.5 py-2 rounded-[14px] border border-pet-blue-dark/30">
+                        <Text className="text-[11px]">{'\u{1F9CA}'}</Text>
+                        <Text className="text-[10px] font-bold text-pet-blue-dark ml-1">
+                          {streakFreezes} protected
+                        </Text>
+                      </View>
+                    )}
+                  </View>
                 )}
               </View>
             </View>
@@ -849,7 +930,7 @@ export function HomeScreen({ onNavigateGames, paused = false }: { onNavigateGame
         onClose={() => setReflectionModalVisible(false)}
       />
       <HelpModal visible={helpVisible} onClose={() => setHelpVisible(false)} />
-      <StreakCalendarModal visible={streakVisible} onClose={() => setStreakVisible(false)} streakDays={streakDays} />
+      <StreakCalendarModal visible={streakVisible} onClose={() => setStreakVisible(false)} streakDays={streakDays} lastActiveDate={lastActiveDate} />
       <DiaryModal visible={diaryVisible} onClose={() => setDiaryVisible(false)} />
       <LevelUpModal />
 

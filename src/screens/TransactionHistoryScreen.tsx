@@ -121,6 +121,7 @@ export function TransactionHistoryScreen({ onBack }: { onBack: () => void }) {
         keyExtractor={(item) => item.signature}
         renderItem={({ item }) => <TxRow tx={item} />}
         contentContainerStyle={{ paddingBottom: 100 }}
+        keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl refreshing={isLoading} onRefresh={handleRefresh} tintColor="#3792A6" />
         }

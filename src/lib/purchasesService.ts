@@ -28,10 +28,11 @@ function getBase(): string | null {
 }
 
 function buildHeaders(): Record<string, string> {
-  const token = process.env.EXPO_PUBLIC_STATE_API_TOKEN;
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (token) headers['X-App-Token'] = token;
-  return headers;
+  // Prefer wallet-signed session headers from getApiAuthHeaders (cryptographic,
+  // can't be forged by an APK-extracted secret). Falls back internally to the
+  // legacy X-App-Token shared-secret when no session is present.
+  const { getApiAuthHeaders } = require('../store/walletStore');
+  return { 'Content-Type': 'application/json', ...getApiAuthHeaders() };
 }
 
 function fetchWithTimeout(input: string, init?: RequestInit): Promise<Response> {
@@ -40,7 +41,12 @@ function fetchWithTimeout(input: string, init?: RequestInit): Promise<Response> 
   return fetch(input, { ...init, signal: controller.signal }).finally(() => clearTimeout(id));
 }
 
-export type PurchaseKind = 'premium' | 'shop' | 'mint';
+// 'welcome-back' rows have no on-chain tx — they're a server-side
+// idempotency marker so the legacy-user bonus can't be re-applied on every
+// reinstall when the post-bonus state push had failed. signature is a
+// synthetic `welcome-back:<wallet>` so a duplicate POST is rejected by the
+// UNIQUE(wallet, signature) constraint.
+export type PurchaseKind = 'premium' | 'shop' | 'mint' | 'welcome-back';
 export type PurchaseCurrency = 'SOL' | 'SKR' | 'coins';
 
 export interface PurchaseRecord {

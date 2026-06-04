@@ -366,6 +366,13 @@ export default function App() {
     const onBackPress = () => {
       if (!hydrated) return true;
 
+      // Mid-tx safety note: when a wallet-approval modal is open (Shop
+      // WalletConfirmModal, Premium full-screen Modal, Mint 'minting' state),
+      // the back press goes to the modal layer first — React Native Modal
+      // intercepts onRequestClose. Each modal now has an explicit Cancel
+      // button + auto-dismiss watchdog (60-90s) so a back-press dismiss
+      // doesn't strand the user with an invisible pending tx.
+
       // Wallet flow: go back from wallet connect to intro page.
       if (!connected && !showWelcomeIntro) {
         setShowWelcomeIntro(true);
@@ -583,7 +590,11 @@ export default function App() {
           const isLegacyUser = earliestMemoAge > 24 * 60 * 60 * 1000;
           const eligible =
             pet.welcomeBackBonusAppliedAt === 0
-            && isLegacyUser;
+            && isLegacyUser
+            // Server-side idempotency: if the ledger already has a
+            // welcome-back row for this wallet, we granted the bonus in a
+            // previous install and just lost the local marker. Don't re-grant.
+            && !result.welcomeBackEverGranted;
           if (eligible) {
             console.log('[App] welcome-back bonus eligible — legacy user detected');
             const bonus = computeLegacyBonus({
@@ -654,9 +665,28 @@ export default function App() {
             setLegacyBonus(bonus);
             setWelcomeBackVisible(true);
 
-            // Push the bonus to cloud immediately so subsequent reinstalls
-            // restore the granted level/streak/coins from backend, not from
-            // the empty welcome-back-eligibility path again.
+            // Record on the ledger as the AUTHORITATIVE idempotency marker.
+            // Synthetic signature `welcome-back:<wallet>` + UNIQUE(wallet,
+            // signature) means a duplicate POST (e.g. a retry) collapses to
+            // one row. Awaited so a transient network failure surfaces as
+            // an analytics event rather than silently leaving cloud unaware.
+            try {
+              const { confirmPurchase } = require('./src/lib/purchasesService');
+              await confirmPurchase({
+                wallet: walletAddress,
+                kind: 'welcome-back',
+                payload: JSON.stringify({ level: bonus.level, coins: bonus.coins, freezes: bonus.freezes, freeItems: bonus.freeItems, streak: bonus.streak }),
+                signature: `welcome-back:${walletAddress}`,
+                currency: 'coins',
+                amount: bonus.coins,
+              });
+            } catch (err: any) {
+              console.warn('[App] welcome-back ledger write failed (non-fatal — pushState below also records):', err?.message);
+              captureError(err, { surface: 'welcome_back_ledger' });
+            }
+
+            // Also push the full state for backup (existing path). If this
+            // fails the ledger row above is still the idempotency truth.
             pushState(walletAddress, { bypassDebounce: true }).catch(() => {});
           }
         }
@@ -958,14 +988,14 @@ export default function App() {
             <StreakRepairModal
               visible={streakRepairVisible && !(welcomeBackVisible && legacyBonus !== null)}
               onDismiss={() => {
+                // Soft dismiss — just hide for this session. The
+                // streakRepairShownThisSession ref above prevents re-popping
+                // (which was the JG bug), so we do NOT clear the broken-streak
+                // state here. The offer persists across sessions until either
+                // (a) the user explicitly taps "No thanks, start over" inside
+                // the modal (handled by the modal calling dismissStreakRepair)
+                // or (b) the repair window naturally expires.
                 setStreakRepairVisible(false);
-                // Clear the broken-streak state on ANY dismiss path (outside
-                // tap, back press, anywhere). Previously only the explicit
-                // "No thanks, start over" button cleared it — so closing the
-                // modal any other way left lastBrokenStreak/streakBrokenAt set
-                // and the trigger re-fired on every app open (JG: "popup
-                // happens every time I open the app").
-                try { usePetStore.getState().dismissStreakRepair(); } catch {}
               }}
             />
             <WelcomeBackModal

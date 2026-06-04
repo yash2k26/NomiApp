@@ -22,6 +22,7 @@ import {
   getPriorityFeeMicroLamports,
   sendRawTransactionRaw,
   confirmTransactionRaw,
+  simulateTransactionRaw,
 } from './solanaClient';
 import { withWallet } from './mobileWalletAdapter';
 
@@ -168,6 +169,7 @@ export async function claimTestSkr(authToken: string): Promise<string> {
       tx.recentBlockhash = blockhash;
       tx.partialSign(mintKeypair);
 
+      await simulateTransactionRaw(tx);
       const signedTxs = await wallet.signTransactions({ transactions: [tx] });
       const sig = await sendRawTransactionRaw(signedTxs[0].serialize());
 
@@ -207,6 +209,7 @@ export async function claimTestSkr(authToken: string): Promise<string> {
     tx.feePayer = payer;
     tx.recentBlockhash = blockhash;
 
+    await simulateTransactionRaw(tx);
     const signedTxs = await wallet.signTransactions({ transactions: [tx] });
     const sig = await sendRawTransactionRaw(signedTxs[0].serialize());
 
@@ -271,6 +274,7 @@ export async function transferSkr(
     const { blockhash, lastValidBlockHeight } = await getLatestBlockhashRaw();
     tx.recentBlockhash = blockhash;
 
+    await simulateTransactionRaw(tx);
     const signedTxs = await wallet.signTransactions({ transactions: [tx] });
     const sig = await sendRawTransactionRaw(signedTxs[0].serialize());
 
